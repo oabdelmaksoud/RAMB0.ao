@@ -1,8 +1,9 @@
-import { Bot } from 'lucide-react';
+
+import { Zap } from 'lucide-react'; // Changed from Bot to Zap
 import type { LucideProps } from 'lucide-react';
 
 const Logo = (props: LucideProps) => {
-  return <Bot {...props} />;
+  return <Zap {...props} />; // Changed from Bot to Zap
 };
 
 export default Logo;

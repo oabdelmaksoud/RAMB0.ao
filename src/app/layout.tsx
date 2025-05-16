@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
@@ -29,7 +30,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'AgentFlow - Project Management Platform',
+  title: 'RamBo Agent - Project Management Platform',
   description: 'Automate and manage your projects with intelligent agents.',
 };
 
@@ -46,7 +47,7 @@ export default function RootLayout({
             <SidebarHeader className="p-4 flex items-center gap-3 border-b">
               <Link href="/" className="flex items-center gap-3">
                 <Logo className="h-8 w-8 text-primary" />
-                <h1 className="text-2xl font-bold text-foreground">AgentFlow</h1>
+                <h1 className="text-2xl font-bold text-foreground">RamBo Agent</h1>
               </Link>
             </SidebarHeader>
             <SidebarContent className="p-2">
