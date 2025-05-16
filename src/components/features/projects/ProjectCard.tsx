@@ -3,17 +3,18 @@
 
 import type { Project } from '@/types';
 import Image from 'next/image';
-import Link from 'next/link'; // Import Link
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Bot, Workflow, CalendarDays } from 'lucide-react';
+import { ArrowRight, Bot, Workflow, CalendarDays, Trash2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
 interface ProjectCardProps {
   project: Project;
+  onDeleteProject: (project: Project) => void;
 }
 
 const statusColors: { [key in Project['status']]: string } = {
@@ -23,7 +24,7 @@ const statusColors: { [key in Project['status']]: string } = {
   Archived: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
 
-export default function ProjectCard({ project }: ProjectCardProps) {
+export default function ProjectCard({ project, onDeleteProject }: ProjectCardProps) {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -35,12 +36,14 @@ export default function ProjectCard({ project }: ProjectCardProps) {
       return 'Loading date...'; 
     }
     try {
-      if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(dateString)) {
+      // Check if dateString is already just a relative time string or invalid
+      if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString)) {
         return dateString;
       }
       return format(parseISO(dateString), "MMM d, yyyy");
     } catch (error) {
-      return dateString; 
+      // console.error("Error formatting date:", dateString, error);
+      return dateString; // Fallback if date is not ISO or already formatted
     }
   };
 
@@ -74,13 +77,13 @@ export default function ProjectCard({ project }: ProjectCardProps) {
           Last Updated: {formatDate(project.lastUpdated)}
         </div>
         <div className="flex gap-4">
-          {project.agentCount !== undefined && (
+          {(project.agentCount !== undefined && project.agentCount > 0) && (
             <div className="flex items-center text-sm">
               <Bot className="h-4 w-4 mr-1.5 text-primary" />
               <span>{project.agentCount} Agent{project.agentCount === 1 ? '' : 's'}</span>
             </div>
           )}
-          {project.workflowCount !== undefined && (
+          {(project.workflowCount !== undefined && project.workflowCount > 0) && (
             <div className="flex items-center text-sm">
               <Workflow className="h-4 w-4 mr-1.5 text-primary" />
               <span>{project.workflowCount} Workflow{project.workflowCount === 1 ? '' : 's'}</span>
@@ -88,14 +91,29 @@ export default function ProjectCard({ project }: ProjectCardProps) {
           )}
         </div>
       </CardContent>
-      <CardFooter>
-        <Button variant="outline" size="sm" className="w-full" asChild>
-          <Link href={`/projects/${project.id}`}> {/* Updated Link */}
+      <CardFooter className="flex gap-2">
+        <Button variant="outline" size="sm" className="flex-1" asChild>
+          <Link href={`/projects/${project.id}`}>
             View Project
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
+        </Button>
+        <Button 
+            variant="destructive" 
+            size="icon" 
+            className="h-9 w-9 shrink-0" 
+            onClick={(e) => {
+                e.stopPropagation(); // Prevent card click or link navigation
+                onDeleteProject(project);
+            }}
+            title="Delete Project"
+        >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete Project</span>
         </Button>
       </CardFooter>
     </Card>
   );
 }
+
+    
