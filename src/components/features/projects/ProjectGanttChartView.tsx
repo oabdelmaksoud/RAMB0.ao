@@ -65,60 +65,49 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
   const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
 
   const processedTasks = useMemo(() => {
-    // console.log("[ProjectGanttChartView] Input 'tasks' prop (IDs):", tasks.map(t => t.id + '(' + t.title.substring(0,5) + ')'));
+    // console.log("[GanttChartView] Input 'tasks' prop (IDs & order):", tasks.map(t => t.id));
     type TaskWithHierarchy = Task & { children: TaskWithHierarchy[]; level: number; isParent: boolean };
+    
     const taskMap = new Map<string, TaskWithHierarchy>();
-
-    const tasksCopyForProcessing = tasks.map(t => ({
-        ...t,
-        children: [] as TaskWithHierarchy[],
-        level: 0,
-        isParent: false
-    }));
-
-    tasksCopyForProcessing.forEach(task => taskMap.set(task.id, task as TaskWithHierarchy));
+    tasks.forEach(task => taskMap.set(task.id, { ...task, children: [], level: 0, isParent: false }));
 
     const rootTasks: TaskWithHierarchy[] = [];
-    tasksCopyForProcessing.forEach(task => {
-      const currentTask = taskMap.get(task.id)!;
-      if (task.parentId && taskMap.has(task.parentId)) {
-        const parent = taskMap.get(task.parentId)!;
-        parent.children.push(currentTask);
-        parent.isParent = true;
-      } else {
-        rootTasks.push(currentTask);
-      }
-    });
-
-    const orderedRootTasks = [...rootTasks].sort((a, b) => {
-        const indexA = tasks.findIndex(t => t.id === a.id);
-        const indexB = tasks.findIndex(t => t.id === b.id);
-        return indexA - indexB;
-    });
-
-    taskMap.forEach(taskNode => {
-        if (taskNode.children.length > 0) { // Only sort if children exist
-            taskNode.children.sort((a, b) => {
-                const indexA = tasks.findIndex(t => t.id === a.id);
-                const indexB = tasks.findIndex(t => t.id === b.id);
-                return indexA - indexB;
-            });
+    tasks.forEach(task => {
+        const currentTaskNode = taskMap.get(task.id)!;
+        if (task.parentId && taskMap.has(task.parentId)) {
+            const parentNode = taskMap.get(task.parentId)!;
+            parentNode.children.push(currentTaskNode);
+            parentNode.isParent = true; 
+        } else {
+            rootTasks.push(currentTaskNode);
         }
     });
+    
+    // The rootTasks are already in the desired order from the `tasks` prop
+    // Children will also be in the desired order if `tasks` prop is globally sorted correctly
+    // For explicit child sorting if needed:
+    // taskMap.forEach(node => {
+    //     if (node.isParent) {
+    //         node.children.sort((a, b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
+    //     }
+    // });
 
-    const flattenTasks = (tasksToFlatten: TaskWithHierarchy[], level: number): (Task & { level: number; isParent: boolean })[] => {
+
+    const flattenTasks = (tasksToFlatten: TaskWithHierarchy[], currentLevel: number): (Task & { level: number; isParent: boolean })[] => {
       let result: (Task & { level: number; isParent: boolean })[] = [];
-      for (const task of tasksToFlatten) {
-        result.push({ ...task, level, isParent: task.children.length > 0 });
-        if (task.children && task.children.length > 0) {
-          result = result.concat(flattenTasks(task.children, level + 1));
+      for (const taskNode of tasksToFlatten) {
+        result.push({ ...taskNode, level: currentLevel, isParent: taskNode.isParent });
+        if (taskNode.children.length > 0) {
+           // Recursively flatten children, ensuring they are processed in their existing order
+           const sortedChildren = taskNode.children.sort((a,b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
+           result = result.concat(flattenTasks(sortedChildren, currentLevel + 1));
         }
       }
       return result;
     };
 
-    const finalFlattenedTasks = flattenTasks(orderedRootTasks, 0);
-    // console.log("[ProjectGanttChartView] Finished calculating processedTasks. Output 'processedTasks' (IDs & isParent):", finalFlattenedTasks.map(t => ({id: t.id, title: t.title.substring(0,5), isParent: t.isParent, level: t.level })));
+    const finalFlattenedTasks = flattenTasks(rootTasks, 0);
+    // console.log("[GanttChartView] Output 'processedTasks' (IDs, order, level):", finalFlattenedTasks.map(t => ({id: t.id, title: t.title.substring(0,5), level: t.level, isParent: t.isParent })));
     return finalFlattenedTasks;
   }, [tasks]);
 
@@ -586,7 +575,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                 {/* Task Bar/Milestone on Timeline Part */}
                 {task.startDate && (
                   <div
-                    key={`bar-${task.id}`} // Added explicit key here
+                    key={`bar-${task.id}`} 
                     onMouseDown={(e) => task.isMilestone ? null : handleTaskBarMouseDown(e, task)}
                     title={getTaskTooltip(task)}
                     className={cn(

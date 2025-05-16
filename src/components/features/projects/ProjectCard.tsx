@@ -56,6 +56,7 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
               src={project.thumbnailUrl}
               alt={`${project.name} thumbnail`}
               fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" // Added sizes prop
               style={{ objectFit: 'cover' }}
               data-ai-hint="project abstract" 
             />
@@ -115,5 +116,4 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
     </Card>
   );
 }
-
     
