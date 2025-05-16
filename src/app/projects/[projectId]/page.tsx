@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types';
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types'; // Added WorkflowNode
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -399,18 +399,24 @@ export default function ProjectDetailPage() {
   };
 
   const handleCloseWorkflowDesigner = () => {
-    // Nodes are saved via onNodesChange callback from WorkflowCanvas
     toast({ title: "Workflow Design Closed", description: `Stopped designing workflow: "${designingWorkflow?.name}". Changes are saved automatically.`});
     setDesigningWorkflow(null);
   };
 
   const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
+    console.log('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called with updatedNodes length:', updatedNodes.length, 'IDs:', updatedNodes.map(n => n.id).join(', '));
     if (designingWorkflow) {
-      setProjectWorkflows(prevWorkflows =>
-        prevWorkflows.map(wf =>
+      console.log('PROJECT_DETAIL_PAGE: Updating designingWorkflow ID:', designingWorkflow.id);
+      setProjectWorkflows(prevWorkflows => {
+        const newWorkflows = prevWorkflows.map(wf =>
           wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
-        )
-      );
+        );
+        const targetWf = newWorkflows.find(wf => wf.id === designingWorkflow.id);
+        console.log('PROJECT_DETAIL_PAGE: New projectWorkflows state set. Target workflow nodes (IDs):', targetWf?.nodes?.map(n => n.id).join(', '));
+        return newWorkflows;
+      });
+    } else {
+      console.warn('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but designingWorkflow is null.');
     }
   };
 

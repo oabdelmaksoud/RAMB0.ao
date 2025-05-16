@@ -6,7 +6,6 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDashed, Hand, X as XIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { WorkflowNode } from '@/types';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
 const agentIcons: { [key: string]: LucideIcon } = {
@@ -24,6 +23,7 @@ interface WorkflowCanvasProps {
 
 export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  console.log('CANVAS: Rendered or re-rendered. Received nodes prop with length:', nodes.length, 'IDs:', nodes.map(n => n.id).join(', '));
   console.count('CANVAS: component rendered/re-rendered');
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -56,12 +56,12 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
     console.log('CANVAS: Canvas Rect:', canvasRect);
 
     const agentCardWidth = 180;
-    const agentCardHeight = 60;
+    const agentCardHeight = 60; 
 
     let x = event.clientX - canvasRect.left;
     let y = event.clientY - canvasRect.top;
     console.log(`CANVAS: Initial drop coords (relative to canvas): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
-
+    
     x = x - agentCardWidth / 2;
     y = y - agentCardHeight / 2;
     console.log(`CANVAS: Centered drop coords (for top-left of card): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
@@ -82,23 +82,34 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
 
     if (onNodesChange) {
       const newNodesArray = [...nodes, newAgentNode];
-      console.log('CANVAS: Scheduling onNodesChange with newNodesArray (add):', newNodesArray);
+      console.log('CANVAS: Scheduling onNodesChange (add) with newNodesArray via setTimeout. Length:', newNodesArray.length);
       setTimeout(() => {
-        console.log('CANVAS: Executing onNodesChange callback (add) via setTimeout.');
+        console.log('CANVAS: Executing onNodesChange (add) callback via setTimeout.');
         onNodesChange(newNodesArray);
       }, 0);
+    } else {
+      console.warn('CANVAS: onNodesChange is not defined in props for add.');
     }
   };
 
   const handleRemoveNode = (nodeIdToRemove: string) => {
-    console.log(`CANVAS: Attempting to remove node with ID: ${nodeIdToRemove}`);
+    console.log(`CANVAS: handleRemoveNode called for ID: ${nodeIdToRemove}. Current nodes prop length: ${nodes.length}`);
+    if (!nodeIdToRemove) {
+      console.error('CANVAS: handleRemoveNode called with undefined or null nodeIdToRemove.');
+      return;
+    }
     if (onNodesChange) {
       const newNodesArray = nodes.filter(node => node.id !== nodeIdToRemove);
-      console.log('CANVAS: Scheduling onNodesChange with newNodesArray (remove):', newNodesArray);
+      console.log(`CANVAS: Filtered nodes. Original length: ${nodes.length}, New length: ${newNodesArray.length}. IDs remaining:`, newNodesArray.map(n => n.id).join(', '));
+      if (nodes.length === newNodesArray.length) {
+        console.warn(`CANVAS: Filtering did not remove node. Node ID '${nodeIdToRemove}' might not exist in current nodes array:`, nodes.map(n => n.id).join(', '));
+      }
       setTimeout(() => {
-        console.log('CANVAS: Executing onNodesChange callback (remove) via setTimeout.');
+        console.log('CANVAS: Executing onNodesChange (remove) with newNodesArray via setTimeout.');
         onNodesChange(newNodesArray);
       }, 0);
+    } else {
+      console.warn('CANVAS: onNodesChange is not defined in props for remove.');
     }
   };
 
@@ -131,9 +142,6 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
           key={agentNode.id}
           className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node"
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
-          // Stop propagation for drag events on the card itself if needed,
-          // though usually the canvas drag handlers should take precedence.
-          // onDragStart={(e) => e.preventDefault()} // Potentially to allow dragging nodes on canvas later
         >
           <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full relative">
             <AgentIcon type={agentNode.type} />
@@ -143,7 +151,8 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
               size="icon"
               className="absolute top-0 right-0 h-6 w-6 opacity-50 group-hover/node:opacity-100 transition-opacity"
               onClick={(e) => {
-                e.stopPropagation(); // Prevent card drag or other parent events
+                console.log(`CANVAS: Remove button clicked for node ID: ${agentNode.id}`);
+                e.stopPropagation(); 
                 handleRemoveNode(agentNode.id);
               }}
               title="Remove agent"
@@ -157,3 +166,4 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
     </div>
   );
 }
+
