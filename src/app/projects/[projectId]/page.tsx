@@ -33,7 +33,7 @@ import Link from 'next/link';
 
 // Agent Management Imports
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
-import type { Agent } from '@/types'; // Ensure Agent type is imported if not already
+import type { Agent } from '@/types'; 
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
 import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
 
@@ -122,6 +122,12 @@ export default function ProjectDetailPage() {
   const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<ProjectWorkflow | null>(null);
   
+  // Placeholder dialog states
+  const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
+  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false);
+  const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false);
+
+
   useEffect(() => {
     setIsClient(true);
     const foundProject = mockProjects.find(p => p.id === projectId);
@@ -207,14 +213,51 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleAddTask = (newTaskData: Omit<Task, 'id'>) => {
-    const newTask: Task = {
-      ...newTaskData,
+  const handleAddTask = (taskData: Omit<Task, 'id'>) => {
+    let newTask: Task = {
+      ...taskData,
       id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
     };
+
+    let autoStarted = false;
+    let targetAgentName: string | null = null;
+
+    if (taskData.assignedTo && taskData.assignedTo !== "Unassigned") {
+      const assignedAgent = projectAgents.find(agent => agent.name === taskData.assignedTo);
+      
+      if (assignedAgent) {
+        targetAgentName = assignedAgent.name;
+        if (assignedAgent.status === 'Running') {
+          newTask.status = 'In Progress';
+          setProjectAgents(prevAgents =>
+            prevAgents.map(agent =>
+              agent.id === assignedAgent.id ? { ...agent, lastActivity: new Date().toISOString() } : agent
+            )
+          );
+          autoStarted = true;
+        }
+      }
+    }
+
     setTasks(prevTasks => [newTask, ...prevTasks]);
     setIsAddTaskDialogOpen(false);
-    toast({ title: "Task Added", description: `Task "${newTask.title}" has been added to project "${project?.name}".` });
+
+    if (autoStarted && targetAgentName) {
+      toast({ 
+        title: "Task In Progress", 
+        description: `Task "${newTask.title}" assigned to agent "${targetAgentName}" and is now being processed.` 
+      });
+    } else if (targetAgentName) {
+      toast({ 
+        title: "Task Added", 
+        description: `Task "${newTask.title}" assigned to agent "${targetAgentName}". Run the agent to start processing.` 
+      });
+    } else {
+      toast({ 
+        title: "Task Added", 
+        description: `Task "${newTask.title}" has been added to project "${project?.name}".` 
+      });
+    }
   };
 
   const handleOpenEditTaskDialog = (task: Task) => {
@@ -325,7 +368,7 @@ export default function ProjectDetailPage() {
       lastRun: undefined,
     };
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
-    setIsAddWorkflowDialogOpen(false);
+    setIsAddWorkflowDialogOpen(false); // Close dialog after adding
     toast({ title: "Project Workflow Added", description: `Workflow "${newWorkflow.name}" created for project "${project?.name}".` });
   };
 
@@ -530,7 +573,10 @@ export default function ProjectDetailPage() {
                         <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
                             <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                             <p className="text-lg font-medium text-muted-foreground">No workflows found for this project.</p>
-                            <p className="text-sm text-muted-foreground/80 mt-1">Add a workflow using the button above to get started!</p>
+                            <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a workflow definition to get started!</p>
+                             <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
+                                <PlusSquareIcon className="mr-2 h-4 w-4"/>Add First Workflow Definition
+                             </Button>
                         </div>
                     )}
                 </CardContent>
@@ -631,7 +677,39 @@ export default function ProjectDetailPage() {
         </AlertDialog>
       )}
 
+      {/* Placeholder dialogs, no longer needed due to EditTaskDialog */}
+      {/* <AlertDialog open={isEditTaskPlaceholderDialogOpen} onOpenChange={setIsEditTaskPlaceholderDialogOpen}> ... </AlertDialog> */}
+
+      <AlertDialog open={isLinkGlobalAgentDialogOpen} onOpenChange={setIsLinkGlobalAgentDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Link Global Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              This feature will allow you to associate existing global agents (defined on the main Agent Management page) with this project. This provides a way to reuse common agent configurations across multiple projects. Coming soon!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsLinkGlobalAgentDialogOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isCreateProjectAgentDialogOpen} onOpenChange={setIsCreateProjectAgentDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create Project-Specific Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+             This feature will allow you to define a new agent configuration specifically for this project. For now, please use the "Project Agents" tab which allows creating project-scoped agents directly.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsCreateProjectAgentDialogOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
+
 
