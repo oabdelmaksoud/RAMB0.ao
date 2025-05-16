@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -12,7 +13,7 @@ import {
   Settings2,
   Workflow,
   SlidersHorizontal,
-  Bot,
+  UserCircle, // Added UserCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -21,6 +22,7 @@ const navItems = [
   { href: '/ai-suggestions', label: 'AI Suggestions', icon: Settings2 },
   { href: '/workflow-designer', label: 'Workflow Designer', icon: Workflow },
   { href: '/agent-management', label: 'Agent Management', icon: SlidersHorizontal },
+  { href: '/profile', label: 'Profile', icon: UserCircle }, // Added Profile link
 ];
 
 export default function SidebarNav() {

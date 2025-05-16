@@ -53,10 +53,14 @@ export default function RootLayout({
               <SidebarNav />
             </SidebarContent>
             <SidebarFooter className="p-4 border-t">
-              <Button variant="ghost" className="w-full justify-start gap-2">
-                <UserCircle className="h-5 w-5" />
-                <span className="font-medium">Profile</span>
-              </Button>
+              <Link href="/profile" passHref legacyBehavior className="w-full">
+                <Button variant="ghost" className="w-full justify-start gap-2" asChild>
+                  <a>
+                    <UserCircle className="h-5 w-5" />
+                    <span className="font-medium">Profile</span>
+                  </a>
+                </Button>
+              </Link>
             </SidebarFooter>
           </Sidebar>
           <SidebarInset>
