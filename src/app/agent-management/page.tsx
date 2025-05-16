@@ -7,7 +7,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { SlidersHorizontal } from 'lucide-react';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
 import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -28,14 +28,39 @@ const initialMockAgents: Agent[] = [
   { id: 'cfg-005', name: 'User Onboarding Helper', type: 'Notification Agent', status: 'Idle', lastActivity: '2024-07-20T16:00:00Z', config: { template: 'welcome_email_v2' } },
 ];
 
+const AGENTS_STORAGE_KEY = 'agentFlowAgents';
 
 export default function AgentManagementPage() {
-  const [agents, setAgents] = useState<Agent[]>(initialMockAgents);
+  const [agents, setAgents] = useState<Agent[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const { toast } = useToast();
+
+  // Load agents from localStorage on initial mount
+  useEffect(() => {
+    const storedAgents = localStorage.getItem(AGENTS_STORAGE_KEY);
+    if (storedAgents) {
+      try {
+        setAgents(JSON.parse(storedAgents));
+      } catch (error) {
+        console.error("Failed to parse agents from localStorage", error);
+        setAgents(initialMockAgents); // Fallback to initial mocks on parse error
+      }
+    } else {
+      setAgents(initialMockAgents);
+    }
+  }, []);
+
+  // Save agents to localStorage whenever the agents state changes
+  useEffect(() => {
+    // Only save if agents array is not in its initial empty state during setup
+    if (agents.length > 0 || localStorage.getItem(AGENTS_STORAGE_KEY)) {
+      localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents));
+    }
+  }, [agents]);
+
 
   const handleAddAgent = (newAgentData: Omit<Agent, 'id' | 'lastActivity' | 'status'>) => {
     const newAgent: Agent = {
