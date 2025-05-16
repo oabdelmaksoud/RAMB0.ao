@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import Link from 'next/link';
 import AddTaskDialog from '@/components/features/projects/AddTaskDialog';
 import { useToast } from '@/hooks/use-toast';
 
@@ -205,7 +206,7 @@ export default function ProjectDetailPage() {
               <CalendarDays className="h-4 w-4 mr-2 text-muted-foreground" />
               <span className="text-muted-foreground">Last Updated:</span>
             </div>
-            <p className="ml-6">{formatDate(project.lastUpdated)}</p>
+            <p className="ml-6">{isClient ? formatDate(project.lastUpdated) : 'Processing...'}</p>
              {project.agentCount !== undefined && (
               <div className="flex items-center">
                 <Bot className="h-4 w-4 mr-2 text-muted-foreground" />
@@ -381,10 +382,12 @@ export default function ProjectDetailPage() {
                 </CardDescription>
               </div>
                <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled> 
-                  <WorkflowIcon className="mr-2 h-4 w-4" />
-                  Design New Workflow
-                </Button>
+                <Link href="/workflow-designer" passHref>
+                  <Button variant="outline" size="sm"> 
+                    <WorkflowIcon className="mr-2 h-4 w-4" />
+                    Design New Workflow
+                  </Button>
+                </Link>
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
