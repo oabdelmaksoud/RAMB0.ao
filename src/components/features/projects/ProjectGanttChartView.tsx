@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Task } from '@/types';
@@ -17,6 +18,7 @@ const HEADER_HEIGHT_PX = 60;
 const TASK_NAME_WIDTH_PX = 200;
 const RESIZE_HANDLE_WIDTH_PX = 10;
 
+// Enhanced colors for better contrast and similarity to modern Gantt charts
 const statusGanttBarColors: { [key in Task['status']]: string } = {
   'To Do': 'bg-slate-400 hover:bg-slate-500',
   'In Progress': 'bg-blue-500 hover:bg-blue-600',
@@ -43,8 +45,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const { chartStartDate, chartEndDate, totalDays, daysArray } = useMemo(() => {
     if (!tasks.length) {
       const today = startOfDay(new Date());
-      const defaultStartDate = addDays(today, -3); // Add some padding before today
-      const defaultEndDate = addDays(today, 29 + 7); // Add some padding after 30 days
+      const defaultStartDate = addDays(today, -7); // More padding before today
+      const defaultEndDate = addDays(today, 30 + 14); // More padding after 30 days
       return {
         chartStartDate: defaultStartDate,
         chartEndDate: defaultEndDate,
@@ -61,7 +63,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
             if (task.durationDays && task.durationDays > 0) {
             acc.push(addDays(start, task.durationDays - 1));
             } else {
-            acc.push(start); // Treat as 1 day if duration is invalid/missing
+            acc.push(start); 
             }
         } catch (e) {
             // console.warn(`Invalid start date for task "${task.title}": ${task.startDate}`);
@@ -70,10 +72,10 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
       return acc;
     }, [] as Date[]);
 
-    if (!taskDates.length) { // If tasks exist but none have valid dates
+    if (!taskDates.length) { 
       const today = startOfDay(new Date());
-      const fallbackStart = addDays(today, -3);
-      const fallbackEnd = addDays(today, 30 + 7);
+      const fallbackStart = addDays(today, -7);
+      const fallbackEnd = addDays(today, 30 + 14);
       return {
         chartStartDate: fallbackStart,
         chartEndDate: fallbackEnd,
@@ -85,8 +87,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     let overallMinDate = min(taskDates);
     let overallMaxDate = max(taskDates);
 
-    overallMinDate = addDays(overallMinDate, -3); // Padding before
-    overallMaxDate = addDays(overallMaxDate, 7);  // Padding after
+    overallMinDate = addDays(overallMinDate, -7); // Padding before
+    overallMaxDate = addDays(overallMaxDate, 14);  // Padding after
 
     const days = eachDayOfInterval({ start: overallMinDate, end: overallMaxDate });
 
@@ -113,7 +115,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     }
   };
 
-  // --- Task Dragging Logic ---
   const handleTaskBarMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
     event.stopPropagation();
@@ -143,13 +144,11 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
         startDate: format(newStartDate, 'yyyy-MM-dd'),
       };
       onUpdateTask(updatedTask); 
-      // To provide real-time feedback, we might want to update draggingTaskDetails.task here as well,
-      // so subsequent mouse moves calculate from the "new" original position if not updating parent state fully.
-      // For now, this relies on parent re-rendering.
     };
 
     const handleDocumentMouseUp = () => {
       if (!draggingTaskDetails) return;
+       // Final update already handled by onUpdateTask in mousemove
       setDraggingTaskDetails(null);
     };
 
@@ -164,7 +163,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     };
   }, [draggingTaskDetails, onUpdateTask]);
 
-  // --- Task Resizing Logic ---
   const handleResizeMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
     event.stopPropagation();
@@ -192,6 +190,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
 
     const handleDocumentMouseUpForResize = () => {
         if (!resizingTaskDetails) return;
+         // Final update already handled by onUpdateTask in mousemove
         setResizingTaskDetails(null);
     };
 
@@ -213,6 +212,17 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
 
   const totalChartWidth = totalDays * DAY_WIDTH_PX;
 
+  const getTaskTooltip = (task: Task): string => {
+    let tooltip = `${task.title}\nStatus: ${task.status}`;
+    if (task.startDate) {
+      tooltip += `\nStarts: ${format(parseISO(task.startDate), 'MMM d, yyyy')}`;
+    }
+    if (task.durationDays) {
+      tooltip += `\nDuration: ${task.durationDays} day(s)`;
+    }
+    return tooltip;
+  };
+
   return (
     <ScrollArea className="w-full border rounded-lg shadow-sm bg-card">
       <div style={{ minWidth: `${TASK_NAME_WIDTH_PX + totalChartWidth}px` }} className="relative select-none">
@@ -224,8 +234,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
           >
             Task Name
           </div>
-          <div className="flex-grow overflow-x-hidden">
-            <div className="flex border-b h-[30px]">
+          <div className="flex-grow overflow-x-hidden"> {/* This div will contain the scrollable timeline headers */}
+            <div className="flex border-b h-[30px]"> {/* Month/Year Headers */}
               {daysArray.reduce((acc, day, index) => {
                 const monthYear = format(day, 'MMM yyyy');
                 if (index === 0 || format(daysArray[index - 1], 'MMM yyyy') !== monthYear) {
@@ -247,14 +257,14 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                 return acc;
               }, [] as JSX.Element[])}
             </div>
-            <div className="flex h-[30px]">
+            <div className="flex h-[30px]"> {/* Day Headers */}
               {daysArray.map((day) => (
                 <div
                   key={format(day, 'yyyy-MM-dd')}
                   style={{ width: `${DAY_WIDTH_PX}px`, minWidth: `${DAY_WIDTH_PX}px` }}
                   className={cn(
                     "p-1 text-[10px] text-center border-r last:border-r-0 text-muted-foreground",
-                    (format(day, 'E') === 'Sat' || format(day, 'E') === 'Sun') && 'bg-muted/50' // Weekend highlighting
+                    (format(day, 'E') === 'Sat' || format(day, 'E') === 'Sun') && 'bg-muted/30' // Weekend highlighting
                   )}
                 >
                   {format(day, 'd')}
@@ -265,16 +275,19 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
         </div>
 
         {/* Task Rows & Grid Lines */}
-        <div className="relative">
+        <div className="relative"> {/* Container for task rows and grid lines */}
           {/* Vertical Grid Lines */}
           {daysArray.map((_, dayIndex) => (
             <div
               key={`v-grid-${dayIndex}`}
-              className="absolute top-0 bottom-0 border-r border-border/30"
+              className={cn(
+                "absolute top-0 bottom-0 border-r border-border/30",
+                (format(daysArray[dayIndex], 'E') === 'Sat' || format(daysArray[dayIndex], 'E') === 'Sun') && 'bg-muted/20' // Weekend highlighting for grid columns
+              )}
               style={{
                 left: `${TASK_NAME_WIDTH_PX + dayIndex * DAY_WIDTH_PX}px`,
-                height: `${tasks.length * ROW_HEIGHT_PX}px`,
-                zIndex: 0,
+                height: `${tasks.length * ROW_HEIGHT_PX}px`, // Ensure grid lines cover all task rows
+                zIndex: 0, // Behind tasks
               }}
             ></div>
           ))}
@@ -287,9 +300,10 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
             return (
               <div
                 key={task.id}
-                className="flex items-center border-b last:border-b-0 hover:bg-muted/10"
+                className="flex items-center border-b last:border-b-0 hover:bg-muted/10" // Row container
                 style={{ height: `${ROW_HEIGHT_PX}px`, position: 'relative' }}
               >
+                {/* Task Name Cell (Sticky) */}
                 <div
                   style={{ width: `${TASK_NAME_WIDTH_PX}px`, minWidth: `${TASK_NAME_WIDTH_PX}px`, height: '100%' }}
                   className="p-2 text-sm truncate sticky left-0 bg-card group-hover:bg-muted/10 z-10 border-r flex items-center"
@@ -297,29 +311,30 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                   {task.title}
                 </div>
                 
+                {/* Task Bar Cell (Positioned on Timeline) */}
                 {task.startDate && (
                   <div
                     onMouseDown={(e) => handleTaskBarMouseDown(e, task)}
-                    title={`${task.title}\nStatus: ${task.status}\nStarts: ${format(parseISO(task.startDate), 'MMM d, yyyy')}\nDuration: ${task.durationDays || 1} day(s)`}
+                    title={getTaskTooltip(task)}
                     className={cn(
-                      "absolute my-[5px] h-[calc(100%-10px)] rounded text-white text-[11px] px-2 flex items-center overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out",
-                      statusGanttBarColors[task.status] || 'bg-gray-500',
+                      "absolute my-[5px] rounded text-white text-[11px] px-2 flex items-center overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out",
+                      statusGanttBarColors[task.status] || 'bg-gray-500', // Apply status color always
                       isDraggingThisTask ? 'cursor-grabbing opacity-75 ring-2 ring-primary z-20' : 'cursor-grab',
-                      isResizingThisTask && 'z-20' // Ensure resizing task bar is also on top
+                      isResizingThisTask && 'z-20 ring-2 ring-primary opacity-75' 
                     )}
                     style={{
                       left: `${TASK_NAME_WIDTH_PX + barLeftOffset}px`,
                       width: `${barWidth}px`,
-                      top: `${taskIndex * ROW_HEIGHT_PX}px`,
-                      height: `${ROW_HEIGHT_PX - 10}px`,
-                      lineHeight: `${ROW_HEIGHT_PX - 10}px`,
-                      zIndex: isDraggingThisTask || isResizingThisTask ? 20 : 10,
+                      top: `${taskIndex * ROW_HEIGHT_PX}px`, // Position based on task index in the list
+                      height: `${ROW_HEIGHT_PX - 10}px`, // Consistent height
+                      lineHeight: `${ROW_HEIGHT_PX - 10}px`, // For vertical text centering if needed
+                      zIndex: isDraggingThisTask || isResizingThisTask ? 20 : 10, // Bring to front when interacted with
                     }}
                   >
                     <span className="truncate pointer-events-none">{task.title}</span>
                      <div
                         onMouseDown={(e) => handleResizeMouseDown(e, task)}
-                        className="absolute top-0 right-0 h-full cursor-col-resize bg-black/10 hover:bg-black/20 transition-colors"
+                        className="absolute top-0 right-0 h-full cursor-col-resize bg-black/10 hover:bg-black/20 transition-colors group-hover:bg-black/20"
                         style={{ width: `${RESIZE_HANDLE_WIDTH_PX}px` }}
                         title={`Resize ${task.title}`}
                     >
@@ -331,7 +346,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
             );
           })}
            {tasks.length === 0 && (
-             <div className="flex items-center justify-center" style={{height: `${ROW_HEIGHT_PX * 3}px`}}>
+             <div className="flex items-center justify-center" style={{height: `${ROW_HEIGHT_PX * 3}px`}}> {/* Placeholder if no tasks */}
                 <p className="text-muted-foreground p-4">No tasks in this project yet.</p>
              </div>
            )}
