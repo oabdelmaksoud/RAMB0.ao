@@ -1,6 +1,6 @@
+
 import AgentCard from '@/components/features/agent-monitoring/AgentCard';
 import type { Agent } from '@/types';
-import { Activity, BarChart3, Cpu, FileText, MemoryStick, Zap } from 'lucide-react';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 
 const mockAgents: Agent[] = [
@@ -11,6 +11,12 @@ const mockAgents: Agent[] = [
     status: 'Running',
     lastActivity: '2 minutes ago',
     performance: { cpuUsage: 25, memoryUsage: 128 },
+    logs: [
+      '[INFO] Starting analysis for project "Alpha"...',
+      '[DEBUG] Found 1500 lines of code.',
+      '[WARN] Potential memory leak detected in module "utils.py".',
+      '[INFO] Analysis complete. Issues found: 1 critical, 3 major.',
+    ],
   },
   {
     id: 'agent-002',
@@ -19,6 +25,10 @@ const mockAgents: Agent[] = [
     status: 'Idle',
     lastActivity: '1 hour ago',
     performance: { cpuUsage: 2, memoryUsage: 64 },
+    logs: [
+      '[INFO] Awaiting new commits to branch "main".',
+      '[DEBUG] Last build completed successfully in 5m 32s.',
+    ],
   },
   {
     id: 'agent-003',
@@ -27,6 +37,12 @@ const mockAgents: Agent[] = [
     status: 'Error',
     lastActivity: '5 minutes ago',
     performance: { cpuUsage: 0, memoryUsage: 32 },
+    logs: [
+      '[INFO] Starting documentation generation for API v2.1.',
+      '[ERROR] Failed to parse Swagger definition: Unexpected token "<" at position 0.',
+      '[DEBUG] Retrying with compatibility mode...',
+      '[ERROR] Compatibility mode also failed. Aborting.',
+    ],
   },
   {
     id: 'agent-004',
@@ -35,6 +51,13 @@ const mockAgents: Agent[] = [
     status: 'Running',
     lastActivity: '30 seconds ago',
     performance: { cpuUsage: 60, memoryUsage: 256 },
+    logs: [
+      '[INFO] Starting deployment to "staging" environment.',
+      '[INFO] Pulling latest image: myapp:latest.',
+      '[INFO] Image pulled successfully.',
+      '[INFO] Starting 2 new containers.',
+      '[INFO] Health checks passed. Deployment successful.',
+    ],
   },
   {
     id: 'agent-005',
@@ -42,7 +65,10 @@ const mockAgents: Agent[] = [
     type: 'Testing Agent',
     status: 'Idle',
     lastActivity: '3 hours ago',
-    performance: { cpuUsage: 5, memoryUsage: 90 },
+    logs: [
+      '[INFO] Test suite "E2E-CustomerFlow" completed. All 152 tests passed.',
+      '[INFO] Waiting for next scheduled run.',
+    ],
   },
   {
     id: 'agent-006',
@@ -50,6 +76,7 @@ const mockAgents: Agent[] = [
     type: 'Monitoring Agent',
     status: 'Stopped',
     lastActivity: '1 day ago',
+    // No logs for a stopped agent, or could have "Agent stopped manually"
   },
 ];
 
