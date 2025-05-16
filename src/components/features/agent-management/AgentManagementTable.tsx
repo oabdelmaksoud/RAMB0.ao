@@ -13,7 +13,11 @@ import { useState, useEffect } from 'react';
 
 interface AgentManagementTableProps {
   agents: Agent[];
-  onEditAgent: (agent: Agent) => void; // Added prop for editing
+  onEditAgent: (agent: Agent) => void;
+  onRunAgent: (agentId: string) => void;
+  onStopAgent: (agentId: string) => void;
+  onDuplicateAgent: (agent: Agent) => void;
+  onDeleteAgent: (agent: Agent) => void;
 }
 
 const statusColors: { [key in Agent['status']]: string } = {
@@ -23,7 +27,14 @@ const statusColors: { [key in Agent['status']]: string } = {
   Stopped: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
 
-export default function AgentManagementTable({ agents, onEditAgent }: AgentManagementTableProps) {
+export default function AgentManagementTable({
+  agents,
+  onEditAgent,
+  onRunAgent,
+  onStopAgent,
+  onDuplicateAgent,
+  onDeleteAgent,
+}: AgentManagementTableProps) {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -37,7 +48,7 @@ export default function AgentManagementTable({ agents, onEditAgent }: AgentManag
       return dateString; // Fallback if date is not ISO
     }
   };
-  
+
   return (
     <div className="rounded-lg border shadow-sm overflow-hidden bg-card">
       <Table>
@@ -79,21 +90,30 @@ export default function AgentManagementTable({ agents, onEditAgent }: AgentManag
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onRunAgent(agent.id)}
+                      disabled={agent.status === 'Running'}
+                    >
                       <Play className="mr-2 h-4 w-4" /> Run Agent
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onStopAgent(agent.id)}
+                      disabled={agent.status === 'Stopped' || agent.status === 'Idle'}
+                    >
                       <PowerOff className="mr-2 h-4 w-4" /> Stop Agent
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onEditAgent(agent)}> {/* Modified this line */}
+                    <DropdownMenuItem onClick={() => onEditAgent(agent)}>
                       <Edit3 className="mr-2 h-4 w-4" /> Edit Configuration
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onDuplicateAgent(agent)}>
                       <Copy className="mr-2 h-4 w-4" /> Duplicate
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                      onClick={() => onDeleteAgent(agent)}
+                    >
                       <Trash2 className="mr-2 h-4 w-4" /> Delete Agent
                     </DropdownMenuItem>
                   </DropdownMenuContent>

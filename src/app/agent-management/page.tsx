@@ -6,8 +6,19 @@ import type { Agent } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { SlidersHorizontal } from 'lucide-react';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
-import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog'; // Added import
+import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
 import { useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const initialMockAgents: Agent[] = [
   { id: 'cfg-001', name: 'Default Code Analyzer', type: 'Analysis Agent', status: 'Idle', lastActivity: '2024-07-20T10:00:00Z', config: { sensitivity: 'high' } },
@@ -22,6 +33,9 @@ export default function AgentManagementPage() {
   const [agents, setAgents] = useState<Agent[]>(initialMockAgents);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
+  const { toast } = useToast();
 
   const handleAddAgent = (newAgentData: Omit<Agent, 'id' | 'lastActivity' | 'status'>) => {
     const newAgent: Agent = {
@@ -39,14 +53,61 @@ export default function AgentManagementPage() {
   };
 
   const handleUpdateAgent = (updatedAgent: Agent) => {
-    setAgents(prevAgents => 
-      prevAgents.map(agent => 
-        agent.id === updatedAgent.id ? updatedAgent : agent
+    setAgents(prevAgents =>
+      prevAgents.map(agent =>
+        agent.id === updatedAgent.id ? { ...updatedAgent, lastActivity: new Date().toISOString() } : agent
       )
     );
     setIsEditDialogOpen(false);
     setEditingAgent(null);
   };
+
+  const handleRunAgent = (agentId: string) => {
+    setAgents(prevAgents =>
+      prevAgents.map(agent =>
+        agent.id === agentId ? { ...agent, status: 'Running', lastActivity: new Date().toISOString() } : agent
+      )
+    );
+    const agentName = agents.find(a => a.id === agentId)?.name;
+    toast({ title: "Agent Started", description: `Agent "${agentName || agentId}" is now Running.` });
+  };
+
+  const handleStopAgent = (agentId: string) => {
+    setAgents(prevAgents =>
+      prevAgents.map(agent =>
+        agent.id === agentId ? { ...agent, status: 'Stopped', lastActivity: new Date().toISOString() } : agent
+      )
+    );
+    const agentName = agents.find(a => a.id === agentId)?.name;
+    toast({ title: "Agent Stopped", description: `Agent "${agentName || agentId}" has been Stopped.` });
+  };
+
+  const handleDuplicateAgent = (agentToDuplicate: Agent) => {
+    const newAgent: Agent = {
+      ...agentToDuplicate,
+      id: `cfg-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
+      name: `${agentToDuplicate.name} - Copy`,
+      status: 'Idle',
+      lastActivity: new Date().toISOString(),
+    };
+    setAgents(prevAgents => [newAgent, ...prevAgents]);
+    toast({ title: "Agent Duplicated", description: `Agent "${agentToDuplicate.name}" has been duplicated as "${newAgent.name}".` });
+  };
+
+  const handleOpenDeleteDialog = (agent: Agent) => {
+    setAgentToDelete(agent);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteAgent = () => {
+    if (agentToDelete) {
+      setAgents(prevAgents => prevAgents.filter(agent => agent.id !== agentToDelete.id));
+      toast({ title: "Agent Deleted", description: `Agent "${agentToDelete.name}" has been deleted.`, variant: 'destructive' });
+      setAgentToDelete(null);
+      setIsDeleteDialogOpen(false);
+    }
+  };
+
 
   return (
     <div className="container mx-auto">
@@ -63,7 +124,14 @@ export default function AgentManagementPage() {
         <AddAgentDialog onAddAgent={handleAddAgent} />
       </PageHeader>
 
-      <AgentManagementTable agents={agents} onEditAgent={handleOpenEditDialog} />
+      <AgentManagementTable
+        agents={agents}
+        onEditAgent={handleOpenEditDialog}
+        onRunAgent={handleRunAgent}
+        onStopAgent={handleStopAgent}
+        onDuplicateAgent={handleDuplicateAgent}
+        onDeleteAgent={handleOpenDeleteDialog}
+      />
 
       {editingAgent && (
         <EditAgentDialog
@@ -72,6 +140,26 @@ export default function AgentManagementPage() {
           onOpenChange={setIsEditDialogOpen}
           onUpdateAgent={handleUpdateAgent}
         />
+      )}
+
+      {agentToDelete && (
+         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure you want to delete this agent?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the agent
+                "{agentToDelete.name}".
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setAgentToDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteAgent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </div>
   );
