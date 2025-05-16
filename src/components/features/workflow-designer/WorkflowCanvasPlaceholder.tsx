@@ -1,11 +1,13 @@
 
 'use client';
 
-import { DragEvent, useRef } from 'react'; // Removed useState and useEffect as they are no longer needed for internal state
+import { DragEvent, useRef } from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDashed, Hand } from 'lucide-react';
+import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDashed, Hand, X as XIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { WorkflowNode } from '@/types'; 
+import type { WorkflowNode } from '@/types';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const agentIcons: { [key: string]: LucideIcon } = {
   'Code Review Agent': Code2,
@@ -16,28 +18,27 @@ const agentIcons: { [key: string]: LucideIcon } = {
 };
 
 interface WorkflowCanvasProps {
-  nodes?: WorkflowNode[]; // Changed from initialNodes; this is the source of truth
+  nodes?: WorkflowNode[];
   onNodesChange?: (nodes: WorkflowNode[]) => void;
 }
 
 export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  // Removed internal droppedAgents state: const [droppedAgents, setDroppedAgents] = useState<WorkflowNode[]>(initialNodes);
-  // Removed useEffect syncing initialNodes to droppedAgents
+  console.count('CANVAS: component rendered/re-rendered');
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault(); 
+    event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     console.count('CANVAS: handleDrop invoked');
-    event.preventDefault(); 
+    event.preventDefault();
     console.log('CANVAS: Drop event triggered.');
 
     const agentType = event.dataTransfer.getData('text/plain');
     console.log(`CANVAS: Agent type received from dataTransfer: '${agentType}'`);
-    
+
     if (!agentType) {
       console.error('CANVAS: Drop aborted - no agentType received.');
       return;
@@ -53,10 +54,10 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
       return;
     }
     console.log('CANVAS: Canvas Rect:', canvasRect);
-    
+
     const agentCardWidth = 180;
-    const agentCardHeight = 60; 
-    
+    const agentCardHeight = 60;
+
     let x = event.clientX - canvasRect.left;
     let y = event.clientY - canvasRect.top;
     console.log(`CANVAS: Initial drop coords (relative to canvas): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
@@ -64,15 +65,15 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
     x = x - agentCardWidth / 2;
     y = y - agentCardHeight / 2;
     console.log(`CANVAS: Centered drop coords (for top-left of card): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
-    
-    const padding = 5; 
+
+    const padding = 5;
     const adjustedX = Math.min(Math.max(padding, x), canvasRect.width - agentCardWidth - padding);
     const adjustedY = Math.min(Math.max(padding, y), canvasRect.height - agentCardHeight - padding);
     console.log(`CANVAS: Adjusted drop coords (within bounds): x=${adjustedX.toFixed(2)}, y=${adjustedY.toFixed(2)}`);
 
     const newAgentNode: WorkflowNode = {
       id: `agent-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      name: agentType, 
+      name: agentType,
       type: agentType,
       x: adjustedX,
       y: adjustedY,
@@ -80,12 +81,23 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
     console.log('CANVAS: New agent node to add:', newAgentNode);
 
     if (onNodesChange) {
-      const newNodesArray = [...nodes, newAgentNode]; // Create new array based on 'nodes' prop
-      console.log('CANVAS: Scheduling onNodesChange with newNodesArray:', newNodesArray);
-      // Defer the call to onNodesChange to prevent updating parent during child's render cycle
+      const newNodesArray = [...nodes, newAgentNode];
+      console.log('CANVAS: Scheduling onNodesChange with newNodesArray (add):', newNodesArray);
       setTimeout(() => {
-          console.log('CANVAS: Executing onNodesChange callback via setTimeout.');
-          onNodesChange(newNodesArray);
+        console.log('CANVAS: Executing onNodesChange callback (add) via setTimeout.');
+        onNodesChange(newNodesArray);
+      }, 0);
+    }
+  };
+
+  const handleRemoveNode = (nodeIdToRemove: string) => {
+    console.log(`CANVAS: Attempting to remove node with ID: ${nodeIdToRemove}`);
+    if (onNodesChange) {
+      const newNodesArray = nodes.filter(node => node.id !== nodeIdToRemove);
+      console.log('CANVAS: Scheduling onNodesChange with newNodesArray (remove):', newNodesArray);
+      setTimeout(() => {
+        console.log('CANVAS: Executing onNodesChange callback (remove) via setTimeout.');
+        onNodesChange(newNodesArray);
       }, 0);
     }
   };
@@ -102,31 +114,46 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {nodes.length === 0 && ( // Use 'nodes' prop here
+      {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none">
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <MousePointerSquareDashed className="h-12 w-12 text-muted-foreground/70" />
-              <Hand className="h-12 w-12 text-muted-foreground/70" />
-            </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">Design Your Workflow</h3>
-            <p className="text-muted-foreground max-w-xs sm:max-w-md mx-auto">
-              Drag agents from the palette on the left and drop them here. Connect agents to define the execution flow.
-            </p>
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <MousePointerSquareDashed className="h-12 w-12 text-muted-foreground/70" />
+            <Hand className="h-12 w-12 text-muted-foreground/70" />
+          </div>
+          <h3 className="text-xl font-semibold text-foreground mb-2">Design Your Workflow</h3>
+          <p className="text-muted-foreground max-w-xs sm:max-w-md mx-auto">
+            Drag agents from the palette on the left and drop them here. Connect agents to define the execution flow.
+          </p>
         </div>
       )}
-      {nodes.map((agentNode) => ( // Use 'nodes' prop here
+      {nodes.map((agentNode) => (
         <Card
           key={agentNode.id}
-          className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center"
+          className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node"
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
+          // Stop propagation for drag events on the card itself if needed,
+          // though usually the canvas drag handlers should take precedence.
+          // onDragStart={(e) => e.preventDefault()} // Potentially to allow dragging nodes on canvas later
         >
-          <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full">
+          <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full relative">
             <AgentIcon type={agentNode.type} />
             <CardTitle className="text-sm font-medium truncate">{agentNode.name}</CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-0 right-0 h-6 w-6 opacity-50 group-hover/node:opacity-100 transition-opacity"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent card drag or other parent events
+                handleRemoveNode(agentNode.id);
+              }}
+              title="Remove agent"
+            >
+              <XIcon className="h-4 w-4" />
+              <span className="sr-only">Remove agent</span>
+            </Button>
           </CardHeader>
         </Card>
       ))}
     </div>
   );
 }
-
