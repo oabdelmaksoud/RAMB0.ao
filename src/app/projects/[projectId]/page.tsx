@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project } from '@/types';
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -23,6 +24,24 @@ const statusColors: { [key in Project['status']]: string } = {
   Completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700',
   Archived: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
+
+// Mock task statuses and colors for the task list
+const taskStatusColors: { [key: string]: string } = {
+  'To Do': 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
+  'In Progress': 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700',
+  'Done': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700',
+  'Blocked': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border-red-300 dark:border-red-700',
+};
+
+const mockTasks = [
+  { id: 'task-1', title: 'Define project scope and requirements', status: 'Done', assignedTo: 'AI Agent Alpha' },
+  { id: 'task-2', title: 'Develop core agent logic for data analysis', status: 'In Progress', assignedTo: 'AI Agent Beta' },
+  { id: 'task-3', title: 'Set up CI/CD pipeline for automated testing', status: 'In Progress', assignedTo: 'DevOps Agent' },
+  { id: 'task-4', title: 'Integrate with external data sources', status: 'To Do', assignedTo: 'Data Ingestion Agent' },
+  { id: 'task-5', title: 'Design user interface for reporting dashboard', status: 'To Do', assignedTo: 'UI/UX Designer' },
+  { id: 'task-6', title: 'Perform security audit on agent communication', status: 'Blocked', assignedTo: 'Security Agent Gamma' },
+];
+
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -76,9 +95,10 @@ export default function ProjectDetailPage() {
   }
 
   const mockRecentActivities = [
-    `Agent "Data Analyzer" completed a task.`,
-    `Workflow "Nightly Reports" initiated.`,
-    `New comment on "Feature X" task.`,
+    `Agent "Data Analyzer" completed task "Analyze Q3 Sales Data".`,
+    `Workflow "Nightly Backup" initiated successfully.`,
+    `New comment by "Project Manager" on "Feature X" task.`,
+    `Agent "Code Reviewer" flagged 2 critical issues in 'main' branch.`,
   ];
 
   return (
@@ -164,7 +184,7 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
                     <h4 className="font-semibold text-sm text-muted-foreground mb-1">Pending Tasks</h4>
-                    <p className="text-2xl font-bold">12</p> {/* Mock Data */}
+                    <p className="text-2xl font-bold">{mockTasks.filter(t => t.status === 'To Do' || t.status === 'In Progress').length}</p>
                 </div>
                  <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
                     <h4 className="font-semibold text-sm text-muted-foreground mb-1">Active Agents</h4>
@@ -180,12 +200,13 @@ export default function ProjectDetailPage() {
               <h4 className="font-semibold text-sm text-muted-foreground mb-2 flex items-center">
                 <ActivityIcon className="h-4 w-4 mr-2" /> Recent Activity
               </h4>
-              <ul className="space-y-2 text-sm">
+              <ul className="space-y-2 text-sm max-h-40 overflow-y-auto">
                 {mockRecentActivities.map((activity, index) => (
                   <li key={index} className="p-2 bg-background rounded-md border text-muted-foreground text-xs">
                     {activity}
                   </li>
                 ))}
+                 {mockRecentActivities.length === 0 && <p className="text-muted-foreground text-xs">No recent activity.</p>}
               </ul>
             </div>
           </CardContent>
@@ -203,15 +224,37 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="tasks">
           <Card>
-            <CardHeader>
-              <CardTitle>Task Management</CardTitle>
-              <CardDescription>
-                Track and manage all tasks related to project "{project.name}".
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Task Management</CardTitle>
+                <CardDescription>
+                  Track and manage all tasks related to project "{project.name}".
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" disabled>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add New Task
+              </Button>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-muted-foreground">Task list and management features will be implemented here. This could include assigning tasks to agents, tracking progress, and setting deadlines.</p>
-              {/* Placeholder for task list component */}
+            <CardContent className="space-y-3">
+              {mockTasks.length > 0 ? (
+                <ul className="space-y-2">
+                  {mockTasks.map(task => (
+                    <li key={task.id} className="p-3 border rounded-md bg-background hover:bg-accent/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-medium text-sm">{task.title}</h5>
+                        <Badge variant="outline" className={cn("text-xs capitalize", taskStatusColors[task.status])}>{task.status}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">Assigned to: {task.assignedTo}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground text-center py-4">No tasks found for this project.</p>
+              )}
+              <p className="text-xs text-muted-foreground pt-2">
+                Full task management features, including creation, assignment to agents, progress tracking, and deadlines, will be implemented here.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -221,11 +264,15 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle>Associated Agents</CardTitle>
               <CardDescription>
-                View and manage agents specifically configured for project "{project.name}".
+                View, manage, and configure agents specifically assigned or relevant to project "{project.name}".
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p className="text-muted-foreground">A list of agents associated with this project will be displayed here. You'll be able to configure project-specific agent instances or link existing global agents.</p>
+              <p className="text-muted-foreground">
+                This section will display a list of agents associated with this project. You'll be able to link existing global agents,
+                create new project-specific agent instances, and manage their configurations within the context of "{project.name}".
+                Think of it as your project's dedicated AI team.
+              </p>
               {/* Placeholder for agent list component filtered by project */}
             </CardContent>
           </Card>
@@ -236,11 +283,14 @@ export default function ProjectDetailPage() {
             <CardHeader>
               <CardTitle>Project Workflows</CardTitle>
               <CardDescription>
-                Design and monitor automated workflows for project "{project.name}".
+                Design, monitor, and manage automated workflows tailored for project "{project.name}".
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p className="text-muted-foreground">Workflows relevant to this project will be listed here. You can create new workflows using project-specific agents or view the status of ongoing automated processes.</p>
+              <p className="text-muted-foreground">
+                Here, you'll find all automated workflows relevant to this project. You will be able to design new workflows using project-specific agents,
+                trigger existing workflows, and monitor the status and logs of ongoing automated processes. This is where you orchestrate your agents to achieve project goals.
+              </p>
               {/* Placeholder for workflow list/designer component scoped to project */}
             </CardContent>
           </Card>
@@ -249,3 +299,4 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
