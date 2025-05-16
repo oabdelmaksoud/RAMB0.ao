@@ -144,10 +144,6 @@ export default function ProjectDetailPage() {
   const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null);
 
 
-  const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
-  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false);
-
-
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -222,7 +218,6 @@ export default function ProjectDetailPage() {
             edges: wf.edges || [],
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
-        console.log("PROJECT_DETAIL_PAGE: Initialized with predefined workflows", defaultWorkflowsWithIds);
       }
 
     }
@@ -243,10 +238,8 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (isClient && projectId ) {
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
-        // Only save if there are workflows to save OR if it was previously non-null (meaning user might have deleted all)
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
             localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
-             console.log("PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project", projectId, JSON.stringify(projectWorkflows, null, 2));
         }
     }
   }, [projectWorkflows, projectId, isClient]);
@@ -255,12 +248,9 @@ export default function ProjectDetailPage() {
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        if (updatedDesigningWorkflowInstance !== designingWorkflow ||
-            JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
-            JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
-        }
       } else {
+        // If the workflow being designed is somehow removed from the main list, close the designer
         setDesigningWorkflow(null);
       }
     }
@@ -273,7 +263,6 @@ export default function ProjectDetailPage() {
        if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString)) return dateString;
       return format(parseISO(dateString), options.year ? "MMMM d, yyyy 'at' hh:mm a" : "MMMM d, hh:mm a");
     } catch (error) {
-      console.error("Error formatting date:", error);
       return dateString;
     }
   };
@@ -363,7 +352,7 @@ export default function ProjectDetailPage() {
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
      toast({
       title: "Project Agent Added",
-      description: `Agent "${newAgent.name}" has been added to project "${project?.name}".`
+      description: `Agent "${newAgent.name}" has been added to the current project.`
     });
   };
 
@@ -453,44 +442,22 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
-    console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n=>n.id).join(', '));
     if (designingWorkflow) {
-      console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
-      setProjectWorkflows(prevWorkflows => {
-        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:", prevWorkflows.length);
-        const newWorkflowsArray = prevWorkflows.map(wf => {
-          if (wf.id === designingWorkflow.id) {
-            console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
-            return { ...wf, nodes: updatedNodes };
-          }
-          return wf;
-        });
-        newWorkflowsArray.forEach(wf => {
-          console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", wf.nodes?.map(n=>n.id).join(', '));
-        });
-        return newWorkflowsArray;
-      });
+      setProjectWorkflows(prevWorkflows =>
+        prevWorkflows.map(wf =>
+          wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
+        )
+      );
     }
   };
 
   const handleWorkflowEdgesChange = (updatedEdges: WorkflowEdge[]) => {
-    console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length, "IDs:", updatedEdges.map(e=>e.id).join(', '));
      if (designingWorkflow) {
-        console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID for edges:", designingWorkflow.id, "Name:", designingWorkflow.name);
-        setProjectWorkflows(prevWorkflows => {
-            console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows (for edges). prevWorkflows length:", prevWorkflows.length);
-            const newWorkflowsArray = prevWorkflows.map(wf => {
-                if (wf.id === designingWorkflow.id) {
-                    console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
-                    return { ...wf, edges: updatedEdges };
-                }
-                return wf;
-            });
-             newWorkflowsArray.forEach(wf => {
-                console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", wf.edges?.length);
-            });
-            return newWorkflowsArray;
-        });
+        setProjectWorkflows(prevWorkflows => 
+            prevWorkflows.map(wf => 
+                wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
+            )
+        );
     }
   };
 
@@ -600,7 +567,7 @@ export default function ProjectDetailPage() {
                     <ProjectGanttChartView tasks={tasks} />
                 ) : (
                     <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
-                        <ListChecks className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                        <GanttChartSquare className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                         <p className="text-lg font-medium text-muted-foreground">No tasks found for this project to display in Gantt chart.</p>
                         <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a task to get started!</p>
                         <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}>
@@ -856,35 +823,6 @@ export default function ProjectDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-
-      <AlertDialog open={isLinkGlobalAgentDialogOpen} onOpenChange={setIsLinkGlobalAgentDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Link Global Agent</AlertDialogTitle>
-            <AlertDialogDescription>
-              This feature will allow you to associate existing global agents (defined on the main Agent Management page) with this project. This provides a way to reuse common agent configurations across multiple projects. Coming soon!
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsLinkGlobalAgentDialogOpen(false)}>OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={isCreateProjectAgentDialogOpen} onOpenChange={setIsCreateProjectAgentDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Create Project-Specific Agent</AlertDialogTitle>
-            <AlertDialogDescription>
-             This feature will allow you to define a new agent configuration specifically for this project. For now, please use the "Project Agents" tab which allows creating project-scoped agents directly.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsCreateProjectAgentDialogOpen(false)}>OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
     </div>
   );
 }
