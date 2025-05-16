@@ -2,10 +2,10 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project } from '@/types';
+import type { Project, Agent } from '@/types';
 import { mockProjects } from '@/app/projects/page'; // Temporary: Import mock data
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +42,14 @@ export interface Task {
   assignedTo: string;
 }
 
+interface ProjectWorkflow {
+  id: string;
+  name: string;
+  description: string;
+  status: 'Active' | 'Inactive' | 'Draft';
+  lastRun?: string; // ISO Date string
+}
+
 const initialMockTasks: Task[] = [
   { id: 'task-1', title: 'Define project scope and requirements', status: 'Done', assignedTo: 'AI Agent Alpha' },
   { id: 'task-2', title: 'Develop core agent logic for data analysis', status: 'In Progress', assignedTo: 'AI Agent Beta' },
@@ -50,6 +58,24 @@ const initialMockTasks: Task[] = [
   { id: 'task-5', title: 'Design user interface for reporting dashboard', status: 'To Do', assignedTo: 'UI/UX Designer' },
   { id: 'task-6', title: 'Perform security audit on agent communication', status: 'Blocked', assignedTo: 'Security Agent Gamma' },
 ];
+
+const mockAssociatedAgents: Partial<Agent>[] = [
+    { id: 'agent-proj-001', name: 'Project Data Analyzer', type: 'Analysis Agent', status: 'Running' },
+    { id: 'agent-proj-002', name: 'Project Specific Deployer', type: 'Deployment Agent', status: 'Idle' },
+    { id: 'agent-global-003', name: 'Shared Notification Service', type: 'Notification Agent', status: 'Running'},
+];
+
+const mockProjectWorkflows: ProjectWorkflow[] = [
+    { id: 'wf-proj-001', name: 'Nightly Data Sync', description: 'Synchronizes project data with the central repository.', status: 'Active', lastRun: new Date(Date.now() - 86400000).toISOString() },
+    { id: 'wf-proj-002', name: 'Weekly Report Generation', description: 'Generates and distributes the weekly project status report.', status: 'Active', lastRun: new Date(Date.now() - 3 * 86400000).toISOString() },
+    { id: 'wf-proj-003', name: 'On-Demand Backup', description: 'Performs a full backup of project resources.', status: 'Draft' },
+];
+
+const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
+  Active: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700',
+  Inactive: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
+  Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
+};
 
 
 export default function ProjectDetailPage() {
@@ -77,16 +103,16 @@ export default function ProjectDetailPage() {
     }
   }, [projectId]);
 
-  const formatDate = (dateString: string | undefined) => {
+  const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
     if (!isClient || !dateString) {
       return 'Loading date...';
     }
     try {
        // Check if it's already a human-readable string (e.g., "2 minutes ago")
-       if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(dateString)) {
+       if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString)) {
         return dateString; 
       }
-      return format(parseISO(dateString), "MMMM d, yyyy 'at' hh:mm a");
+      return format(parseISO(dateString), options.year ? "MMMM d, yyyy 'at' hh:mm a" : "MMMM d, hh:mm a");
     } catch (error) {
       console.error("Error formatting date:", error);
       return dateString; // Fallback to original string on error
@@ -269,10 +295,10 @@ export default function ProjectDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {tasks.length > 0 ? (
-                <ul className="space-y-3">
+                 <ul className="space-y-3">
                   {tasks.map(task => (
-                    <li key={task.id} className="p-3 border rounded-md bg-background hover:bg-accent/50 transition-colors shadow-sm">
-                      <div className="flex items-start justify-between">
+                    <li key={task.id} className="p-3 border rounded-lg bg-card shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center justify-between">
                         <h5 className="font-medium text-sm mb-1">{task.title}</h5>
                         <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap", taskStatusColors[task.status])}>{task.status}</Badge>
                       </div>
@@ -289,49 +315,116 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="agents">
           <Card>
-            <CardHeader>
-              <CardTitle>Associated Agents</CardTitle>
-              <CardDescription>
-                View, manage, and configure agents specifically assigned or relevant to project "{project.name}".
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-muted-foreground">
-                This section will display a list of agents associated with this project. You'll be able to link existing global agents,
-                create new project-specific agent instances, and manage their configurations within the context of "{project.name}".
-                Think of it as your project's dedicated AI team, ready to automate tasks.
-              </p>
-               <div className="text-center py-6">
-                <Bot className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                <p className="mt-2 text-sm text-muted-foreground">Agent association functionality coming soon.</p>
-                <p className="text-xs text-muted-foreground/80 mt-1">
-                  (e.g., Link agents from Agent Management or view project-specific instances)
-                </p>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Associated Agents</CardTitle>
+                <CardDescription>
+                  Agents linked or specifically configured for project "{project.name}".
+                </CardDescription>
               </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled> 
+                  <LinkIcon className="mr-2 h-4 w-4" />
+                  Link Global Agent
+                </Button>
+                 <Button variant="outline" size="sm" disabled>
+                  <PlusSquareIcon className="mr-2 h-4 w-4" />
+                  Create Project Agent
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {mockAssociatedAgents.length > 0 ? (
+                <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                  {mockAssociatedAgents.map(agent => (
+                    <Card key={agent.id} className="shadow-sm">
+                      <CardHeader className="p-4">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base font-medium flex items-center">
+                            <Bot className="mr-2 h-5 w-5 text-primary" />
+                            {agent.name}
+                          </CardTitle>
+                           {agent.status && <Badge variant="outline" className={cn("text-xs", 
+                            agent.status === 'Running' ? 'border-green-500 text-green-700' : 
+                            agent.status === 'Idle' ? 'border-yellow-500 text-yellow-700' : 'border-gray-500 text-gray-700'
+                          )}>{agent.status}</Badge>}
+                        </div>
+                        <CardDescription className="text-xs">{agent.type}</CardDescription>
+                      </CardHeader>
+                       <CardFooter className="p-4 border-t">
+                        <Button variant="ghost" size="sm" className="w-full text-xs" disabled>View Details</Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                 <div className="text-center py-10">
+                  <Bot className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                  <p className="mt-2 text-sm text-muted-foreground">No agents are currently associated with this project.</p>
+                  <p className="text-xs text-muted-foreground/80 mt-1">
+                    Link existing agents or create project-specific instances.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="workflows">
           <Card>
-            <CardHeader>
-              <CardTitle>Project Workflows</CardTitle>
-              <CardDescription>
-                Design, monitor, and manage automated workflows tailored for project "{project.name}".
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-muted-foreground">
-                Here, you'll find all automated workflows relevant to this project. You will be able to design new workflows using project-specific agents,
-                trigger existing workflows, and monitor the status and logs of ongoing automated processes. This is where you orchestrate your agents to achieve project goals.
-              </p>
-               <div className="text-center py-6">
-                <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                <p className="mt-2 text-sm text-muted-foreground">Workflow design and management features for projects are under development.</p>
-                <p className="text-xs text-muted-foreground/80 mt-1">
-                  (e.g., View workflows utilizing this project's agents or resources)
-                </p>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Project Workflows</CardTitle>
+                <CardDescription>
+                  Automated workflows configured for project "{project.name}".
+                </CardDescription>
               </div>
+               <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled> 
+                  <WorkflowIcon className="mr-2 h-4 w-4" />
+                  Design New Workflow
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {mockProjectWorkflows.length > 0 ? (
+                 <div className="space-y-4">
+                  {mockProjectWorkflows.map(workflow => (
+                    <Card key={workflow.id} className="shadow-sm">
+                      <CardHeader className="p-4">
+                         <div className="flex items-center justify-between">
+                           <CardTitle className="text-base font-medium flex items-center">
+                            <WorkflowIcon className="mr-2 h-5 w-5 text-primary" />
+                            {workflow.name}
+                          </CardTitle>
+                          <Badge variant="outline" className={cn("text-xs capitalize", workflowStatusColors[workflow.status])}>
+                            {workflow.status}
+                          </Badge>
+                        </div>
+                        <CardDescription className="text-xs mt-1">{workflow.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
+                        {workflow.lastRun && (
+                          <p>Last run: {isClient ? formatDate(workflow.lastRun, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'}) : 'Processing...'}</p>
+                        )}
+                        {!workflow.lastRun && workflow.status !== 'Draft' && <p>Not run yet.</p>}
+                      </CardContent>
+                       <CardFooter className="p-4 border-t flex gap-2">
+                        <Button variant="outline" size="sm" className="text-xs flex-1" disabled>View/Edit</Button>
+                        <Button variant="default" size="sm" className="text-xs flex-1" disabled>Run Workflow</Button>
+                      </CardFooter>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-10">
+                  <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                  <p className="mt-2 text-sm text-muted-foreground">No workflows are configured for this project.</p>
+                   <p className="text-xs text-muted-foreground/80 mt-1">
+                    Design new workflows using project-specific agents or link existing global workflows.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
