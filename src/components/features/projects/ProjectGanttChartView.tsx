@@ -6,7 +6,7 @@ import { addDays, differenceInCalendarDays, format, parseISO, startOfDay, eachDa
 import { useMemo, useState, useEffect, MouseEvent as ReactMouseEvent } from 'react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Diamond } from 'lucide-react'; // Import Diamond for milestone
+import { Diamond } from 'lucide-react';
 
 interface ProjectGanttChartViewProps {
   tasks: Task[];
@@ -15,10 +15,10 @@ interface ProjectGanttChartViewProps {
 
 const DAY_WIDTH_PX = 30;
 const ROW_HEIGHT_PX = 40;
-const HEADER_HEIGHT_PX = 60; 
+const HEADER_HEIGHT_PX = 60;
 const TASK_NAME_WIDTH_PX = 200;
 const RESIZE_HANDLE_WIDTH_PX = 10;
-const MILESTONE_SIZE_PX = 20; // Size of the diamond milestone marker
+const MILESTONE_SIZE_PX = 16; // Adjusted size for milestone marker
 
 const statusGanttBarColors: { [key in Task['status']]: string } = {
   'To Do': 'bg-slate-400 hover:bg-slate-500',
@@ -27,15 +27,15 @@ const statusGanttBarColors: { [key in Task['status']]: string } = {
   'Blocked': 'bg-red-500 hover:bg-red-600',
 };
 
-const milestoneColor = 'bg-amber-500 hover:bg-amber-600'; // Distinct color for milestones
+const milestoneColor = 'bg-amber-500 hover:bg-amber-600';
 
-// Helper to get a darker shade for progress fill
 const getProgressFillColor = (baseColor: string): string => {
   if (baseColor.includes('slate')) return 'bg-slate-600';
   if (baseColor.includes('blue')) return 'bg-blue-700';
   if (baseColor.includes('green')) return 'bg-green-700';
   if (baseColor.includes('red')) return 'bg-red-700';
-  return 'bg-gray-700'; // Fallback
+  if (baseColor.includes('amber')) return 'bg-amber-700'; // For milestone if it ever has progress
+  return 'bg-gray-700';
 };
 
 
@@ -58,8 +58,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const { chartStartDate, chartEndDate, totalDays, daysArray } = useMemo(() => {
     if (!tasks.length) {
       const today = startOfDay(new Date());
-      const defaultStartDate = addDays(today, -15); // Increased padding
-      const defaultEndDate = addDays(today, 45); // Increased padding
+      const defaultStartDate = addDays(today, -7);
+      const defaultEndDate = addDays(today, 30);
       return {
         chartStartDate: defaultStartDate,
         chartEndDate: defaultEndDate,
@@ -73,22 +73,22 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
         try {
             const start = startOfDay(parseISO(task.startDate));
             acc.push(start);
-            if (!task.isMilestone && task.durationDays && task.durationDays > 0) { // Milestones have duration 0
+            if (!task.isMilestone && task.durationDays && task.durationDays > 0) {
               acc.push(addDays(start, task.durationDays -1));
-            } else {
-              acc.push(start); 
+            } else { // Milestones or tasks with 0 duration end on their start date
+              acc.push(start);
             }
         } catch (e) {
-            // console.warn(`Invalid start date for task "${task.title}": ${task.startDate}`);
+            console.warn(`Invalid start date for task "${task.title}": ${task.startDate}`);
         }
       }
       return acc;
     }, [] as Date[]);
 
-    if (!taskDates.length) { 
+    if (!taskDates.length) {
       const today = startOfDay(new Date());
-      const fallbackStart = addDays(today, -15);
-      const fallbackEnd = addDays(today, 45);
+      const fallbackStart = addDays(today, -7);
+      const fallbackEnd = addDays(today, 30);
       return {
         chartStartDate: fallbackStart,
         chartEndDate: fallbackEnd,
@@ -100,16 +100,16 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     let overallMinDate = min(taskDates);
     let overallMaxDate = max(taskDates);
 
-    overallMinDate = addDays(overallMinDate, -15); // Increased padding
-    overallMaxDate = addDays(overallMaxDate, 30);  // Increased padding
+    overallMinDate = addDays(overallMinDate, -7); 
+    overallMaxDate = addDays(overallMaxDate, 14); 
 
     const days = eachDayOfInterval({ start: overallMinDate, end: overallMaxDate });
 
     return {
       chartStartDate: overallMinDate,
       chartEndDate: overallMaxDate,
-      totalDays: days.length > 0 ? days.length : 60, // Default to a 60-day view if no tasks
-      daysArray: days.length > 0 ? days : eachDayOfInterval({ start: addDays(startOfDay(new Date()), -15), end: addDays(startOfDay(new Date()), 44) }),
+      totalDays: days.length > 0 ? days.length : 37,
+      daysArray: days.length > 0 ? days : eachDayOfInterval({ start: addDays(startOfDay(new Date()), -7), end: addDays(startOfDay(new Date()), 29) }),
     };
   }, [tasks]);
 
@@ -131,7 +131,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const handleTaskBarMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!task.startDate || resizingTaskDetails) return; // Don't drag if resize is active
+    if (!task.startDate || resizingTaskDetails || task.isMilestone) return;
 
     try {
         setDraggingTaskDetails({
@@ -178,7 +178,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const handleResizeMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
     event.stopPropagation();
-    if (task.isMilestone || draggingTaskDetails) return; // Don't resize milestones or if drag is active
+    if (task.isMilestone || draggingTaskDetails) return;
 
     setResizingTaskDetails({
         task,
@@ -226,11 +226,12 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const totalChartWidth = totalDays * DAY_WIDTH_PX;
 
   const getTaskTooltip = (task: Task): string => {
-    let tooltip = `${task.title}`;
+    let tooltip = `Task: ${task.title}`;
     if (task.isMilestone) {
         tooltip += ` (Milestone)`;
     }
     tooltip += `\nStatus: ${task.status}`;
+    tooltip += `\nAssigned To: ${task.assignedTo}`;
     if (task.startDate) {
       tooltip += `\nDate: ${format(parseISO(task.startDate), 'MMM d, yyyy')}`;
     }
@@ -284,7 +285,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                   style={{ width: `${DAY_WIDTH_PX}px`, minWidth: `${DAY_WIDTH_PX}px` }}
                   className={cn(
                     "p-1 text-[10px] text-center border-r last:border-r-0 text-muted-foreground",
-                    (format(day, 'E') === 'Sat' || format(day, 'E') === 'Sun') && 'bg-muted/30' 
+                    (format(day, 'E') === 'Sat' || format(day, 'E') === 'Sun') && 'bg-muted/30'
                   )}
                 >
                   {format(day, 'd')}
@@ -295,19 +296,19 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
         </div>
 
         {/* Task Rows & Grid Lines */}
-        <div className="relative"> 
+        <div className="relative">
           {/* Vertical Grid Lines */}
           {daysArray.map((_, dayIndex) => (
             <div
               key={`v-grid-${dayIndex}`}
               className={cn(
                 "absolute top-0 bottom-0 border-r border-border/30",
-                (format(daysArray[dayIndex], 'E') === 'Sat' || format(daysArray[dayIndex], 'E') === 'Sun') && 'bg-muted/20' 
+                (format(daysArray[dayIndex], 'E') === 'Sat' || format(daysArray[dayIndex], 'E') === 'Sun') && 'bg-muted/20'
               )}
               style={{
                 left: `${TASK_NAME_WIDTH_PX + dayIndex * DAY_WIDTH_PX}px`,
-                height: `${tasks.length * ROW_HEIGHT_PX}px`, 
-                zIndex: 0, 
+                height: `${tasks.length * ROW_HEIGHT_PX}px`,
+                zIndex: 0,
               }}
             ></div>
           ))}
@@ -325,7 +326,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
             return (
               <div
                 key={task.id}
-                className="flex items-center border-b last:border-b-0 group hover:bg-muted/10" 
+                className="flex items-center border-b last:border-b-0 group hover:bg-muted/10"
                 style={{ height: `${ROW_HEIGHT_PX}px`, position: 'relative' }}
               >
                 {/* Task Name Cell (Sticky) */}
@@ -333,6 +334,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                   style={{ width: `${TASK_NAME_WIDTH_PX}px`, minWidth: `${TASK_NAME_WIDTH_PX}px`, height: '100%' }}
                   className="p-2 text-sm truncate sticky left-0 bg-card group-hover:bg-muted/10 z-10 border-r flex items-center"
                 >
+                  {task.isMilestone && <Diamond className="mr-2 h-3 w-3 text-amber-500 flex-shrink-0" />}
                   {task.title}
                 </div>
                 
@@ -342,13 +344,13 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                     onMouseDown={(e) => handleTaskBarMouseDown(e, task)}
                     title={getTaskTooltip(task)}
                     className={cn(
-                      "absolute my-[5px] flex items-center justify-center overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out group",
-                      isDraggingThisTask ? 'cursor-grabbing opacity-75 ring-2 ring-primary z-20' : 'cursor-grab',
-                      isResizingThisTask && 'z-20 ring-2 ring-primary opacity-75',
-                      task.isMilestone ? barBaseColor : cn(barBaseColor, "rounded text-white text-[11px] px-2")
+                      "absolute my-[5px] flex items-center justify-start overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out group/taskbar text-white text-[11px] px-2 rounded",
+                      task.isMilestone ? cn(barBaseColor, "justify-center") : barBaseColor,
+                      isDraggingThisTask ? 'cursor-grabbing opacity-75 ring-2 ring-primary z-20' : (task.isMilestone ? '' : 'cursor-grab'),
+                      isResizingThisTask && 'z-20 ring-2 ring-primary opacity-75'
                     )}
                     style={{
-                      left: `${TASK_NAME_WIDTH_PX + barLeftOffset + (task.isMilestone ? (DAY_WIDTH_PX / 2 - MILESTONE_SIZE_PX / 2) : 0)}px`, // Center milestone in its day cell
+                      left: `${TASK_NAME_WIDTH_PX + barLeftOffset + (task.isMilestone ? (DAY_WIDTH_PX / 2 - MILESTONE_SIZE_PX / 2) : 0)}px`,
                       width: task.isMilestone ? `${MILESTONE_SIZE_PX}px` : `${barWidth}px`,
                       height: task.isMilestone ? `${MILESTONE_SIZE_PX}px` : `${ROW_HEIGHT_PX - 10}px`,
                       top: `${taskIndex * ROW_HEIGHT_PX + (task.isMilestone ? (ROW_HEIGHT_PX / 2 - MILESTONE_SIZE_PX / 2) : 0)}px`,
@@ -364,23 +366,26 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                           className={cn("absolute top-0 left-0 h-full rounded", progressFillColor)}
                           style={{ width: `${progressPercent}%` }}
                         />
-                        {/* Task Title (on top of progress) */}
-                        <span className="truncate pointer-events-none relative z-10">{task.title}</span>
-                        {!task.isMilestone && (
-                          <div
-                              onMouseDown={(e) => handleResizeMouseDown(e, task)}
-                              className="absolute top-0 right-0 h-full cursor-col-resize group-hover:bg-black/20 transition-colors"
-                              style={{ width: `${RESIZE_HANDLE_WIDTH_PX}px` }}
-                              title={`Resize ${task.title}`}
-                          >
-                              <span className="sr-only">Resize task</span>
-                          </div>
-                        )}
+                        {/* Task Title & Assignee (on top of progress) */}
+                        <span className="truncate pointer-events-none relative z-10">
+                          {task.title}
+                          {task.assignedTo && task.assignedTo !== "Unassigned" && (
+                            <span className="text-white/80 ml-1.5 text-[10px]">({task.assignedTo})</span>
+                          )}
+                        </span>
+                        <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, task)}
+                            className="absolute top-0 right-0 h-full cursor-col-resize group-hover/taskbar:bg-black/20 transition-colors"
+                            style={{ width: `${RESIZE_HANDLE_WIDTH_PX}px` }}
+                            title={`Resize ${task.title}`}
+                        >
+                            <span className="sr-only">Resize task</span>
+                        </div>
                       </>
                     )}
                      {task.isMilestone && (
                         <div className="w-full h-full flex items-center justify-center text-white" style={{transform: 'rotate(-45deg)'}}>
-                           {/* Optionally, an icon could go here instead of text if the diamond itself is enough */}
+                           {/* Optional: Icon inside diamond if needed */}
                         </div>
                     )}
                   </div>
