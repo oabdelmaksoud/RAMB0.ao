@@ -80,10 +80,11 @@ export default function ViewLogsDialog({ agent, open, onOpenChange }: ViewLogsDi
           </DialogDescription>
         </DialogHeader>
         
-        <div className="grid md:grid-cols-2 gap-6 max-h-[60vh] md:max-h-[calc(80vh-200px)]">
+        <div className="grid md:grid-cols-2 gap-6"> {/* Removed max-h from here */}
           <div className="flex flex-col">
             <h4 className="text-sm font-medium mb-2 text-muted-foreground">Execution Logs</h4>
-            <ScrollArea className="flex-grow h-[250px] md:h-auto w-full rounded-md border p-4 bg-muted/20 dark:bg-muted/10">
+            {/* Apply fixed height to ScrollArea for logs */}
+            <ScrollArea className="h-[300px] w-full rounded-md border p-4 bg-muted/20 dark:bg-muted/10">
               {agent.logs && agent.logs.length > 0 ? (
                 <ul className="space-y-2 text-sm">
                   {agent.logs.map((log, index) => (
@@ -116,7 +117,8 @@ export default function ViewLogsDialog({ agent, open, onOpenChange }: ViewLogsDi
                 {aiSummary ? 'Regenerate' : 'Get Summary'}
               </Button>
             </div>
-            <ScrollArea className="flex-grow h-[250px] md:h-auto w-full rounded-md border p-4 bg-muted/20 dark:bg-muted/10">
+            {/* Apply fixed height to ScrollArea for summary */}
+            <ScrollArea className="h-[300px] w-full rounded-md border p-4 bg-muted/20 dark:bg-muted/10">
               {isSummaryLoading && (
                 <div className="flex items-center justify-center h-full">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
