@@ -1,8 +1,9 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
+// Button component is no longer directly used for palette items
 import { Code2, FileText, Bell, BarChartBig, BrainCircuit } from 'lucide-react';
 
 const agentTypes = [
@@ -10,7 +11,7 @@ const agentTypes = [
   { name: 'Documentation Agent', icon: FileText, description: 'Generates and updates project docs.' },
   { name: 'Notification Agent', icon: Bell, description: 'Sends alerts and updates.' },
   { name: 'Reporting Agent', icon: BarChartBig, description: 'Compiles and presents data reports.' },
-  { name: 'Custom Logic Agent', icon: BrainCircuit, description: 'Executes user-defined Python scripts.' },
+  { name: 'Custom Logic Agent', icon: BrainCircuit, description: 'Executes user-defined scripts.' },
 ];
 
 export default function WorkflowPalette() {
@@ -20,26 +21,24 @@ export default function WorkflowPalette() {
         <CardTitle className="text-lg">Agent Palette</CardTitle>
       </CardHeader>
       <ScrollArea className="flex-grow">
-        <CardContent className="p-4 space-y-3">
+        <CardContent className="p-4 space-y-3"> {/* space-y-3 provides spacing between items */}
           {agentTypes.map((agent) => (
-            <Button
+            <div
               key={agent.name}
-              variant="outline"
-              className="w-full justify-start h-auto py-2 px-3 text-left group hover:bg-accent"
-              // Placeholder for drag functionality
               draggable
               onDragStart={(e) => {
-                e.dataTransfer.setData('application/reactflow', agent.name); // Example data
+                e.dataTransfer.setData('application/reactflow', agent.name);
                 e.dataTransfer.effectAllowed = 'move';
               }}
+              className="p-3 border rounded-lg bg-card hover:shadow-lg hover:border-primary cursor-grab transition-all duration-150 ease-in-out flex items-start gap-3 text-left group"
               title={`Drag to add ${agent.name}`}
             >
-              <agent.icon className="h-5 w-5 mr-3 text-primary group-hover:text-accent-foreground shrink-0" />
+              <agent.icon className="h-6 w-6 mt-0.5 text-primary group-hover:text-primary/90 shrink-0" />
               <div>
-                <p className="font-medium group-hover:text-accent-foreground">{agent.name}</p>
-                <p className="text-xs text-muted-foreground group-hover:text-accent-foreground/80">{agent.description}</p>
+                <p className="font-semibold text-card-foreground group-hover:text-primary">{agent.name}</p>
+                <p className="text-xs text-muted-foreground">{agent.description}</p>
               </div>
-            </Button>
+            </div>
           ))}
         </CardContent>
       </ScrollArea>
