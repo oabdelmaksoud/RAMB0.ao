@@ -28,6 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import Link from 'next/link';
 
 // Agent Management Imports (now integrated into this page)
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
@@ -78,6 +79,8 @@ const initialProjectScopedMockAgents: Agent[] = [
 ];
 
 const getAgentsStorageKey = (projectId: string) => `agentFlowAgents_project_${projectId}`;
+const getTasksStorageKey = (projectId: string) => `agentFlowTasks_project_${projectId}`;
+
 
 const mockProjectWorkflows: ProjectWorkflow[] = [
     { id: 'wf-proj-001', name: 'Nightly Data Sync for Project', description: 'Synchronizes project data with the central repository.', status: 'Active', lastRun: new Date(Date.now() - 86400000).toISOString() },
@@ -109,7 +112,7 @@ export default function ProjectDetailPage() {
   const [isDeleteAgentDialogOpen, setIsDeleteAgentDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   
-  // Load project details and project-specific agents
+  // Load project details, project-specific agents, and project-specific tasks
   useEffect(() => {
     setIsClient(true);
     const foundProject = mockProjects.find(p => p.id === projectId);
@@ -123,10 +126,24 @@ export default function ProjectDetailPage() {
         { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
         { id: `${projectId}-task-4`, title: `Deploy ${foundProject.name} to staging`, status: 'Blocked', assignedTo: 'DevOps Team' },
       ];
-      setTasks(initialMockTasks.slice(0, Math.floor(Math.random() * initialMockTasks.length) + 1));
+      
+      // Load Tasks
+      const tasksStorageKey = getTasksStorageKey(projectId);
+      const storedTasks = localStorage.getItem(tasksStorageKey);
+      if (storedTasks) {
+        try {
+          setTasks(JSON.parse(storedTasks));
+        } catch (error) {
+          console.error(`Failed to parse tasks for project ${projectId} from localStorage`, error);
+          setTasks(initialMockTasks.slice(0, Math.floor(Math.random() * initialMockTasks.length) + 1));
+        }
+      } else {
+        setTasks(initialMockTasks.slice(0, Math.floor(Math.random() * initialMockTasks.length) + 1));
+      }
 
-      const storageKey = getAgentsStorageKey(projectId);
-      const storedAgents = localStorage.getItem(storageKey);
+      // Load Agents
+      const agentsStorageKey = getAgentsStorageKey(projectId);
+      const storedAgents = localStorage.getItem(agentsStorageKey);
       if (storedAgents) {
         try {
           setProjectAgents(JSON.parse(storedAgents));
@@ -147,6 +164,14 @@ export default function ProjectDetailPage() {
     }
   }, [projectAgents, projectId]);
 
+  // Save project-specific tasks to localStorage whenever they change
+  useEffect(() => {
+    if (projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)))) {
+      localStorage.setItem(getTasksStorageKey(projectId), JSON.stringify(tasks));
+    }
+  }, [tasks, projectId]);
+
+
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
     if (!isClient || !dateString) return 'Loading date...';
     try {
@@ -161,7 +186,7 @@ export default function ProjectDetailPage() {
   const handleAddTask = (newTaskData: Omit<Task, 'id'>) => {
     const newTask: Task = {
       ...newTaskData,
-      id: `task-${Date.now().toString().slice(-5)}-${Math.random().toString(36).substring(2, 6)}`,
+      id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
     };
     setTasks(prevTasks => [newTask, ...prevTasks]);
     setIsAddTaskDialogOpen(false);
@@ -389,7 +414,9 @@ export default function ProjectDetailPage() {
                     <PageHeaderHeading className="text-2xl">Project Workflow Designer</PageHeaderHeading>
                     <PageHeaderDescription>Visually design and manage workflows for project "{project.name}".</PageHeaderDescription>
                 </div>
-                 {/* Placeholder for "Create New Project Workflow" button or similar */}
+                 <Link href="/workflow-designer" passHref legacyBehavior>
+                    <Button variant="outline"><PlusSquareIcon className="mr-2 h-4 w-4"/>Design New Workflow</Button>
+                 </Link>
             </PageHeader>
             <div className="flex flex-col lg:flex-row gap-6 mt-2">
                 <div className="lg:w-1/4 min-w-[280px] max-w-full lg:max-w-[320px]">
@@ -488,3 +515,4 @@ export default function ProjectDetailPage() {
     
 
     
+
