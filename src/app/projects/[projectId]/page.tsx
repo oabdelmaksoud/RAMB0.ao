@@ -2,10 +2,10 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Agent } from '@/types';
+import type { Project } from '@/types';
 import { mockProjects } from '@/app/projects/page'; // Temporary: Import mock data
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -307,21 +307,37 @@ export default function ProjectDetailPage() {
                 Add New Task
               </Button>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent>
               {tasks.length > 0 ? (
-                 <ul className="space-y-3">
+                 <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {tasks.map(task => (
-                    <li key={task.id} className="p-3 border rounded-lg bg-card shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex items-center justify-between">
-                        <h5 className="font-medium text-sm mb-1">{task.title}</h5>
-                        <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap", taskStatusColors[task.status])}>{task.status}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Assigned to: {task.assignedTo}</p>
-                    </li>
+                    <Card key={task.id} className="shadow-sm">
+                      <CardHeader className="p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="text-base font-medium leading-tight">{task.title}</CardTitle>
+                          <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap shrink-0", taskStatusColors[task.status])}>{task.status}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0 text-sm">
+                        <p className="text-muted-foreground">Assigned to: {task.assignedTo}</p>
+                      </CardContent>
+                      <CardFooter className="p-4 border-t flex gap-2">
+                        <Button variant="outline" size="sm" className="text-xs flex-1" disabled>
+                          <Eye className="mr-1.5 h-3.5 w-3.5" /> View
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-xs flex-1" disabled>
+                          <Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit
+                        </Button>
+                      </CardFooter>
+                    </Card>
                   ))}
-                </ul>
+                </div>
               ) : (
-                <p className="text-muted-foreground text-center py-4">No tasks found for this project. Add a task to get started!</p>
+                <div className="text-center py-10">
+                    <ListChecks className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                    <p className="mt-2 text-sm text-muted-foreground">No tasks found for this project.</p>
+                    <p className="text-xs text-muted-foreground/80 mt-1">Add a task to get started!</p>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -364,7 +380,7 @@ export default function ProjectDetailPage() {
                             'border-gray-500 text-gray-700 dark:text-gray-400 dark:border-gray-600'
                           )}>{agent.status}</Badge>}
                         </div>
-                        <CardDescription className="text-xs">{agent.type}</CardDescription>
+                        <CardDescription className="text-xs mt-1">{agent.type}</CardDescription>
                       </CardHeader>
                        <CardFooter className="p-4 border-t">
                         <Button variant="ghost" size="sm" className="w-full text-xs" disabled>View Details</Button>
@@ -407,7 +423,7 @@ export default function ProjectDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {mockProjectWorkflows.length > 0 ? (
-                 <div className="space-y-4">
+                 <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
                   {mockProjectWorkflows.map(workflow => (
                     <Card key={workflow.id} className="shadow-sm">
                       <CardHeader className="p-4">
