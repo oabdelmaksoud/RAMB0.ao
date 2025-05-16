@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Agent } from '@/types'; 
@@ -27,6 +27,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import Link from 'next/link';
 
@@ -120,11 +121,10 @@ export default function ProjectDetailPage() {
       setProject(foundProject);
       setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); 
       
-      const initialMockTasks: Task[] = [
+      const initialMockTasksForProject: Task[] = [
         { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
         { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
         { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
-        { id: `${projectId}-task-4`, title: `Deploy ${foundProject.name} to staging`, status: 'Blocked', assignedTo: 'DevOps Team' },
       ];
       
       // Load Tasks
@@ -135,10 +135,10 @@ export default function ProjectDetailPage() {
           setTasks(JSON.parse(storedTasks));
         } catch (error) {
           console.error(`Failed to parse tasks for project ${projectId} from localStorage`, error);
-          setTasks(initialMockTasks.slice(0, Math.floor(Math.random() * initialMockTasks.length) + 1));
+          setTasks(initialMockTasksForProject);
         }
       } else {
-        setTasks(initialMockTasks.slice(0, Math.floor(Math.random() * initialMockTasks.length) + 1));
+        setTasks(initialMockTasksForProject);
       }
 
       // Load Agents
@@ -511,8 +511,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
-    
-
-    
-
