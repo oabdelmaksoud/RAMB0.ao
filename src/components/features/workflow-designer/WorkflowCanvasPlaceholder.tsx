@@ -5,16 +5,7 @@ import { useState, DragEvent, useRef, useEffect } from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDashed, Hand } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { WorkflowNode } from '@/types'; // Import WorkflowNode
-
-// This interface was similar to WorkflowNode, now using WorkflowNode from types.
-// interface DroppedAgent {
-//   id: string;
-//   name: string;
-//   type: string;
-//   x: number;
-//   y: number;
-// }
+import type { WorkflowNode } from '@/types'; 
 
 const agentIcons: { [key: string]: LucideIcon } = {
   'Code Review Agent': Code2,
@@ -34,55 +25,74 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
   const canvasRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    console.log("CANVAS: Initializing or initialNodes prop changed:", initialNodes);
     setDroppedAgents(initialNodes);
   }, [initialNodes]);
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
+    // console.log('CANVAS: Dragging over...'); // This can be very noisy
+    event.preventDefault(); // CRITICAL: This allows the drop to happen.
     event.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
+    event.preventDefault(); // CRITICAL: Prevents default browser action (e.g., opening file).
+    console.log('CANVAS: Drop event triggered.');
+
     const agentType = event.dataTransfer.getData('text/plain');
+    console.log(`CANVAS: Agent type received from dataTransfer: '${agentType}'`);
     
-    if (!agentType || !canvasRef.current) {
-      console.error('Drop aborted: agentType or canvasRef missing.');
+    if (!agentType) {
+      console.error('CANVAS: Drop aborted - no agentType received. Ensure dataTransfer.setData was called correctly in onDragStart.');
+      return;
+    }
+    if (!canvasRef.current) {
+      console.error('CANVAS: Drop aborted - canvasRef.current is null.');
       return;
     }
 
     const canvasRect = canvasRef.current.getBoundingClientRect();
     if (canvasRect.width === 0 || canvasRect.height === 0) {
-      console.error("Drop aborted: Canvas has zero dimensions.");
+      console.error("CANVAS: Drop aborted - Canvas has zero dimensions. Ensure it's visible and has size.");
       return;
     }
+    console.log('CANVAS: Canvas Rect:', canvasRect);
     
     const agentCardWidth = 180;
-    const agentCardHeight = 60;
+    const agentCardHeight = 60; 
     
     let x = event.clientX - canvasRect.left;
     let y = event.clientY - canvasRect.top;
+    console.log(`CANVAS: Initial drop coords (relative to canvas): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
 
+    // Center the card on the drop point
     x = x - agentCardWidth / 2;
     y = y - agentCardHeight / 2;
+    console.log(`CANVAS: Centered drop coords (for top-left of card): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
     
-    const padding = 5;
+    const padding = 5; 
     const adjustedX = Math.min(Math.max(padding, x), canvasRect.width - agentCardWidth - padding);
     const adjustedY = Math.min(Math.max(padding, y), canvasRect.height - agentCardHeight - padding);
+    console.log(`CANVAS: Adjusted drop coords (within bounds): x=${adjustedX.toFixed(2)}, y=${adjustedY.toFixed(2)}`);
 
     const newAgentNode: WorkflowNode = {
       id: `agent-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      name: agentType, // Name could be user-defined later, for now it's the type
+      name: agentType, 
       type: agentType,
       x: adjustedX,
       y: adjustedY,
     };
+    console.log('CANVAS: New agent node to add:', newAgentNode);
 
-    const updatedNodes = [...droppedAgents, newAgentNode];
-    setDroppedAgents(updatedNodes);
-    if (onNodesChange) {
-      onNodesChange(updatedNodes);
-    }
+    setDroppedAgents((prevNodes) => {
+      const newNodes = [...prevNodes, newAgentNode];
+      console.log('CANVAS: Successfully updated droppedAgents state. New count:', newNodes.length, newNodes);
+      if (onNodesChange) {
+        console.log('CANVAS: Calling onNodesChange callback.');
+        onNodesChange(newNodes);
+      }
+      return newNodes;
+    });
   };
 
   const AgentIcon = ({ type }: { type: string }) => {
@@ -116,7 +126,7 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
           // Basic drag functionality for moving existing nodes could be added here later
           // draggable
-          // onDragStart={(e) => e.stopPropagation()} // Prevent interfering with palette drag
+          // onDragStart={(e) => { e.stopPropagation(); console.log('Dragging existing card'); }}
         >
           <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full">
             <AgentIcon type={agentNode.type} />

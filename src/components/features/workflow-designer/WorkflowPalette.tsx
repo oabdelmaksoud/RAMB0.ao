@@ -24,7 +24,7 @@ export default function WorkflowPalette() {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, agentName: string) => {
     e.dataTransfer.setData('text/plain', agentName);
     e.dataTransfer.effectAllowed = 'move';
-    console.log('Drag started from palette for:', agentName);
+    console.log(`PALETTE: Drag started for: ${agentName}. Data set to: ${agentName}`);
   };
 
   return (
