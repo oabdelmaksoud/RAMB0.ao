@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project } from '@/types'; 
+import type { Project } from '@/types';
 import { mockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,13 +33,13 @@ import Link from 'next/link';
 
 // Agent Management Imports
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
-import type { Agent } from '@/types'; 
+import type { Agent } from '@/types';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
 import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
 
 // Workflow Designer Imports
 import WorkflowPalette from '@/components/features/workflow-designer/WorkflowPalette';
-import WorkflowCanvas from '@/components/features/workflow-designer/WorkflowCanvasPlaceholder'; 
+import WorkflowCanvas from '@/components/features/workflow-designer/WorkflowCanvasPlaceholder';
 import AddWorkflowDialog from '@/components/features/projects/AddWorkflowDialog';
 
 
@@ -76,7 +76,7 @@ interface ProjectWorkflow {
   lastRun?: string; // ISO Date string
 }
 
-const initialProjectScopedMockAgents: Agent[] = [ 
+const initialProjectScopedMockAgents: Agent[] = [
   { id: 'proj-agent-init-001', name: 'Project Kickstart Analyzer', type: 'Analysis Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { scope: 'initial_setup', autoRun: false } },
   { id: 'proj-agent-init-002', name: 'Basic Task Reporter', type: 'Reporting Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { frequency: 'on-demand' } },
 ];
@@ -92,6 +92,21 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
   Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
 };
 
+const predefinedWorkflows: Omit<ProjectWorkflow, 'id'>[] = [
+  {
+    name: "Software Development Lifecycle",
+    description: "A standard workflow for planning, developing, testing, and deploying software features.",
+    status: 'Draft',
+    lastRun: undefined,
+  },
+  {
+    name: "Software Testing Cycle",
+    description: "A comprehensive workflow for various testing phases including unit, integration, and user acceptance testing.",
+    status: 'Draft',
+    lastRun: undefined,
+  },
+];
+
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -99,14 +114,14 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [mockProgress, setMockProgress] = useState(0);
-  
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false); 
+  const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
-  
+
   const { toast } = useToast();
 
   // State for Agent Management within Project
@@ -120,10 +135,12 @@ export default function ProjectDetailPage() {
   const [projectWorkflows, setProjectWorkflows] = useState<ProjectWorkflow[]>([]);
   const [isAddWorkflowDialogOpen, setIsAddWorkflowDialogOpen] = useState(false);
   const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null); // New state for active workflow design
-  
+
 
   const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
-  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false); 
+  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false);
+  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
+  const [selectedWorkflowForDialog, setSelectedWorkflowForDialog] = useState<ProjectWorkflow | null>(null);
 
 
   useEffect(() => {
@@ -131,14 +148,14 @@ export default function ProjectDetailPage() {
     const foundProject = mockProjects.find(p => p.id === projectId);
     if (foundProject) {
       setProject(foundProject);
-      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); 
-      
+      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30);
+
       const initialMockTasksForProject: Task[] = [
         { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
         { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
         { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
       ];
-      
+
       const tasksStorageKey = getTasksStorageKey(projectId);
       const storedTasks = localStorage.getItem(tasksStorageKey);
       if (storedTasks) {
@@ -159,10 +176,10 @@ export default function ProjectDetailPage() {
           setProjectAgents(JSON.parse(storedAgents));
         } catch (error) {
           console.error(`Failed to parse agents for project ${projectId} from localStorage`, error);
-          setProjectAgents(initialProjectScopedMockAgents); 
+          setProjectAgents(initialProjectScopedMockAgents);
         }
       } else {
-        setProjectAgents(initialProjectScopedMockAgents); 
+        setProjectAgents(initialProjectScopedMockAgents);
       }
 
       const workflowsStorageKey = getWorkflowsStorageKey(projectId);
@@ -172,29 +189,39 @@ export default function ProjectDetailPage() {
           setProjectWorkflows(JSON.parse(storedWorkflows));
         } catch (error) {
           console.error(`Failed to parse workflows for project ${projectId} from localStorage`, error);
-          setProjectWorkflows([]); 
+          // Initialize with predefined workflows if parsing fails for some reason
+           const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
+            ...wf,
+            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
+          }));
+          setProjectWorkflows(defaultWorkflowsWithIds);
         }
       } else {
-        setProjectWorkflows([]); 
+        // No stored workflows, initialize with predefined ones
+        const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
+            ...wf,
+            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
+          }));
+        setProjectWorkflows(defaultWorkflowsWithIds);
       }
 
     }
   }, [projectId]);
 
   useEffect(() => {
-    if (isClient && projectId && (projectAgents.length > 0 || localStorage.getItem(getAgentsStorageKey(projectId)))) {
+    if (isClient && projectId && (projectAgents.length > 0 || localStorage.getItem(getAgentsStorageKey(projectId)) !== null)) {
       localStorage.setItem(getAgentsStorageKey(projectId), JSON.stringify(projectAgents));
     }
   }, [projectAgents, projectId, isClient]);
 
   useEffect(() => {
-    if (isClient && projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)))) {
+    if (isClient && projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)) !== null )) {
       localStorage.setItem(getTasksStorageKey(projectId), JSON.stringify(tasks));
     }
   }, [tasks, projectId, isClient]);
 
   useEffect(() => {
-    if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)))) {
+    if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)) !== null)) {
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
     }
   }, [projectWorkflows, projectId, isClient]);
@@ -222,7 +249,7 @@ export default function ProjectDetailPage() {
 
     if (taskData.assignedTo && taskData.assignedTo !== "Unassigned") {
       const assignedAgent = projectAgents.find(agent => agent.name === taskData.assignedTo);
-      
+
       if (assignedAgent) {
         targetAgentName = assignedAgent.name;
         if (assignedAgent.status === 'Running') {
@@ -241,19 +268,19 @@ export default function ProjectDetailPage() {
     setIsAddTaskDialogOpen(false);
 
     if (autoStarted && targetAgentName) {
-      toast({ 
-        title: "Task In Progress", 
-        description: `Task "${newTask.title}" assigned to agent "${targetAgentName}" and is now being processed.` 
+      toast({
+        title: "Task In Progress",
+        description: `Task "${newTask.title}" assigned to agent "${targetAgentName}" and is now being processed.`
       });
     } else if (targetAgentName) {
-      toast({ 
-        title: "Task Added", 
-        description: `Task "${newTask.title}" assigned to agent "${targetAgentName}". Run the agent to start processing.` 
+      toast({
+        title: "Task Added",
+        description: `Task "${newTask.title}" assigned to agent "${targetAgentName}". Run the agent to start processing.`
       });
     } else {
-      toast({ 
-        title: "Task Added", 
-        description: `Task "${newTask.title}" has been added to project "${project?.name}".` 
+      toast({
+        title: "Task Added",
+        description: `Task "${newTask.title}" has been added to project "${project?.name}".`
       });
     }
   };
@@ -309,7 +336,7 @@ export default function ProjectDetailPage() {
     setEditingAgent(null);
     toast({ title: "Project Agent Updated", description: `Agent "${updatedAgent.name}" configuration saved for project "${project?.name}".` });
   };
-  
+
   const handleRunProjectAgent = (agentId: string) => {
     setProjectAgents(prevAgents =>
       prevAgents.map(agent =>
@@ -365,7 +392,7 @@ export default function ProjectDetailPage() {
       lastRun: undefined,
     };
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
-    setIsAddWorkflowDialogOpen(false); 
+    setIsAddWorkflowDialogOpen(false);
     toast({ title: "Project Workflow Added", description: `Workflow "${newWorkflow.name}" created for project "${project?.name}".` });
   };
 
@@ -375,9 +402,12 @@ export default function ProjectDetailPage() {
 
   const handleCloseWorkflowDesigner = () => {
     setDesigningWorkflow(null);
-    // Here you might want to save the workflow design from the canvas state
-    // For now, it just closes the designer view
     toast({ title: "Workflow Designer Closed", description: `Stopped designing workflow: "${designingWorkflow?.name}". Changes are not saved yet.`});
+  };
+
+  const handleOpenViewEditWorkflowDialog = (workflow: ProjectWorkflow) => {
+    setSelectedWorkflowForDialog(workflow);
+    setIsViewEditWorkflowDialogOpen(true);
   };
 
 
@@ -456,7 +486,7 @@ export default function ProjectDetailPage() {
           </CardContent>
         </Card>
       </div>
-      
+
       <Separator className="my-6" />
 
       <Tabs defaultValue="tasks" className="w-full">
@@ -587,7 +617,7 @@ export default function ProjectDetailPage() {
                   </div>
                   <Button variant="outline" onClick={handleCloseWorkflowDesigner}><XSquare className="mr-2 h-4 w-4"/>Close Designer</Button>
               </div>
-              <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1"> {/* Added p-1 for slight padding */}
+              <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1">
                   <WorkflowPalette />
                   <WorkflowCanvas />
               </div>
@@ -621,7 +651,7 @@ export default function ProjectDetailPage() {
         />
       )}
       <AddWorkflowDialog open={isAddWorkflowDialogOpen} onOpenChange={setIsAddWorkflowDialogOpen} onAddWorkflow={handleAddProjectWorkflow} />
-      
+
       {editingAgent && (
         <EditAgentDialog
           agent={editingAgent}
@@ -694,7 +724,21 @@ export default function ProjectDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={isViewEditWorkflowDialogOpen} onOpenChange={setIsViewEditWorkflowDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>View/Edit Workflow: {selectedWorkflowForDialog?.name}</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Clicking this would normally open the workflow designer (palette and canvas) pre-loaded with the nodes and connections for "{selectedWorkflowForDialog?.name}".
+                    Currently, this step is a placeholder. The full implementation for saving and loading individual workflow designs is pending.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setIsViewEditWorkflowDialogOpen(false)}>OK</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
     </div>
   );
 }
-
