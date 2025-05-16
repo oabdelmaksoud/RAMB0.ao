@@ -34,33 +34,32 @@ export default function WorkflowCanvas() {
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const agentType = event.dataTransfer.getData('text/plain'); // Use 'text/plain'
+    const agentType = event.dataTransfer.getData('text/plain');
     
     if (!agentType || !canvasRef.current) {
-      return;
+      return; // Exit if no agentType or canvasRef is not available
     }
 
     const canvasRect = canvasRef.current.getBoundingClientRect();
     
-    // Calculate position relative to the canvas, ensuring it's within bounds
     const agentCardWidth = 180; 
     const agentCardHeight = 60; 
     
-    // Adjusted X and Y relative to the canvas element
     let x = event.clientX - canvasRect.left;
     let y = event.clientY - canvasRect.top;
 
-    // Center the card on the drop point and keep within canvas bounds
+    // Center the card on the drop point
     x = x - agentCardWidth / 2;
     y = y - agentCardHeight / 2;
     
+    // Keep within canvas bounds with a small padding
     const adjustedX = Math.min(Math.max(10, x), canvasRect.width - agentCardWidth - 10);
     const adjustedY = Math.min(Math.max(10, y), canvasRect.height - agentCardHeight - 10);
 
     const newAgent: DroppedAgent = {
       id: `agent-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      name: agentType, // This is the type from the palette, used for icon lookup
-      type: agentType, // Storing it as 'type' for consistency, can be refined
+      name: agentType,
+      type: agentType, 
       x: adjustedX,
       y: adjustedY,
     };
@@ -68,7 +67,7 @@ export default function WorkflowCanvas() {
   };
 
   const AgentIcon = ({ type }: { type: string }) => {
-    const IconComponent = agentIcons[type] || BrainCircuit; // Default icon
+    const IconComponent = agentIcons[type] || BrainCircuit;
     return <IconComponent className="h-5 w-5 mr-2 text-primary" />;
   };
 
@@ -94,11 +93,10 @@ export default function WorkflowCanvas() {
       {droppedAgents.map((agent) => (
         <Card 
           key={agent.id} 
-          className="absolute w-[180px] shadow-lg cursor-grab bg-card border" // Added cursor-grab
+          className="absolute w-[180px] shadow-lg cursor-grab bg-card border"
           style={{ left: `${agent.x}px`, top: `${agent.y}px` }}
-          // Making individual cards draggable later might require their own onDragStart and potentially stopping propagation
         >
-          <CardHeader className="p-3 flex flex-row items-center space-x-0"> {/* Adjusted space-x-2 to space-x-0 if icon is part of AgentIcon's layout */}
+          <CardHeader className="p-3 flex flex-row items-center space-x-0">
             <AgentIcon type={agent.type} />
             <CardTitle className="text-sm font-medium truncate">{agent.name}</CardTitle>
           </CardHeader>
