@@ -1,3 +1,4 @@
+
 export interface Agent {
   id: string;
   name: string;
@@ -42,3 +43,15 @@ export interface Project {
   agentCount?: number;
   workflowCount?: number;
 }
+
+// Moved Task interface here to be globally accessible if needed,
+// or it can stay within [projectId]/page.tsx if only used there.
+// For now, keeping it in [projectId]/page.tsx to avoid potential circular dependencies
+// if other types might reference it later. If it needs to be shared, move it here.
+// export interface Task {
+//   id: string;
+//   title: string;
+//   status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
+//   assignedTo: string;
+// }
+

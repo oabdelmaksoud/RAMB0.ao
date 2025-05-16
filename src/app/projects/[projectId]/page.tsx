@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import AddTaskDialog from '@/components/features/projects/AddTaskDialog'; // New Import
+import { useToast } from '@/hooks/use-toast'; // New Import
 
 // Copied from ProjectCard for consistency, ideally this would be a shared utility or part of the type
 const statusColors: { [key in Project['status']]: string } = {
@@ -26,14 +28,21 @@ const statusColors: { [key in Project['status']]: string } = {
 };
 
 // Mock task statuses and colors for the task list
-const taskStatusColors: { [key: string]: string } = {
+export const taskStatusColors: { [key: string]: string } = {
   'To Do': 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
   'In Progress': 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700',
   'Done': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700',
   'Blocked': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border-red-300 dark:border-red-700',
 };
 
-const mockTasks = [
+export interface Task {
+  id: string;
+  title: string;
+  status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
+  assignedTo: string;
+}
+
+const initialMockTasks: Task[] = [
   { id: 'task-1', title: 'Define project scope and requirements', status: 'Done', assignedTo: 'AI Agent Alpha' },
   { id: 'task-2', title: 'Develop core agent logic for data analysis', status: 'In Progress', assignedTo: 'AI Agent Beta' },
   { id: 'task-3', title: 'Set up CI/CD pipeline for automated testing', status: 'In Progress', assignedTo: 'DevOps Agent' },
@@ -49,13 +58,15 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [mockProgress, setMockProgress] = useState(0);
+  const [tasks, setTasks] = useState<Task[]>(initialMockTasks); // Tasks in state
+  const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setIsClient(true);
     const foundProject = mockProjects.find(p => p.id === projectId);
     if (foundProject) {
       setProject(foundProject);
-      // Generate a mock progress value based on project ID for visual variety
       setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30);
     }
   }, [projectId]);
@@ -66,13 +77,26 @@ export default function ProjectDetailPage() {
     }
     try {
        if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(dateString)) {
-        return dateString; // If it's already human-readable, return as is
+        return dateString; 
       }
       return format(parseISO(dateString), "MMMM d, yyyy 'at' hh:mm a");
     } catch (error) {
       console.error("Error formatting date:", error);
-      return dateString; // Fallback if date is not ISO or invalid
+      return dateString; 
     }
+  };
+
+  const handleAddTask = (newTaskData: Omit<Task, 'id'>) => {
+    const newTask: Task = {
+      ...newTaskData,
+      id: `task-${Date.now().toString().slice(-5)}-${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setTasks(prevTasks => [newTask, ...prevTasks]);
+    setIsAddTaskDialogOpen(false);
+    toast({
+      title: "Task Added",
+      description: `Task "${newTask.title}" has been added to the project.`,
+    });
   };
 
   if (!project) {
@@ -184,7 +208,7 @@ export default function ProjectDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
                     <h4 className="font-semibold text-sm text-muted-foreground mb-1">Pending Tasks</h4>
-                    <p className="text-2xl font-bold">{mockTasks.filter(t => t.status === 'To Do' || t.status === 'In Progress').length}</p>
+                    <p className="text-2xl font-bold">{tasks.filter(t => t.status === 'To Do' || t.status === 'In Progress').length}</p>
                 </div>
                  <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
                     <h4 className="font-semibold text-sm text-muted-foreground mb-1">Active Agents</h4>
@@ -231,15 +255,15 @@ export default function ProjectDetailPage() {
                   Track and manage all tasks related to project "{project.name}".
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" disabled>
+              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add New Task
               </Button>
             </CardHeader>
             <CardContent className="space-y-3">
-              {mockTasks.length > 0 ? (
+              {tasks.length > 0 ? (
                 <ul className="space-y-2">
-                  {mockTasks.map(task => (
+                  {tasks.map(task => (
                     <li key={task.id} className="p-3 border rounded-md bg-background hover:bg-accent/50 transition-colors">
                       <div className="flex items-center justify-between">
                         <h5 className="font-medium text-sm">{task.title}</h5>
@@ -252,9 +276,6 @@ export default function ProjectDetailPage() {
               ) : (
                 <p className="text-muted-foreground text-center py-4">No tasks found for this project.</p>
               )}
-              <p className="text-xs text-muted-foreground pt-2">
-                Full task management features, including creation, assignment to agents, progress tracking, and deadlines, will be implemented here.
-              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -296,6 +317,11 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      <AddTaskDialog
+        open={isAddTaskDialogOpen}
+        onOpenChange={setIsAddTaskDialogOpen}
+        onAddTask={handleAddTask}
+      />
     </div>
   );
 }
