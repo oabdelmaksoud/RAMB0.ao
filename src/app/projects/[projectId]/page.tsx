@@ -122,10 +122,9 @@ export default function ProjectDetailPage() {
   const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<ProjectWorkflow | null>(null);
   
-  // Placeholder dialog states (some might be replaced by full dialogs later)
+
   const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
-  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false); // This is essentially covered by AddAgentDialog now
-  // const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false); // Replaced by EditTaskDialog
+  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false); 
 
 
   useEffect(() => {
@@ -294,9 +293,6 @@ export default function ProjectDetailPage() {
       lastActivity: new Date().toISOString(),
     };
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
-     // The toast is now handled by AddAgentDialog itself for consistency,
-     // providing project-specific context if projectId is passed.
-     // toast({ title: "Project Agent Added", description: `Agent "${newAgent.name}" created for project "${project?.name}".` });
   };
 
   const handleOpenEditAgentDialog = (agent: Agent) => {
@@ -370,7 +366,7 @@ export default function ProjectDetailPage() {
       lastRun: undefined,
     };
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
-    setIsAddWorkflowDialogOpen(false); // Close dialog after adding
+    setIsAddWorkflowDialogOpen(false); 
     toast({ title: "Project Workflow Added", description: `Workflow "${newWorkflow.name}" created for project "${project?.name}".` });
   };
 
@@ -524,26 +520,22 @@ export default function ProjectDetailPage() {
         <TabsContent value="projectWorkflows">
             <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
                  <div>
-                    <PageHeaderHeading className="text-2xl">Project Workflow Designer</PageHeaderHeading>
-                    <PageHeaderDescription>Visually design and manage workflows for project "{project.name}".</PageHeaderDescription>
+                    <PageHeaderHeading className="text-2xl">Project Workflow Management & Design</PageHeaderHeading>
+                    <PageHeaderDescription>Define workflows for project "{project.name}". Select a workflow to design its steps.</PageHeaderDescription>
                 </div>
                  <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
                     <PlusSquareIcon className="mr-2 h-4 w-4"/>Add New Project Workflow
                  </Button>
             </PageHeader>
-            <div className="flex flex-col lg:flex-row gap-6 mt-2">
-                <div className="lg:w-1/4 min-w-[280px] max-w-full lg:max-w-[320px]">
-                    <WorkflowPalette />
-                </div>
-                <div className="flex-grow h-[600px] lg:h-auto min-h-[400px] border rounded-lg p-1"> 
-                    <WorkflowCanvas />
-                </div>
-            </div>
+           
+            {/* Removed WorkflowPalette and WorkflowCanvas from direct rendering here */}
+            {/* They will be conditionally rendered or part of a separate view when a workflow is selected for editing */}
+            
             <Separator className="my-6"/>
             <Card>
                 <CardHeader>
                     <CardTitle>Existing Workflows for "{project.name}"</CardTitle>
-                    <CardDescription>Manage and monitor workflows associated with this project.</CardDescription>
+                    <CardDescription>Manage and monitor workflows associated with this project. Click 'View/Edit' to open the designer for a specific workflow.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {projectWorkflows.length > 0 ? (
@@ -665,8 +657,8 @@ export default function ProjectDetailPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>View/Edit Workflow: {selectedWorkflow.name}</AlertDialogTitle>
               <AlertDialogDescription>
-                This feature will allow you to view and edit the designed workflow (nodes and edges) for "{selectedWorkflow.name}".
-                Currently, this would involve integrating the workflow canvas with data persistence for its state. Coming soon!
+                Clicking this would normally open the workflow designer (palette and canvas) pre-loaded with the nodes and connections for "{selectedWorkflow.name}". 
+                Currently, this step is a placeholder. The full implementation for saving and loading individual workflow designs is pending.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -678,9 +670,6 @@ export default function ProjectDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-
-      {/* Placeholder dialogs no longer needed */}
-      {/* <AlertDialog open={isEditTaskPlaceholderDialogOpen} onOpenChange={setIsEditTaskPlaceholderDialogOpen}> ... </AlertDialog> */}
 
       <AlertDialog open={isLinkGlobalAgentDialogOpen} onOpenChange={setIsLinkGlobalAgentDialogOpen}>
         <AlertDialogContent>
@@ -713,3 +702,4 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
