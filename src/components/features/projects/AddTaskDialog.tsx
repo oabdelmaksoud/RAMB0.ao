@@ -1,6 +1,7 @@
 
 'use client';
 
+import * as React from "react"; // Added React import
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
