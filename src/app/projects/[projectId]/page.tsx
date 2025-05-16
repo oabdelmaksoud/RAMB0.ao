@@ -16,18 +16,18 @@ import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import AddTaskDialog from '@/components/features/projects/AddTaskDialog'; // New Import
-import { useToast } from '@/hooks/use-toast'; // New Import
+import AddTaskDialog from '@/components/features/projects/AddTaskDialog';
+import { useToast } from '@/hooks/use-toast';
 
 // Copied from ProjectCard for consistency, ideally this would be a shared utility or part of the type
-const statusColors: { [key in Project['status']]: string } = {
+const projectStatusColors: { [key in Project['status']]: string } = {
   Active: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700',
   'On Hold': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
   Completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700',
   Archived: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
 
-// Mock task statuses and colors for the task list
+// Task statuses and colors for the task list
 export const taskStatusColors: { [key: string]: string } = {
   'To Do': 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
   'In Progress': 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700',
@@ -58,7 +58,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [isClient, setIsClient] = useState(false);
   const [mockProgress, setMockProgress] = useState(0);
-  const [tasks, setTasks] = useState<Task[]>(initialMockTasks); // Tasks in state
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
   const { toast } = useToast();
 
@@ -67,7 +67,13 @@ export default function ProjectDetailPage() {
     const foundProject = mockProjects.find(p => p.id === projectId);
     if (foundProject) {
       setProject(foundProject);
-      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30);
+      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); // Generate mock progress based on ID
+      // Simulate loading tasks for this project (in a real app, this would be an API call)
+      const projectSpecificTasks = initialMockTasks.map(task => ({
+        ...task,
+        id: `${projectId}-${task.id}` // Make task IDs unique per project for mock
+      })).slice(0, Math.floor(Math.random() * initialMockTasks.length) +1); // Random number of tasks for variety
+      setTasks(projectSpecificTasks);
     }
   }, [projectId]);
 
@@ -76,13 +82,14 @@ export default function ProjectDetailPage() {
       return 'Loading date...';
     }
     try {
+       // Check if it's already a human-readable string (e.g., "2 minutes ago")
        if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(dateString)) {
         return dateString; 
       }
       return format(parseISO(dateString), "MMMM d, yyyy 'at' hh:mm a");
     } catch (error) {
       console.error("Error formatting date:", error);
-      return dateString; 
+      return dateString; // Fallback to original string on error
     }
   };
 
@@ -119,24 +126,24 @@ export default function ProjectDetailPage() {
   }
 
   const mockRecentActivities = [
-    `Agent "Data Analyzer" completed task "Analyze Q3 Sales Data".`,
-    `Workflow "Nightly Backup" initiated successfully.`,
+    `Agent "Data Analyzer" completed task "Analyze Q3 Sales Data" for project ${project.name}.`,
+    `Workflow "Nightly Backup for ${project.name}" initiated successfully.`,
     `New comment by "Project Manager" on "Feature X" task.`,
-    `Agent "Code Reviewer" flagged 2 critical issues in 'main' branch.`,
+    `Agent "Code Reviewer" flagged 2 critical issues in 'main' branch of ${project.name}.`,
   ];
 
   return (
     <div className="container mx-auto">
       <PageHeader>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-start sm:items-center space-x-4">
            {project.thumbnailUrl && (
-            <div className="relative w-20 h-20 rounded-lg overflow-hidden border hidden sm:block">
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border shadow-md hidden sm:block">
               <Image
                 src={project.thumbnailUrl}
                 alt={`${project.name} thumbnail`}
                 fill
                 style={{ objectFit: 'cover' }}
-                data-ai-hint="project icon"
+                data-ai-hint="project abstract"
               />
             </div>
           )}
@@ -152,21 +159,21 @@ export default function ProjectDetailPage() {
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <Card className="md:col-span-1">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="text-lg">Project Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Status:</span>
-              <Badge variant="outline" className={cn("capitalize", statusColors[project.status])}>
+              <Badge variant="outline" className={cn("capitalize", projectStatusColors[project.status])}>
                 {project.status}
               </Badge>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between items-center">
               <span className="text-muted-foreground">Project ID:</span>
-              <span className="font-mono">{project.id}</span>
+              <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{project.id}</span>
             </div>
             <div className="flex items-center">
               <CalendarDays className="h-4 w-4 mr-2 text-muted-foreground" />
@@ -189,7 +196,7 @@ export default function ProjectDetailPage() {
             )}
           </CardContent>
         </Card>
-         <Card className="md:col-span-2">
+         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-lg">Quick Overview</CardTitle>
             <CardDescription>A brief summary of the project's current state and key metrics.</CardDescription>
@@ -205,7 +212,7 @@ export default function ProjectDetailPage() {
               <Progress value={mockProgress} aria-label={`${mockProgress}% project progress`} className="h-2" />
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
                     <h4 className="font-semibold text-sm text-muted-foreground mb-1">Pending Tasks</h4>
                     <p className="text-2xl font-bold">{tasks.filter(t => t.status === 'To Do' || t.status === 'In Progress').length}</p>
@@ -224,13 +231,13 @@ export default function ProjectDetailPage() {
               <h4 className="font-semibold text-sm text-muted-foreground mb-2 flex items-center">
                 <ActivityIcon className="h-4 w-4 mr-2" /> Recent Activity
               </h4>
-              <ul className="space-y-2 text-sm max-h-40 overflow-y-auto">
+              <ul className="space-y-2 text-sm max-h-40 overflow-y-auto pr-2">
                 {mockRecentActivities.map((activity, index) => (
                   <li key={index} className="p-2 bg-background rounded-md border text-muted-foreground text-xs">
                     {activity}
                   </li>
                 ))}
-                 {mockRecentActivities.length === 0 && <p className="text-muted-foreground text-xs">No recent activity.</p>}
+                 {mockRecentActivities.length === 0 && <p className="text-muted-foreground text-xs text-center py-2">No recent activity.</p>}
               </ul>
             </div>
           </CardContent>
@@ -240,7 +247,7 @@ export default function ProjectDetailPage() {
       <Separator className="my-6" />
 
       <Tabs defaultValue="tasks" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 md:w-auto md:inline-flex mb-4">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 md:w-auto md:inline-flex mb-4">
           <TabsTrigger value="tasks"><ListChecks className="mr-2 h-4 w-4"/>Tasks</TabsTrigger>
           <TabsTrigger value="agents"><Bot className="mr-2 h-4 w-4"/>Associated Agents</TabsTrigger>
           <TabsTrigger value="workflows"><WorkflowIcon className="mr-2 h-4 w-4"/>Workflows</TabsTrigger>
@@ -274,7 +281,7 @@ export default function ProjectDetailPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="text-muted-foreground text-center py-4">No tasks found for this project.</p>
+                <p className="text-muted-foreground text-center py-4">No tasks found for this project. Add a task to get started!</p>
               )}
             </CardContent>
           </Card>
@@ -292,9 +299,13 @@ export default function ProjectDetailPage() {
               <p className="text-muted-foreground">
                 This section will display a list of agents associated with this project. You'll be able to link existing global agents,
                 create new project-specific agent instances, and manage their configurations within the context of "{project.name}".
-                Think of it as your project's dedicated AI team.
+                Think of it as your project's dedicated AI team, ready to automate tasks.
               </p>
               {/* Placeholder for agent list component filtered by project */}
+               <div className="text-center py-6">
+                <Bot className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                <p className="mt-2 text-sm text-muted-foreground">Agent association functionality coming soon.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -313,6 +324,10 @@ export default function ProjectDetailPage() {
                 trigger existing workflows, and monitor the status and logs of ongoing automated processes. This is where you orchestrate your agents to achieve project goals.
               </p>
               {/* Placeholder for workflow list/designer component scoped to project */}
+               <div className="text-center py-6">
+                <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
+                <p className="mt-2 text-sm text-muted-foreground">Workflow design and management features for projects are under development.</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
