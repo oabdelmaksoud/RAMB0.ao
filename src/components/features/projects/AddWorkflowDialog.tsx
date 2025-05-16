@@ -47,8 +47,8 @@ export default function AddWorkflowDialog({ open, onOpenChange, onAddWorkflow }:
   };
 
   React.useEffect(() => {
-    if (!open) {
-      form.reset();
+    if (open) {
+      form.reset({ name: "", description: "" }); // Reset form when dialog is opened
     }
   }, [open, form]);
 
@@ -103,3 +103,4 @@ export default function AddWorkflowDialog({ open, onOpenChange, onAddWorkflow }:
     </Dialog>
   );
 }
+
