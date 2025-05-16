@@ -122,10 +122,10 @@ export default function ProjectDetailPage() {
   const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
   const [selectedWorkflow, setSelectedWorkflow] = useState<ProjectWorkflow | null>(null);
   
-  // Placeholder dialog states
+  // Placeholder dialog states (some might be replaced by full dialogs later)
   const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
-  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false);
-  const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false);
+  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false); // This is essentially covered by AddAgentDialog now
+  // const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false); // Replaced by EditTaskDialog
 
 
   useEffect(() => {
@@ -294,7 +294,9 @@ export default function ProjectDetailPage() {
       lastActivity: new Date().toISOString(),
     };
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
-     toast({ title: "Project Agent Added", description: `Agent "${newAgent.name}" created for project "${project?.name}".` });
+     // The toast is now handled by AddAgentDialog itself for consistency,
+     // providing project-specific context if projectId is passed.
+     // toast({ title: "Project Agent Added", description: `Agent "${newAgent.name}" created for project "${project?.name}".` });
   };
 
   const handleOpenEditAgentDialog = (agent: Agent) => {
@@ -677,7 +679,7 @@ export default function ProjectDetailPage() {
         </AlertDialog>
       )}
 
-      {/* Placeholder dialogs, no longer needed due to EditTaskDialog */}
+      {/* Placeholder dialogs no longer needed */}
       {/* <AlertDialog open={isEditTaskPlaceholderDialogOpen} onOpenChange={setIsEditTaskPlaceholderDialogOpen}> ... </AlertDialog> */}
 
       <AlertDialog open={isLinkGlobalAgentDialogOpen} onOpenChange={setIsLinkGlobalAgentDialogOpen}>
@@ -711,5 +713,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
-

@@ -41,7 +41,7 @@ type AgentFormData = z.infer<typeof agentSchema>;
 
 interface AddAgentDialogProps {
   onAddAgent: (agentData: Omit<Agent, 'id' | 'lastActivity' | 'status'>) => void;
-  projectId?: string; // Optional projectId for project-specific suggestions
+  projectId?: string; // Optional projectId for project-specific suggestions and UI text
 }
 
 const agentTypes = [
@@ -133,11 +133,15 @@ export default function AddAgentDialog({ onAddAgent, projectId }: AddAgentDialog
       config: parsedConfig,
     };
     
-    onAddAgent(newAgentData);
+    onAddAgent(newAgentData); // This call is handled by the parent (AgentManagementPage or ProjectDetailPage)
+                            // The parent component is responsible for its own toast messages if it wants to override or add project context
     
+    // General toast from the dialog itself
     toast({
-      title: "Agent Added",
-      description: `Agent "${data.name}" of type "${data.type}" has been added.`,
+      title: `Agent "${data.name}" Added`,
+      description: projectId 
+        ? `The agent has been added to the current project.`
+        : `Agent "${data.name}" of type "${data.type}" has been successfully created.`,
     });
     setOpen(false);
     form.reset({ name: "", type: "", configString: "{}" }); 
@@ -156,7 +160,7 @@ export default function AddAgentDialog({ onAddAgent, projectId }: AddAgentDialog
         <DialogHeader>
           <DialogTitle>Add New Agent{projectId ? ` to Project` : ''}</DialogTitle>
           <DialogDescription>
-            Configure a new agent.
+            Configure a new agent. {projectId ? 'This agent will be specific to the current project.' : ''}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
