@@ -1,5 +1,6 @@
+
 import WorkflowPalette from '@/components/features/workflow-designer/WorkflowPalette';
-import WorkflowCanvasPlaceholder from '@/components/features/workflow-designer/WorkflowCanvasPlaceholder';
+import WorkflowCanvas from '@/components/features/workflow-designer/WorkflowCanvasPlaceholder'; // Corrected import
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { Workflow as WorkflowIcon } from 'lucide-react';
 
@@ -12,13 +13,13 @@ export default function WorkflowDesignerPage() {
           Workflow Designer
         </PageHeaderHeading>
         <PageHeaderDescription>
-          Visually design and manage project workflows by connecting different agents.
+          Visually design and manage project workflows by connecting different agents. Drag agents to the canvas.
         </PageHeaderDescription>
       </PageHeader>
 
       <div className="flex flex-grow gap-6 mt-2 overflow-hidden">
         <WorkflowPalette />
-        <WorkflowCanvasPlaceholder />
+        <WorkflowCanvas /> {/* This usage remains the same as the component name is WorkflowCanvas */}
       </div>
     </div>
   );
