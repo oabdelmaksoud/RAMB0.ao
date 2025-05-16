@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from "@/components/ui/button";
@@ -11,9 +12,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+// Label removed as FormLabel is used from Form component
 import { PlusCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -26,7 +27,7 @@ import type { Agent } from "@/types";
 const agentSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   type: z.string().min(1, "Agent type is required"),
-  configString: z.string().optional().refine(val => { // Renamed from 'config' to 'configString'
+  configString: z.string().optional().refine(val => {
     if (!val || val.trim() === "") return true; 
     try {
       JSON.parse(val);
@@ -55,6 +56,8 @@ const agentTypes = [
   "Custom Logic Agent",
 ];
 
+const AI_SUGGESTED_CONFIG_KEY = 'aiSuggestedAgentConfig';
+
 export default function AddAgentDialog({ onAddAgent }: AddAgentDialogProps) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
@@ -68,13 +71,49 @@ export default function AddAgentDialog({ onAddAgent }: AddAgentDialogProps) {
     },
   });
 
+  useEffect(() => {
+    if (open) { // Only check localStorage when dialog opens
+      try {
+        const storedConfigStr = localStorage.getItem(AI_SUGGESTED_CONFIG_KEY);
+        if (storedConfigStr) {
+          const storedConfig = JSON.parse(storedConfigStr) as { name: string; type: string; configString: string };
+          form.reset({
+            name: storedConfig.name || "",
+            type: storedConfig.type || "",
+            configString: storedConfig.configString || "{}",
+          });
+          localStorage.removeItem(AI_SUGGESTED_CONFIG_KEY); // Clear after use
+           toast({
+            title: "AI Suggestion Applied",
+            description: "Agent details pre-filled from AI suggestion.",
+          });
+        } else {
+           form.reset({ name: "", type: "", configString: "{}" }); // Reset to default if no stored config
+        }
+      } catch (error) {
+        console.error("Error reading AI suggested config from localStorage:", error);
+        toast({
+          title: "Error Applying Suggestion",
+          description: "Could not load AI suggested configuration.",
+          variant: "destructive",
+        });
+        form.reset({ name: "", type: "", configString: "{}" }); // Reset to default on error
+      }
+    } else {
+       // If dialog is closing and wasn't submitted, ensure form is reset to defaults
+       // This is important if the user cancels after a pre-fill
+       if(!form.formState.isSubmitSuccessful) {
+         form.reset({ name: "", type: "", configString: "{}" });
+       }
+    }
+  }, [open, form, toast]); // Rerun when `open` state changes
+
   const onSubmit: SubmitHandler<AgentFormData> = (data) => {
     let parsedConfig = {};
     if (data.configString && data.configString.trim() !== "") {
       try {
         parsedConfig = JSON.parse(data.configString);
       } catch (e) {
-        // This should ideally be caught by Zod validation, but as a fallback:
         toast({
           title: "Invalid Configuration",
           description: "The configuration JSON is invalid. Please correct it.",
@@ -97,15 +136,13 @@ export default function AddAgentDialog({ onAddAgent }: AddAgentDialogProps) {
       description: `Agent "${data.name}" of type "${data.type}" has been added to the list.`,
     });
     setOpen(false);
-    form.reset(); 
+    form.reset({ name: "", type: "", configString: "{}" }); // Reset form to defaults after successful submission
   };
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       setOpen(isOpen);
-      if (!isOpen) {
-        form.reset(); // Reset form when dialog is closed
-      }
+      // useEffect handles reset based on `open` state changes
     }}>
       <DialogTrigger asChild>
         <Button>
@@ -140,7 +177,7 @@ export default function AddAgentDialog({ onAddAgent }: AddAgentDialogProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Agent Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select an agent type" />
@@ -176,7 +213,7 @@ export default function AddAgentDialog({ onAddAgent }: AddAgentDialogProps) {
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => {
                 setOpen(false);
-                form.reset();
+                // useEffect will handle reset on close
               }}>Cancel</Button>
               <Button type="submit">Create Agent</Button>
             </DialogFooter>
@@ -186,3 +223,4 @@ export default function AddAgentDialog({ onAddAgent }: AddAgentDialogProps) {
     </Dialog>
   );
 }
+
