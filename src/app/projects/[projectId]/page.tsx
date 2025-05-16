@@ -6,7 +6,7 @@ import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Act
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types'; // Added WorkflowNode
-import { mockProjects } from '@/app/projects/page';
+import { initialMockProjects } from '@/app/projects/page'; // Use initialMockProjects as ultimate fallback
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -60,13 +60,12 @@ export const taskStatusColors: { [key: string]: string } = {
   'Blocked': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border-red-300 dark:border-red-700',
 };
 
-// Task interface moved to types/index.ts
-
 const initialProjectScopedMockAgents: Agent[] = [
   { id: 'proj-agent-init-001', name: 'Project Kickstart Analyzer', type: 'Analysis Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { scope: 'initial_setup', autoRun: false } },
   { id: 'proj-agent-init-002', name: 'Basic Task Reporter', type: 'Reporting Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { frequency: 'on-demand' } },
 ];
 
+const PROJECTS_STORAGE_KEY = 'agentFlowProjects'; // Key for all projects
 const getAgentsStorageKey = (projectId: string) => `agentFlowAgents_project_${projectId}`;
 const getTasksStorageKey = (projectId: string) => `agentFlowTasks_project_${projectId}`;
 const getWorkflowsStorageKey = (projectId: string) => `agentFlowWorkflows_project_${projectId}`;
@@ -107,7 +106,7 @@ export default function ProjectDetailPage() {
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
-  const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false);
+  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
 
 
   const { toast } = useToast();
@@ -131,16 +130,15 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     setIsClient(true);
-    const foundProject = mockProjects.find(p => p.id === projectId);
+    if (!projectId || !isClient) return; // Ensure projectId and client status are ready
+
+    const storedProjectsJSON = localStorage.getItem(PROJECTS_STORAGE_KEY);
+    const allProjects: Project[] = storedProjectsJSON ? JSON.parse(storedProjectsJSON) : initialMockProjects;
+    const foundProject = allProjects.find(p => p.id === projectId);
+    
     if (foundProject) {
       setProject(foundProject);
       setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30);
-
-      const initialMockTasksForProject: Task[] = [
-        { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
-        { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
-        { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
-      ];
 
       const tasksStorageKey = getTasksStorageKey(projectId);
       const storedTasks = localStorage.getItem(tasksStorageKey);
@@ -149,9 +147,19 @@ export default function ProjectDetailPage() {
           setTasks(JSON.parse(storedTasks));
         } catch (error) {
           console.error(`Failed to parse tasks for project ${projectId} from localStorage`, error);
+          const initialMockTasksForProject: Task[] = [
+            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
+            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
+            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
+          ];
           setTasks(initialMockTasksForProject);
         }
       } else {
+        const initialMockTasksForProject: Task[] = [
+            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
+            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
+            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
+        ];
         setTasks(initialMockTasksForProject);
       }
 
@@ -192,7 +200,7 @@ export default function ProjectDetailPage() {
       }
 
     }
-  }, [projectId]);
+  }, [projectId, isClient]);
 
   useEffect(() => {
     if (isClient && projectId && (projectAgents.length > 0 || localStorage.getItem(getAgentsStorageKey(projectId)) !== null)) {
@@ -512,7 +520,7 @@ export default function ProjectDetailPage() {
                       <CardContent className="p-4 pt-0 text-sm flex-grow"><p className="text-muted-foreground">Assigned to: {task.assignedTo}</p></CardContent>
                       <CardFooter className="p-4 border-t flex gap-2">
                         <Button variant="outline" size="sm" className="text-xs flex-1" disabled><Eye className="mr-1.5 h-3.5 w-3.5" /> View</Button>
-                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => { setEditingTask(task); setIsEditTaskPlaceholderDialogOpen(true); }}><Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
+                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
                         <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete</Button>
                       </CardFooter>
                     </Card>
@@ -637,7 +645,7 @@ export default function ProjectDetailPage() {
 
       </Tabs>
       <AddTaskDialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen} onAddTask={handleAddTask} />
-      {editingTask && !isEditTaskPlaceholderDialogOpen && (
+      {editingTask && (
         <EditTaskDialog
           open={isEditTaskDialogOpen}
           onOpenChange={(isOpen) => {
@@ -648,19 +656,7 @@ export default function ProjectDetailPage() {
           onUpdateTask={handleUpdateTask}
         />
       )}
-       <AlertDialog open={isEditTaskPlaceholderDialogOpen} onOpenChange={setIsEditTaskPlaceholderDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Edit Task: {editingTask?.title}</AlertDialogTitle>
-            <AlertDialogDescription>
-              This feature will allow you to modify task details. Coming soon!
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsEditTaskPlaceholderDialogOpen(false)}>OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      
       <AddWorkflowDialog open={isAddWorkflowDialogOpen} onOpenChange={setIsAddWorkflowDialogOpen} onAddWorkflow={handleAddProjectWorkflow} />
 
       {editingAgent && (

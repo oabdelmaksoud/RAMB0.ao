@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 
-const initialMockProjects: Project[] = [
+export const initialMockProjects: Project[] = [
   {
     id: 'proj-001',
     name: 'AI Powered Marketing Suite',
@@ -80,9 +80,6 @@ export default function ProjectsPage() {
   }, []);
 
   useEffect(() => {
-    // Save projects to localStorage whenever the projects state changes,
-    // but only if it's not the initial load where projects might still be empty
-    // or if we've explicitly set it to empty (e.g. after deleting all projects).
     if (projects.length > 0 || localStorage.getItem(PROJECTS_STORAGE_KEY) !== null) {
         localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
     }
@@ -195,5 +192,3 @@ export default function ProjectsPage() {
     </div>
   );
 }
-
-    
