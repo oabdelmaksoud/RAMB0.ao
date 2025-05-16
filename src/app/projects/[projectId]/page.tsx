@@ -280,7 +280,7 @@ export default function ProjectDetailPage() {
           setDesigningWorkflow(null); 
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]); // Add designingWorkflow.id to dependencies
+  }, [projectWorkflows, designingWorkflow?.id]); // Added designingWorkflow.id to dependencies
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -506,7 +506,7 @@ export default function ProjectDetailPage() {
         });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow, setProjectWorkflows]); // Added setProjectWorkflows to dependencies
+  }, [designingWorkflow, setProjectWorkflows]); 
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
@@ -520,7 +520,7 @@ export default function ProjectDetailPage() {
             wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
         )
     );
-  }, [designingWorkflow, setProjectWorkflows]); // Added setProjectWorkflows to dependencies
+  }, [designingWorkflow, setProjectWorkflows]); 
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -571,22 +571,25 @@ export default function ProjectDetailPage() {
         progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : (taskToMove.progress || 0))),
       };
       let updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
+      
+      // Move to end of new status group
       const taskToReorder = updatedTasks.find(t => t.id === draggedTaskId)!;
       updatedTasks = updatedTasks.filter(t => t.id !== draggedTaskId);
       updatedTasks.push(taskToReorder);
+
 
       setTasks(updatedTasks);
       toast({
         title: "Task Status Updated",
         description: `Task "${updatedTask.title}" moved to "${newStatus}".`,
       });
-    } else { 
+    } else { // Dropped in the same column's empty space
          setTasks(prevTasks => {
             const taskToReorder = prevTasks.find(t => t.id === draggedTaskId);
             if (!taskToReorder) return prevTasks;
 
             let newTasksArray = prevTasks.filter(t => t.id !== draggedTaskId);
-            newTasksArray.push(taskToReorder); 
+            newTasksArray.push(taskToReorder); // Add to the end
 
             if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(newTasksArray.map(t=>t.id))) {
                  toast({
@@ -660,11 +663,12 @@ export default function ProjectDetailPage() {
       const newTasks = [...prevTasks];
       const [draggedTask] = newTasks.splice(draggedTaskIndex, 1);
       
+      // Adjust target index if dragging downwards
       const adjustedTargetIndex = draggedTaskIndex < targetTaskIndex ? targetTaskIndex -1 : targetTaskIndex;
       
       newTasks.splice(adjustedTargetIndex, 0, draggedTask);
       
-      setTimeout(() => {
+      setTimeout(() => { // Defer toast to allow UI to update
         toast({
           title: "Tasks Reordered",
           description: `Task "${draggedTask.title}" moved in Gantt chart.`,
@@ -698,21 +702,21 @@ export default function ProjectDetailPage() {
   return (
     <div className="container mx-auto">
       <PageHeader>
-        <div className="flex items-start sm:items-center space-x-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
            {project.thumbnailUrl && (
-            <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border shadow-md hidden sm:block">
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex-shrink-0 rounded-lg overflow-hidden border shadow-md">
               <Image
                 src={project.thumbnailUrl}
                 alt={`${project.name} thumbnail`}
                 fill
-                sizes="(min-width: 640px) 96px, 80px"
+                sizes="(max-width: 639px) 64px, (max-width: 767px) 80px, 96px"
                 style={{ objectFit: 'cover' }}
                 data-ai-hint="project abstract"
               />
             </div>
           )}
-          <div>
-            <PageHeaderHeading><Briefcase className="mr-3 inline-block h-8 w-8" />{project.name}</PageHeaderHeading>
+          <div className="flex-grow">
+            <PageHeaderHeading><Briefcase className="mr-2 inline-block h-7 w-7 sm:mr-3 sm:h-8 sm:w-8" />{project.name}</PageHeaderHeading>
             <PageHeaderDescription className="mt-1">{project.description}</PageHeaderDescription>
           </div>
         </div>
@@ -766,7 +770,7 @@ export default function ProjectDetailPage() {
       <Separator className="my-6" />
 
       <Tabs defaultValue="gantt" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:w-auto xl:inline-flex mb-4">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:w-auto xl:inline-grid mb-4">
           <TabsTrigger value="gantt"><GanttChartSquare className="mr-2 h-4 w-4"/>Gantt Chart</TabsTrigger>
           <TabsTrigger value="board"><ListChecks className="mr-2 h-4 w-4"/>Task Board</TabsTrigger>
           <TabsTrigger value="projectAgents"><SlidersHorizontal className="mr-2 h-4 w-4"/>Project Agents</TabsTrigger>
@@ -872,7 +876,7 @@ export default function ProjectDetailPage() {
                                   </div>
                                 }
                               </CardContent>
-                              <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
+                               <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
                                 <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
                                 <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
                                 <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
@@ -996,7 +1000,7 @@ export default function ProjectDetailPage() {
                   </div>
                   <Button variant="outline" onClick={handleCloseWorkflowDesigner}><XSquare className="mr-2 h-4 w-4"/>Close Designer</Button>
               </div>
-              <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1">
+              <div className="flex flex-col md:flex-row flex-grow gap-6 mt-2 overflow-hidden p-1">
                   <WorkflowPalette />
                   <WorkflowCanvas
                     nodes={designingWorkflow.nodes || []}
@@ -1016,7 +1020,7 @@ export default function ProjectDetailPage() {
                     <PageHeaderDescription>Get optimal agent configuration suggestions for tasks within project "{project?.name}".</PageHeaderDescription>
                 </div>
             </PageHeader>
-            <div className="max-w-2xl">
+            <div className="max-w-2xl"> {/* Consider max-w-full or other responsive classes for wider layouts */}
                 <AgentConfigForm projectId={projectId} />
             </div>
         </TabsContent>
@@ -1128,5 +1132,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
-    

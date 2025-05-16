@@ -28,7 +28,7 @@ export default function WorkflowPalette() {
   };
 
   return (
-    <Card className="w-1/4 min-w-[280px] max-w-[320px] flex flex-col shadow-lg">
+    <Card className="w-full md:w-1/4 md:min-w-[280px] md:max-w-[320px] flex flex-col shadow-lg">
       <CardHeader className="pb-3 border-b">
         <CardTitle className="text-lg">Agent Palette</CardTitle>
       </CardHeader>
