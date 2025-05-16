@@ -251,6 +251,7 @@ export default function ProjectDetailPage() {
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
+                 console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows.map(wf => ({...wf, id: wf.id, nodesCount: wf.nodes?.length, edgesCount: wf.edges?.length }))));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
                 toast({
@@ -267,15 +268,19 @@ export default function ProjectDetailPage() {
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-         if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
-             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
+        // Update designingWorkflow state if the instance in projectWorkflows has changed
+        if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
+            JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
+            console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state from projectWorkflows due to node/edge change.");
             setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else if (designingWorkflow) { 
+          // If the designingWorkflow is no longer in projectWorkflows (e.g., deleted), reset designingWorkflow
+          console.log("PROJECT_DETAIL_PAGE: designingWorkflow no longer found in projectWorkflows, resetting.");
           setDesigningWorkflow(null); 
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]); 
+  }, [projectWorkflows, designingWorkflow?.id]); // Add designingWorkflow.id to dependencies
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -481,29 +486,41 @@ export default function ProjectDetailPage() {
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) {
-        return;
+      console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
+      return;
     }
+    console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n => n.id).join(', '));
+    console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
+
     setProjectWorkflows(prevWorkflows => {
+        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
+                 console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
+        newWorkflowsArray.forEach(wf => {
+            console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", wf.nodes?.map(n => n.id).join(', '));
+        });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow]); 
+  }, [designingWorkflow, setProjectWorkflows]); // Added setProjectWorkflows to dependencies
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
-     if (designingWorkflow) {
-        setProjectWorkflows(prevWorkflows =>
-            prevWorkflows.map(wf =>
-                wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
-            )
-        );
+     if (!designingWorkflow) {
+        console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
+        return;
     }
-  }, [designingWorkflow]);
+    console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length);
+    setProjectWorkflows(prevWorkflows =>
+        prevWorkflows.map(wf =>
+            wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
+        )
+    );
+  }, [designingWorkflow, setProjectWorkflows]); // Added setProjectWorkflows to dependencies
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -855,11 +872,11 @@ export default function ProjectDetailPage() {
                                   </div>
                                 }
                               </CardContent>
-                              <CardFooter className="p-3 border-t flex gap-2">
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
-                                <Button variant="ghost" size="sm" className="text-xs flex-1" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
-                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
+                              <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
+                                <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
                           )})}
