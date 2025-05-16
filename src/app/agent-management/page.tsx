@@ -178,7 +178,10 @@ export default function AgentManagementPage() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setAgentToDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogCancel onClick={() => {
+                setAgentToDelete(null);
+                setIsDeleteDialogOpen(false);
+              }}>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmDeleteAgent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Delete
               </AlertDialogAction>
