@@ -1,10 +1,13 @@
+'use client';
+
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
 import type { Agent } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { SlidersHorizontal } from 'lucide-react';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
+import { useState } from 'react';
 
-const mockAgents: Agent[] = [
+const initialMockAgents: Agent[] = [
   { id: 'cfg-001', name: 'Default Code Analyzer', type: 'Analysis Agent', status: 'Idle', lastActivity: '2024-07-20T10:00:00Z', config: { sensitivity: 'high' } },
   { id: 'cfg-002', name: 'Staging Deployer', type: 'Deployment Agent', status: 'Running', lastActivity: '2024-07-21T14:30:00Z', config: { environment: 'staging', branch: 'develop' } },
   { id: 'cfg-003', name: 'Daily Reporter', type: 'Reporting Agent', status: 'Stopped', lastActivity: '2024-07-19T08:00:00Z', config: { frequency: 'daily', recipients: ['manager@example.com'] } },
@@ -14,6 +17,18 @@ const mockAgents: Agent[] = [
 
 
 export default function AgentManagementPage() {
+  const [agents, setAgents] = useState<Agent[]>(initialMockAgents);
+
+  const handleAddAgent = (newAgentData: Omit<Agent, 'id' | 'lastActivity' | 'status'>) => {
+    const newAgent: Agent = {
+      ...newAgentData,
+      id: `cfg-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
+      status: 'Idle',
+      lastActivity: new Date().toISOString(),
+    };
+    setAgents(prevAgents => [newAgent, ...prevAgents]);
+  };
+
   return (
     <div className="container mx-auto">
       <PageHeader className="items-start justify-between sm:flex-row sm:items-center">
@@ -26,10 +41,10 @@ export default function AgentManagementPage() {
             Centrally manage agent configurations, types, and view execution logs.
           </PageHeaderDescription>
         </div>
-        <AddAgentDialog />
+        <AddAgentDialog onAddAgent={handleAddAgent} />
       </PageHeader>
 
-      <AgentManagementTable agents={mockAgents} />
+      <AgentManagementTable agents={agents} />
     </div>
   );
 }

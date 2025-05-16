@@ -21,12 +21,13 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import type { Agent } from "@/types";
 
 const agentSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
   type: z.string().min(1, "Agent type is required"),
-  config: z.string().optional().refine(val => {
-    if (!val || val.trim() === "") return true; // Allow empty or whitespace only
+  configString: z.string().optional().refine(val => { // Renamed from 'config' to 'configString'
+    if (!val || val.trim() === "") return true; 
     try {
       JSON.parse(val);
       return true;
@@ -37,6 +38,10 @@ const agentSchema = z.object({
 });
 
 type AgentFormData = z.infer<typeof agentSchema>;
+
+interface AddAgentDialogProps {
+  onAddAgent: (agentData: Omit<Agent, 'id' | 'lastActivity' | 'status'>) => void;
+}
 
 const agentTypes = [
   "Analysis Agent",
@@ -50,7 +55,7 @@ const agentTypes = [
   "Custom Logic Agent",
 ];
 
-export default function AddAgentDialog() {
+export default function AddAgentDialog({ onAddAgent }: AddAgentDialogProps) {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
   
@@ -59,23 +64,49 @@ export default function AddAgentDialog() {
     defaultValues: {
       name: "",
       type: "",
-      config: "{}",
+      configString: "{}",
     },
   });
 
   const onSubmit: SubmitHandler<AgentFormData> = (data) => {
-    // Placeholder for actual submission logic
-    console.log("New Agent Data:", data);
+    let parsedConfig = {};
+    if (data.configString && data.configString.trim() !== "") {
+      try {
+        parsedConfig = JSON.parse(data.configString);
+      } catch (e) {
+        // This should ideally be caught by Zod validation, but as a fallback:
+        toast({
+          title: "Invalid Configuration",
+          description: "The configuration JSON is invalid. Please correct it.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    const newAgentData: Omit<Agent, 'id' | 'lastActivity' | 'status'> = {
+      name: data.name,
+      type: data.type,
+      config: parsedConfig,
+    };
+    
+    onAddAgent(newAgentData);
+    
     toast({
-      title: "Agent Created (Simulated)",
-      description: `Agent "${data.name}" of type "${data.type}" has been added.`,
+      title: "Agent Added",
+      description: `Agent "${data.name}" of type "${data.type}" has been added to the list.`,
     });
     setOpen(false);
     form.reset(); 
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      setOpen(isOpen);
+      if (!isOpen) {
+        form.reset(); // Reset form when dialog is closed
+      }
+    }}>
       <DialogTrigger asChild>
         <Button>
           <PlusCircle className="mr-2 h-4 w-4" /> Add New Agent
@@ -127,7 +158,7 @@ export default function AddAgentDialog() {
             />
             <FormField
               control={form.control}
-              name="config"
+              name="configString" 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Configuration (JSON)</FormLabel>
@@ -143,7 +174,10 @@ export default function AddAgentDialog() {
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => {
+                setOpen(false);
+                form.reset();
+              }}>Cancel</Button>
               <Button type="submit">Create Agent</Button>
             </DialogFooter>
           </form>
