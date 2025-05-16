@@ -17,7 +17,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Task } from '@/types'; // Updated import path for Task
+import type { Task } from '@/types';
 import { format, isValid, parseISO } from 'date-fns';
 
 const taskSchema = z.object({
@@ -28,6 +28,7 @@ const taskSchema = z.object({
     message: "Start date must be a valid date (YYYY-MM-DD)."
   }),
   durationDays: z.coerce.number().int().min(0, "Duration must be non-negative").optional(),
+  progress: z.coerce.number().int().min(0, "Progress must be between 0 and 100").max(100, "Progress must be between 0 and 100").optional(),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -50,6 +51,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       assignedTo: "Unassigned",
       startDate: defaultStartDate || format(new Date(), 'yyyy-MM-dd'),
       durationDays: 1,
+      progress: 0,
     },
   });
 
@@ -61,6 +63,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       assignedTo: "Unassigned",
       startDate: defaultStartDate || format(new Date(), 'yyyy-MM-dd'),
       durationDays: 1,
+      progress: 0,
     });
     // onOpenChange(false) is handled by the parent component after onAddTask
   };
@@ -73,6 +76,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
         assignedTo: "Unassigned",
         startDate: defaultStartDate || format(new Date(), 'yyyy-MM-dd'),
         durationDays: 1,
+        progress: 0,
       });
     }
   }, [open, form, defaultStartDate]);
@@ -136,30 +140,46 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
                 </FormItem>
               )}
             />
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Date</FormLabel>
+                    <FormControl>
+                      <Input type="date" {...field} />
+                    </FormControl>
+                    <FormDescription className="text-xs">Optional.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="durationDays"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Duration (Days)</FormLabel>
+                    <FormControl>
+                      <Input type="number" placeholder="e.g., 5" {...field} />
+                    </FormControl>
+                    <FormDescription className="text-xs">Optional.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
-              name="startDate"
+              name="progress"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Start Date</FormLabel>
+                  <FormLabel>Progress (%)</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} />
                   </FormControl>
-                  <FormDescription>Optional. Format: YYYY-MM-DD</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="durationDays"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Duration (Days)</FormLabel>
-                  <FormControl>
-                    <Input type="number" placeholder="e.g., 5" {...field} />
-                  </FormControl>
-                   <FormDescription>Optional. Number of days the task is expected to take.</FormDescription>
+                  <FormDescription>Optional. Enter a value between 0 and 100.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

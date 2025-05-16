@@ -18,13 +18,22 @@ const HEADER_HEIGHT_PX = 60;
 const TASK_NAME_WIDTH_PX = 200;
 const RESIZE_HANDLE_WIDTH_PX = 10;
 
-// Enhanced colors for better contrast and similarity to modern Gantt charts
 const statusGanttBarColors: { [key in Task['status']]: string } = {
   'To Do': 'bg-slate-400 hover:bg-slate-500',
   'In Progress': 'bg-blue-500 hover:bg-blue-600',
   'Done': 'bg-green-500 hover:bg-green-600',
   'Blocked': 'bg-red-500 hover:bg-red-600',
 };
+
+// Helper to get a darker shade for progress fill
+const getProgressFillColor = (baseColor: string): string => {
+  if (baseColor.includes('slate')) return 'bg-slate-600';
+  if (baseColor.includes('blue')) return 'bg-blue-700';
+  if (baseColor.includes('green')) return 'bg-green-700';
+  if (baseColor.includes('red')) return 'bg-red-700';
+  return 'bg-gray-700'; // Fallback
+};
+
 
 export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGanttChartViewProps) {
   const [isClient, setIsClient] = useState(false);
@@ -45,8 +54,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const { chartStartDate, chartEndDate, totalDays, daysArray } = useMemo(() => {
     if (!tasks.length) {
       const today = startOfDay(new Date());
-      const defaultStartDate = addDays(today, -7); // More padding before today
-      const defaultEndDate = addDays(today, 30 + 14); // More padding after 30 days
+      const defaultStartDate = addDays(today, -10); 
+      const defaultEndDate = addDays(today, 30 + 20); 
       return {
         chartStartDate: defaultStartDate,
         chartEndDate: defaultEndDate,
@@ -74,8 +83,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
 
     if (!taskDates.length) { 
       const today = startOfDay(new Date());
-      const fallbackStart = addDays(today, -7);
-      const fallbackEnd = addDays(today, 30 + 14);
+      const fallbackStart = addDays(today, -10);
+      const fallbackEnd = addDays(today, 30 + 20);
       return {
         chartStartDate: fallbackStart,
         chartEndDate: fallbackEnd,
@@ -87,8 +96,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     let overallMinDate = min(taskDates);
     let overallMaxDate = max(taskDates);
 
-    overallMinDate = addDays(overallMinDate, -7); // Padding before
-    overallMaxDate = addDays(overallMaxDate, 14);  // Padding after
+    overallMinDate = addDays(overallMinDate, -10); 
+    overallMaxDate = addDays(overallMaxDate, 20);  
 
     const days = eachDayOfInterval({ start: overallMinDate, end: overallMaxDate });
 
@@ -220,6 +229,9 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     if (task.durationDays) {
       tooltip += `\nDuration: ${task.durationDays} day(s)`;
     }
+    if (task.progress !== undefined) {
+      tooltip += `\nProgress: ${task.progress}%`;
+    }
     return tooltip;
   };
 
@@ -264,7 +276,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                   style={{ width: `${DAY_WIDTH_PX}px`, minWidth: `${DAY_WIDTH_PX}px` }}
                   className={cn(
                     "p-1 text-[10px] text-center border-r last:border-r-0 text-muted-foreground",
-                    (format(day, 'E') === 'Sat' || format(day, 'E') === 'Sun') && 'bg-muted/30' // Weekend highlighting
+                    (format(day, 'E') === 'Sat' || format(day, 'E') === 'Sun') && 'bg-muted/30' 
                   )}
                 >
                   {format(day, 'd')}
@@ -275,19 +287,19 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
         </div>
 
         {/* Task Rows & Grid Lines */}
-        <div className="relative"> {/* Container for task rows and grid lines */}
+        <div className="relative"> 
           {/* Vertical Grid Lines */}
           {daysArray.map((_, dayIndex) => (
             <div
               key={`v-grid-${dayIndex}`}
               className={cn(
                 "absolute top-0 bottom-0 border-r border-border/30",
-                (format(daysArray[dayIndex], 'E') === 'Sat' || format(daysArray[dayIndex], 'E') === 'Sun') && 'bg-muted/20' // Weekend highlighting for grid columns
+                (format(daysArray[dayIndex], 'E') === 'Sat' || format(daysArray[dayIndex], 'E') === 'Sun') && 'bg-muted/20' 
               )}
               style={{
                 left: `${TASK_NAME_WIDTH_PX + dayIndex * DAY_WIDTH_PX}px`,
-                height: `${tasks.length * ROW_HEIGHT_PX}px`, // Ensure grid lines cover all task rows
-                zIndex: 0, // Behind tasks
+                height: `${tasks.length * ROW_HEIGHT_PX}px`, 
+                zIndex: 0, 
               }}
             ></div>
           ))}
@@ -296,11 +308,15 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
             const { left: barLeftOffset, width: barWidth } = getTaskPositionAndWidth(task);
             const isDraggingThisTask = draggingTaskDetails?.task.id === task.id;
             const isResizingThisTask = resizingTaskDetails?.task.id === task.id;
+            const progressPercent = task.progress !== undefined ? Math.max(0, Math.min(100, task.progress)) : 0;
+            const barBaseColor = statusGanttBarColors[task.status] || 'bg-gray-500';
+            const progressFillColor = getProgressFillColor(barBaseColor);
+
 
             return (
               <div
                 key={task.id}
-                className="flex items-center border-b last:border-b-0 hover:bg-muted/10" // Row container
+                className="flex items-center border-b last:border-b-0 group hover:bg-muted/10" 
                 style={{ height: `${ROW_HEIGHT_PX}px`, position: 'relative' }}
               >
                 {/* Task Name Cell (Sticky) */}
@@ -317,21 +333,27 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                     onMouseDown={(e) => handleTaskBarMouseDown(e, task)}
                     title={getTaskTooltip(task)}
                     className={cn(
-                      "absolute my-[5px] rounded text-white text-[11px] px-2 flex items-center overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out",
-                      statusGanttBarColors[task.status] || 'bg-gray-500', // Apply status color always
+                      "absolute my-[5px] rounded text-white text-[11px] px-2 flex items-center overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out group",
+                      barBaseColor,
                       isDraggingThisTask ? 'cursor-grabbing opacity-75 ring-2 ring-primary z-20' : 'cursor-grab',
                       isResizingThisTask && 'z-20 ring-2 ring-primary opacity-75' 
                     )}
                     style={{
                       left: `${TASK_NAME_WIDTH_PX + barLeftOffset}px`,
                       width: `${barWidth}px`,
-                      top: `${taskIndex * ROW_HEIGHT_PX}px`, // Position based on task index in the list
-                      height: `${ROW_HEIGHT_PX - 10}px`, // Consistent height
-                      lineHeight: `${ROW_HEIGHT_PX - 10}px`, // For vertical text centering if needed
-                      zIndex: isDraggingThisTask || isResizingThisTask ? 20 : 10, // Bring to front when interacted with
+                      top: `${taskIndex * ROW_HEIGHT_PX}px`, 
+                      height: `${ROW_HEIGHT_PX - 10}px`, 
+                      lineHeight: `${ROW_HEIGHT_PX - 10}px`, 
+                      zIndex: isDraggingThisTask || isResizingThisTask ? 20 : 10, 
                     }}
                   >
-                    <span className="truncate pointer-events-none">{task.title}</span>
+                    {/* Progress Fill */}
+                    <div
+                      className={cn("absolute top-0 left-0 h-full rounded", progressFillColor)}
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                    {/* Task Title (on top of progress) */}
+                    <span className="truncate pointer-events-none relative z-10">{task.title}</span>
                      <div
                         onMouseDown={(e) => handleResizeMouseDown(e, task)}
                         className="absolute top-0 right-0 h-full cursor-col-resize bg-black/10 hover:bg-black/20 transition-colors group-hover:bg-black/20"
@@ -346,7 +368,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
             );
           })}
            {tasks.length === 0 && (
-             <div className="flex items-center justify-center" style={{height: `${ROW_HEIGHT_PX * 3}px`}}> {/* Placeholder if no tasks */}
+             <div className="flex items-center justify-center" style={{height: `${ROW_HEIGHT_PX * 3}px`}}> 
                 <p className="text-muted-foreground p-4">No tasks in this project yet.</p>
              </div>
            )}
