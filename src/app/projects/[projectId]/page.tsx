@@ -210,7 +210,8 @@ export default function ProjectDetailPage() {
       const storedWorkflows = localStorage.getItem(workflowsStorageKey);
       if (storedWorkflows) {
         try {
-          setProjectWorkflows(JSON.parse(storedWorkflows));
+          const parsedWorkflows = JSON.parse(storedWorkflows);
+          setProjectWorkflows(parsedWorkflows.map((wf: ProjectWorkflow) => ({...wf, nodes: wf.nodes || [], edges: wf.edges || []})));
         } catch (error) {
           console.error(`Failed to parse workflows for project ${projectId} from localStorage`, error);
            const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map(wf => ({
@@ -240,6 +241,7 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (isClient && projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)) !== null )) {
+      console.log(`PROJECT_DETAIL_PAGE: Saving tasks to localStorage for project ${projectId}`, tasks);
       localStorage.setItem(getTasksStorageKey(projectId), JSON.stringify(tasks));
     }
   }, [tasks, projectId, isClient]);
@@ -249,6 +251,7 @@ export default function ProjectDetailPage() {
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
+                console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] })));
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
@@ -264,17 +267,21 @@ export default function ProjectDetailPage() {
 
  useEffect(() => {
     if (designingWorkflow && projectWorkflows) {
+      console.log("PROJECT_DETAIL_PAGE: projectWorkflows changed. Current designingWorkflow ID:", designingWorkflow.id);
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
-      if (updatedDesigningWorkflowInstance &&
-          (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
-           JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges))) {
-          setDesigningWorkflow(updatedDesigningWorkflowInstance);
-      } else if (!updatedDesigningWorkflowInstance && designingWorkflow) {
-          // Current designing workflow was deleted
+      if (updatedDesigningWorkflowInstance) {
+        console.log("PROJECT_DETAIL_PAGE: Found updated instance of designingWorkflow. Old nodes:", designingWorkflow.nodes, "New nodes:", updatedDesigningWorkflowInstance.nodes);
+         if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
+             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
+            console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state with new instance from projectWorkflows.");
+            setDesigningWorkflow(updatedDesigningWorkflowInstance);
+        }
+      } else if (designingWorkflow) { // Current designing workflow was deleted
+          console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow was deleted, resetting designingWorkflow state.");
           setDesigningWorkflow(null); 
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]);
+  }, [projectWorkflows, designingWorkflow?.id]); // Only re-run if designingWorkflow.id changes or projectWorkflows changes.
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -480,18 +487,27 @@ export default function ProjectDetailPage() {
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) {
+        console.error("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but designingWorkflow is null.");
         return;
     }
+    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n => n.id).join(', ')}`);
+    console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
+
     setProjectWorkflows(prevWorkflows => {
+        console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
+                console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
+        newWorkflowsArray.forEach(wf => {
+            console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id}, Nodes count: ${wf.nodes?.length}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ')}`);
+        });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow, setProjectWorkflows]);
+  }, [designingWorkflow, setProjectWorkflows]); // Removed projectWorkflows from dependencies
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
@@ -550,7 +566,7 @@ export default function ProjectDetailPage() {
       const updatedTask: Task = {
         ...taskToMove,
         status: newStatus,
-        progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : taskToMove.progress)),
+        progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : (taskToMove.progress || 0))),
       };
       let updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
        // Move to end of the new status group
@@ -568,16 +584,16 @@ export default function ProjectDetailPage() {
             const taskToReorder = prevTasks.find(t => t.id === draggedTaskId);
             if (!taskToReorder) return prevTasks;
 
-            const otherTasks = prevTasks.filter(t => t.id !== draggedTaskId);
-            const finalReorderedTasks = [...otherTasks, taskToReorder]; // Move to end
+            let newTasksArray = prevTasks.filter(t => t.id !== draggedTaskId);
+            newTasksArray.push(taskToReorder); // Move to end
 
-            if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(finalReorderedTasks.map(t=>t.id))) {
+            if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(newTasksArray.map(t=>t.id))) {
                  toast({
                     title: "Task Reordered",
                     description: `Task "${taskToReorder.title}" moved to the end of "${sourceTaskStatus}".`,
                 });
             }
-            return finalReorderedTasks;
+            return newTasksArray;
         });
     }
   };
@@ -890,7 +906,7 @@ export default function ProjectDetailPage() {
             <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
                 <div>
                 <PageHeaderHeading className="text-2xl">Project Agent Management</PageHeaderHeading>
-                <PageHeaderDescription>Manage agent configurations specific to project "{project.name}".</PageHeaderDescription>
+                <PageHeaderDescription>Manage agent configurations specific to project "{project?.name}".</PageHeaderDescription>
                 </div>
                 <AddAgentDialog onAddAgent={handleAddProjectAgent} projectId={projectId} />
             </PageHeader>
@@ -910,7 +926,7 @@ export default function ProjectDetailPage() {
               <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
                   <div>
                       <PageHeaderHeading className="text-2xl">Project Workflow Management</PageHeaderHeading>
-                      <PageHeaderDescription>Define workflows for project "{project.name}". Select a workflow to design its steps.</PageHeaderDescription>
+                      <PageHeaderDescription>Define workflows for project "{project?.name}". Select a workflow to design its steps.</PageHeaderDescription>
                   </div>
                   <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
                       <PlusSquareIcon className="mr-2 h-4 w-4"/>Add New Project Workflow
@@ -918,7 +934,7 @@ export default function ProjectDetailPage() {
               </PageHeader>
               <Card>
                   <CardHeader>
-                      <CardTitle>Existing Workflows for "{project.name}"</CardTitle>
+                      <CardTitle>Existing Workflows for "{project?.name}"</CardTitle>
                       <CardDescription>Manage and monitor workflows associated with this project. Click 'View/Edit' to open the designer for a specific workflow.</CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -996,7 +1012,7 @@ export default function ProjectDetailPage() {
             <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
                 <div>
                     <PageHeaderHeading className="text-2xl">AI-Powered Agent Configuration</PageHeaderHeading>
-                    <PageHeaderDescription>Get optimal agent configuration suggestions for tasks within project "{project.name}".</PageHeaderDescription>
+                    <PageHeaderDescription>Get optimal agent configuration suggestions for tasks within project "{project?.name}".</PageHeaderDescription>
                 </div>
             </PageHeader>
             <div className="max-w-2xl">
@@ -1111,5 +1127,7 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
+    
 
     
