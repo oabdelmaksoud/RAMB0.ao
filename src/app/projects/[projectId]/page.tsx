@@ -117,6 +117,8 @@ export default function ProjectDetailPage() {
   // State for Project Workflows
   const [projectWorkflows, setProjectWorkflows] = useState<ProjectWorkflow[]>([]);
   const [isAddWorkflowDialogOpen, setIsAddWorkflowDialogOpen] = useState(false);
+  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<ProjectWorkflow | null>(null);
   
   useEffect(() => {
     setIsClient(true);
@@ -174,22 +176,22 @@ export default function ProjectDetailPage() {
   }, [projectId]);
 
   useEffect(() => {
-    if (projectId && (projectAgents.length > 0 || localStorage.getItem(getAgentsStorageKey(projectId)))) {
+    if (isClient && projectId && (projectAgents.length > 0 || localStorage.getItem(getAgentsStorageKey(projectId)))) {
       localStorage.setItem(getAgentsStorageKey(projectId), JSON.stringify(projectAgents));
     }
-  }, [projectAgents, projectId]);
+  }, [projectAgents, projectId, isClient]);
 
   useEffect(() => {
-    if (projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)))) {
+    if (isClient && projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)))) {
       localStorage.setItem(getTasksStorageKey(projectId), JSON.stringify(tasks));
     }
-  }, [tasks, projectId]);
+  }, [tasks, projectId, isClient]);
 
   useEffect(() => {
-    if (projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)))) {
+    if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)))) {
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
     }
-  }, [projectWorkflows, projectId]);
+  }, [projectWorkflows, projectId, isClient]);
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -214,6 +216,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenEditTaskDialog = (task: Task) => {
+    // For now, this is a placeholder. In future, would set editingTask and open a full edit dialog.
     setIsEditTaskDialogOpen(true);
   };
 
@@ -315,6 +318,11 @@ export default function ProjectDetailPage() {
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
     setIsAddWorkflowDialogOpen(false);
     toast({ title: "Project Workflow Added", description: `Workflow "${newWorkflow.name}" created for project "${project?.name}".` });
+  };
+
+  const handleOpenViewEditWorkflowDialog = (workflow: ProjectWorkflow) => {
+    setSelectedWorkflow(workflow);
+    setIsViewEditWorkflowDialogOpen(true);
   };
 
 
@@ -503,7 +511,7 @@ export default function ProjectDetailPage() {
                                         </p>
                                     </CardContent>
                                     <CardFooter className="p-4 border-t flex gap-2">
-                                        <Button variant="outline" size="sm" className="text-xs flex-1" disabled><Eye className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
+                                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenViewEditWorkflowDialog(workflow)}><Eye className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
                                         <Button variant="default" size="sm" className="text-xs flex-1" disabled><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
                                     </CardFooter>
                                 </Card>
@@ -589,6 +597,29 @@ export default function ProjectDetailPage() {
               <AlertDialogAction onClick={confirmDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Delete
               </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {selectedWorkflow && (
+        <AlertDialog open={isViewEditWorkflowDialogOpen} onOpenChange={(isOpen) => {
+          setIsViewEditWorkflowDialogOpen(isOpen);
+          if (!isOpen) setSelectedWorkflow(null);
+        }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>View/Edit Workflow: {selectedWorkflow.name}</AlertDialogTitle>
+              <AlertDialogDescription>
+                This feature will allow you to view and edit the designed workflow (nodes and edges) for "{selectedWorkflow.name}".
+                Currently, this would involve integrating the workflow canvas with data persistence for its state. Coming soon!
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => {
+                setIsViewEditWorkflowDialogOpen(false);
+                setSelectedWorkflow(null);
+              }}>OK</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
