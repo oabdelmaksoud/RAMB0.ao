@@ -17,13 +17,12 @@ const agentIcons: { [key: string]: LucideIcon } = {
 };
 
 interface WorkflowCanvasProps {
-  nodes?: WorkflowNode[];
+  nodes?: WorkflowNode[]; // Changed from initialNodes to nodes
   onNodesChange?: (nodes: WorkflowNode[]) => void;
 }
 
 export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  console.log('CANVAS: Rendered or re-rendered. Received nodes prop with length:', nodes.length, 'IDs:', nodes.map(n => n.id).join(', '));
   console.count('CANVAS: component rendered/re-rendered');
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -82,9 +81,9 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
 
     if (onNodesChange) {
       const newNodesArray = [...nodes, newAgentNode];
-      console.log('CANVAS: Scheduling onNodesChange (add) with newNodesArray via setTimeout. Length:', newNodesArray.length);
+      console.log('CANVAS: Scheduling onNodesChange with newNodesArray (add):', newNodesArray);
       setTimeout(() => {
-        console.log('CANVAS: Executing onNodesChange (add) callback via setTimeout.');
+        console.log('CANVAS: Executing onNodesChange callback (add) via setTimeout.');
         onNodesChange(newNodesArray);
       }, 0);
     } else {
@@ -93,19 +92,16 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
   };
 
   const handleRemoveNode = (nodeIdToRemove: string) => {
-    console.log(`CANVAS: handleRemoveNode called for ID: ${nodeIdToRemove}. Current nodes prop length: ${nodes.length}`);
+    console.log(`CANVAS: Attempting to remove node with ID: ${nodeIdToRemove}`);
     if (!nodeIdToRemove) {
       console.error('CANVAS: handleRemoveNode called with undefined or null nodeIdToRemove.');
       return;
     }
     if (onNodesChange) {
       const newNodesArray = nodes.filter(node => node.id !== nodeIdToRemove);
-      console.log(`CANVAS: Filtered nodes. Original length: ${nodes.length}, New length: ${newNodesArray.length}. IDs remaining:`, newNodesArray.map(n => n.id).join(', '));
-      if (nodes.length === newNodesArray.length) {
-        console.warn(`CANVAS: Filtering did not remove node. Node ID '${nodeIdToRemove}' might not exist in current nodes array:`, nodes.map(n => n.id).join(', '));
-      }
+      console.log(`CANVAS: Scheduling onNodesChange with newNodesArray (remove):`, newNodesArray);
       setTimeout(() => {
-        console.log('CANVAS: Executing onNodesChange (remove) with newNodesArray via setTimeout.');
+        console.log('CANVAS: Executing onNodesChange callback (remove) via setTimeout.');
         onNodesChange(newNodesArray);
       }, 0);
     } else {

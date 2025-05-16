@@ -106,6 +106,7 @@ export default function ProjectDetailPage() {
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
+  const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false);
 
 
   const { toast } = useToast();
@@ -192,11 +193,11 @@ export default function ProjectDetailPage() {
           }));
           setProjectWorkflows(defaultWorkflowsWithIds);
         }
-      } else {
+      } else { // Initialize with predefined workflows if none are in localStorage
         const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
             ...wf,
-            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
-            nodes: [],
+            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`, // ensure unique ID
+            nodes: [], // Initialize with empty nodes array
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
       }
@@ -218,6 +219,7 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)) !== null)) {
+      console.log('PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project', projectId, projectWorkflows);
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
     }
   }, [projectWorkflows, projectId, isClient]);
@@ -404,15 +406,21 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
-    console.log('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called with updatedNodes length:', updatedNodes.length, 'IDs:', updatedNodes.map(n => n.id).join(', '));
+    console.log('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:', updatedNodes.length, 'IDs:', updatedNodes.map(n => n.id).join(', '));
     if (designingWorkflow) {
-      console.log('PROJECT_DETAIL_PAGE: Updating designingWorkflow ID:', designingWorkflow.id);
+      console.log('PROJECT_DETAIL_PAGE: Current designingWorkflow ID:', designingWorkflow.id, 'Name:', designingWorkflow.name);
       setProjectWorkflows(prevWorkflows => {
-        const newWorkflows = prevWorkflows.map(wf =>
-          wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
-        );
-        const targetWf = newWorkflows.find(wf => wf.id === designingWorkflow.id);
-        console.log('PROJECT_DETAIL_PAGE: New projectWorkflows state set. Target workflow nodes (IDs):', targetWf?.nodes?.map(n => n.id).join(', '));
+        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:', prevWorkflows.length);
+        const newWorkflows = prevWorkflows.map(wf => {
+          if (wf.id === designingWorkflow.id) {
+            console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
+            return { ...wf, nodes: updatedNodes };
+          }
+          return wf;
+        });
+        // Log to see the updated workflow's nodes in the new array
+        const updatedWfInNewArray = newWorkflows.find(wf => wf.id === designingWorkflow.id);
+        console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:', updatedWfInNewArray?.id, 'Nodes count:', updatedWfInNewArray?.nodes?.length, 'Nodes IDs:', updatedWfInNewArray?.nodes?.map(n => n.id).join(', '));
         return newWorkflows;
       });
     } else {
@@ -717,6 +725,20 @@ export default function ProjectDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+       <AlertDialog open={isEditTaskPlaceholderDialogOpen} onOpenChange={setIsEditTaskPlaceholderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              This feature will allow you to modify task details. Coming soon!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsEditTaskPlaceholderDialogOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={isLinkGlobalAgentDialogOpen} onOpenChange={setIsLinkGlobalAgentDialogOpen}>
         <AlertDialogContent>
