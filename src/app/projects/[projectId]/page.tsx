@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare, Settings, Brain } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, DragEvent as ReactDragEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { format, parseISO, addDays, differenceInDays, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
-import AddTaskDialog from '@/components/features/projects/AddTaskDialog';
+// import AddTaskDialog from '@/components/features/projects/AddTaskDialog'; // Replaced by AITaskPlannerDialog
 import EditTaskDialog from '@/components/features/projects/EditTaskDialog';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -46,6 +46,7 @@ import AgentConfigForm from '@/components/features/ai-suggestions/AgentConfigFor
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import ProjectGanttChartView from '@/components/features/projects/ProjectGanttChartView';
 import TaskChatDialog from '@/components/features/tasks/TaskChatDialog';
+import AITaskPlannerDialog from '@/components/features/projects/AITaskPlannerDialog';
 
 
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -123,7 +124,8 @@ export default function ProjectDetailPage() {
   const [mockProgress, setMockProgress] = useState(0);
 
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
+  // const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false); // Replaced by AI Planner
+  const [isAITaskPlannerDialogOpen, setIsAITaskPlannerDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
   const [isViewingTask, setIsViewingTask] = useState(false);
@@ -269,6 +271,7 @@ export default function ProjectDetailPage() {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
         // Update designingWorkflow state if the instance in projectWorkflows has changed
+        // This comparison should ideally be more robust if nodes/edges order doesn't matter or if they have complex nested objects
         if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
             console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state from projectWorkflows due to node/edge change.");
@@ -293,29 +296,30 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleAddTask = (taskData: Omit<Task, 'id'>) => {
+  const handleTaskPlannedAndAccepted = (plannedTaskData: Omit<Task, 'id'>) => {
     let newTask: Task = {
-      ...taskData,
+      ...plannedTaskData,
       id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
-      progress: taskData.isMilestone ? (taskData.status === 'Done' ? 100 : (taskData.progress === undefined ? 0 : taskData.progress)) : (taskData.progress === undefined ? 0 : taskData.progress),
-      durationDays: taskData.isMilestone ? 0 : (taskData.durationDays === undefined ? 1 : taskData.durationDays),
-      status: taskData.isMilestone ? (taskData.status === 'Done' ? 'Done' : 'To Do') : taskData.status,
-      parentId: taskData.parentId === "" ? null : taskData.parentId,
-      dependencies: taskData.dependencies || [],
-      isMilestone: taskData.isMilestone || false,
+      // Ensure defaults from AI are respected, or apply our own if missing
+      progress: plannedTaskData.isMilestone ? (plannedTaskData.status === 'Done' ? 100 : 0) : (plannedTaskData.progress ?? 0),
+      durationDays: plannedTaskData.isMilestone ? 0 : (plannedTaskData.durationDays ?? 1),
+      status: plannedTaskData.status || (plannedTaskData.isMilestone ? 'To Do' : 'To Do'),
+      parentId: plannedTaskData.parentId || null,
+      dependencies: plannedTaskData.dependencies || [],
+      isMilestone: plannedTaskData.isMilestone || false,
     };
 
     let autoStarted = false;
     let targetAgentName: string | null = null;
 
-    if (!newTask.isMilestone && taskData.assignedTo && taskData.assignedTo !== "Unassigned") {
-      const assignedAgent = projectAgents.find(agent => agent.name === taskData.assignedTo);
+    if (!newTask.isMilestone && newTask.assignedTo && newTask.assignedTo !== "Unassigned" && newTask.assignedTo !== "AI Assistant to determine") {
+      const assignedAgent = projectAgents.find(agent => agent.name === newTask.assignedTo);
 
       if (assignedAgent) {
         targetAgentName = assignedAgent.name;
         if (assignedAgent.status === 'Running') {
           newTask.status = 'In Progress';
-          newTask.progress = newTask.progress === 0 ? 10 : newTask.progress;
+          newTask.progress = newTask.progress === 0 ? 10 : newTask.progress; // Give some initial progress
           setProjectAgents(prevAgents =>
             prevAgents.map(agent =>
               agent.id === assignedAgent.id ? { ...agent, lastActivity: new Date().toISOString() } : agent
@@ -325,24 +329,19 @@ export default function ProjectDetailPage() {
         }
       }
     }
-
+    
     setTasks(prevTasks => [newTask, ...prevTasks]);
-    setIsAddTaskDialogOpen(false);
+    setIsAITaskPlannerDialogOpen(false); // Close the AI planner dialog
 
     if (autoStarted && targetAgentName) {
       toast({
-        title: "Task In Progress",
+        title: "Task In Progress (AI Planned)",
         description: `Task "${newTask.title}" assigned to agent "${targetAgentName}" and is now being processed.`
-      });
-    } else if (targetAgentName) {
-      toast({
-        title: "Task Added",
-        description: `Task "${newTask.title}" assigned to agent "${targetAgentName}". Run the agent to start processing.`
       });
     } else {
       toast({
-        title: newTask.isMilestone ? "Milestone Added" : "Task Added",
-        description: `${newTask.isMilestone ? "Milestone" : "Task"} "${newTask.title}" has been added to project "${project?.name}".`
+        title: newTask.isMilestone ? "Milestone Added (AI Planned)" : "Task Added (AI Planned)",
+        description: `${newTask.isMilestone ? "Milestone" : "Task"} "${newTask.title}" has been added to project "${project?.name}". ${targetAgentName ? `Assigned to ${targetAgentName}.` : ''}`
       });
     }
   };
@@ -782,7 +781,7 @@ export default function ProjectDetailPage() {
           <Card>
             <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <div><CardTitle>Task Gantt Chart</CardTitle><CardDescription>Timeline view of tasks for project "{project.name}".</CardDescription></div>
-              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
+              <Button variant="outline" size="sm" onClick={() => setIsAITaskPlannerDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><Brain className="mr-2 h-4 w-4" />Plan Task with AI</Button>
             </CardHeader>
             <CardContent>
                 {tasks.length > 0 ? (
@@ -796,8 +795,8 @@ export default function ProjectDetailPage() {
                         <GanttChartSquare className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                         <p className="text-lg font-medium text-muted-foreground">No tasks found for this project to display in Gantt chart.</p>
                         <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a task to get started!</p>
-                        <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
-                            <PlusCircle className="mr-2 h-4 w-4" />Add First Task
+                        <Button variant="outline" size="sm" onClick={() => setIsAITaskPlannerDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
+                            <Brain className="mr-2 h-4 w-4" />Plan First Task with AI
                         </Button>
                     </div>
                 )}
@@ -809,7 +808,7 @@ export default function ProjectDetailPage() {
           <Card>
             <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <div><CardTitle>Task Board (Kanban)</CardTitle><CardDescription>Manage tasks by status for project "{project.name}".</CardDescription></div>
-              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
+              <Button variant="outline" size="sm" onClick={() => setIsAITaskPlannerDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><Brain className="mr-2 h-4 w-4" />Plan Task with AI</Button>
             </CardHeader>
             <CardContent>
               {tasks.length > 0 ? (
@@ -877,10 +876,10 @@ export default function ProjectDetailPage() {
                                 }
                               </CardContent>
                                <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
-                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
-                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
-                                <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
-                                <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="ghost" size="sm" className="text-xs flex-1" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
+                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
                           )})}
@@ -898,8 +897,8 @@ export default function ProjectDetailPage() {
                   <ListChecks className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                   <p className="text-lg font-medium text-muted-foreground">No tasks found for this project.</p>
                   <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a task to get started!</p>
-                  <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
-                    <PlusCircle className="mr-2 h-4 w-4" />Add First Task
+                  <Button variant="outline" size="sm" onClick={() => setIsAITaskPlannerDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
+                     <Brain className="mr-2 h-4 w-4" />Plan First Task with AI
                   </Button>
                 </div>
               )}
@@ -1026,13 +1025,23 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
       </Tabs>
-      <AddTaskDialog
+      {/* <AddTaskDialog
         open={isAddTaskDialogOpen}
         onOpenChange={setIsAddTaskDialogOpen}
         onAddTask={handleAddTask}
         defaultStartDate={format(new Date(), 'yyyy-MM-dd')}
         projectTasks={tasks}
-      />
+      /> */}
+      {isAITaskPlannerDialogOpen && (
+        <AITaskPlannerDialog
+          open={isAITaskPlannerDialogOpen}
+          onOpenChange={setIsAITaskPlannerDialogOpen}
+          projectId={projectId}
+          projectWorkflows={projectWorkflows}
+          onTaskPlannedAndAccepted={handleTaskPlannedAndAccepted}
+        />
+      )}
+
       {editingTask && (
         <EditTaskDialog
           open={isEditTaskDialogOpen}

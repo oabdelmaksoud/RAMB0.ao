@@ -61,5 +61,6 @@ export interface Task {
   isMilestone?: boolean; // New field for milestones
   parentId?: string | null; // ID of the parent task
   dependencies?: string[]; // Array of task IDs this task depends on
+  description?: string; // Optional detailed description for the task
 }
 
