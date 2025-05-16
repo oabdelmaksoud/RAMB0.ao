@@ -2,9 +2,9 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -34,6 +34,7 @@ import Link from 'next/link';
 // Agent Management Imports
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
+import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog'; // Re-added for project agents
 
 // Workflow Designer Imports
 import WorkflowPalette from '@/components/features/workflow-designer/WorkflowPalette';
@@ -87,9 +88,9 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => [
     status: 'Draft',
     lastRun: undefined,
     nodes: [
-      { id: `sdlc-${projectId}-node-1`, name: 'Planning Phase', type: 'Custom Logic Agent', x: 50, y: 50 },
-      { id: `sdlc-${projectId}-node-2`, name: 'Development Sprint', type: 'Code Review Agent', x: 250, y: 150 },
-      { id: `sdlc-${projectId}-node-3`, name: 'QA Testing', type: 'Testing Agent', x: 50, y: 250 },
+      { id: `sdlc-${projectId}-node-1`, name: 'Planning Phase', type: 'Custom Logic Agent', x: 50, y: 50, config: {} },
+      { id: `sdlc-${projectId}-node-2`, name: 'Development Sprint', type: 'Code Review Agent', x: 250, y: 150, config: {} },
+      { id: `sdlc-${projectId}-node-3`, name: 'QA Testing', type: 'Testing Agent', x: 50, y: 250, config: {} },
     ],
     edges: [
       { id: `sdlc-${projectId}-edge-1`, sourceNodeId: `sdlc-${projectId}-node-1`, targetNodeId: `sdlc-${projectId}-node-2` },
@@ -103,8 +104,8 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => [
     status: 'Draft',
     lastRun: undefined,
     nodes: [
-      { id: `stc-${projectId}-node-1`, name: 'Unit Tests', type: 'Testing Agent', x: 100, y: 80 },
-      { id: `stc-${projectId}-node-2`, name: 'Integration Tests', type: 'Testing Agent', x: 300, y: 180 },
+      { id: `stc-${projectId}-node-1`, name: 'Unit Tests', type: 'Testing Agent', x: 100, y: 80, config: {} },
+      { id: `stc-${projectId}-node-2`, name: 'Integration Tests', type: 'Testing Agent', x: 300, y: 180, config: {} },
     ],
     edges: [
        { id: `stc-${projectId}-edge-1`, sourceNodeId: `stc-${projectId}-node-1`, targetNodeId: `stc-${projectId}-node-2` },
@@ -133,7 +134,7 @@ export default function ProjectDetailPage() {
 
   // State for Agent Management within Project
   const [projectAgents, setProjectAgents] = useState<Agent[]>([]);
-  const [isEditAgentDialogOpen, setIsEditAgentDialogOpen] = useState(false);
+  const [isEditAgentDialogOpen, setIsEditAgentDialogOpen] = useState(false); // For project-specific agent edits
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [isDeleteAgentDialogOpen, setIsDeleteAgentDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
@@ -237,20 +238,32 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (isClient && projectId ) {
+        console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, projectWorkflows);
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
-            localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
+             try {
+                localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
+            } catch (e) {
+                console.error("Error stringifying or saving project workflows:", e);
+                toast({
+                    title: "Save Error",
+                    description: "Could not save workflow changes due to a storage error.",
+                    variant: "destructive",
+                });
+            }
         }
     }
-  }, [projectWorkflows, projectId, isClient]);
+  }, [projectWorkflows, projectId, isClient, toast]);
 
-  useEffect(() => {
+ useEffect(() => {
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
-      if (updatedDesigningWorkflowInstance) {
+      if (updatedDesigningWorkflowInstance && updatedDesigningWorkflowInstance !== designingWorkflow) {
+          // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated instance from projectWorkflows", updatedDesigningWorkflowInstance);
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
-      } else {
+      } else if (!updatedDesigningWorkflowInstance) {
         // If the workflow being designed is somehow removed from the main list, close the designer
+        console.warn("PROJECT_DETAIL_PAGE: designingWorkflow instance not found in projectWorkflows. Closing designer.");
         setDesigningWorkflow(null);
       }
     }
@@ -352,7 +365,7 @@ export default function ProjectDetailPage() {
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
      toast({
       title: "Project Agent Added",
-      description: `Agent "${newAgent.name}" has been added to the current project.`
+      description: `Agent "${newAgent.name}" has been added to project "${project?.name}".`
     });
   };
 
@@ -369,6 +382,7 @@ export default function ProjectDetailPage() {
     );
     setIsEditAgentDialogOpen(false);
     setEditingAgent(null);
+     toast({ title: "Project Agent Updated", description: `Agent "${updatedAgent.name}" updated for project "${project?.name}".` });
   };
 
   const handleRunProjectAgent = (agentId: string) => {
@@ -433,6 +447,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
+    console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.name, "ID:", workflow.id, "Nodes:", workflow.nodes, "Edges:", workflow.edges);
     setDesigningWorkflow(workflow);
   };
 
@@ -441,18 +456,32 @@ export default function ProjectDetailPage() {
     setDesigningWorkflow(null);
   };
 
-  const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
-    if (designingWorkflow) {
-      setProjectWorkflows(prevWorkflows =>
-        prevWorkflows.map(wf =>
-          wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
-        )
-      );
-    }
+ const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
+    if (!designingWorkflow) return;
+    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length} IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
+    
+    // Ensure designingWorkflow ID is still valid before proceeding
+    console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id} Name: ${designingWorkflow.name}`);
+
+    setProjectWorkflows(prevWorkflows => {
+      console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
+      const newWorkflowsArray = prevWorkflows.map(wf => {
+        if (wf.id === designingWorkflow.id) {
+          console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
+          return { ...wf, nodes: updatedNodes };
+        }
+        return wf;
+      });
+      newWorkflowsArray.forEach(wf => {
+        console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id} Nodes count: ${wf.nodes?.length || 0} Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
+      });
+      return newWorkflowsArray;
+    });
   };
 
   const handleWorkflowEdgesChange = (updatedEdges: WorkflowEdge[]) => {
      if (designingWorkflow) {
+        console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange for workflow ${designingWorkflow.name}. New edges count: ${updatedEdges.length}`);
         setProjectWorkflows(prevWorkflows => 
             prevWorkflows.map(wf => 
                 wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
@@ -564,7 +593,7 @@ export default function ProjectDetailPage() {
             </CardHeader>
             <CardContent>
                 {tasks.length > 0 ? (
-                    <ProjectGanttChartView tasks={tasks} />
+                    <ProjectGanttChartView tasks={tasks} onUpdateTask={handleUpdateTask} />
                 ) : (
                     <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
                         <GanttChartSquare className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
@@ -611,7 +640,7 @@ export default function ProjectDetailPage() {
                                 {task.durationDays && <p className="text-muted-foreground">Duration: {task.durationDays}d</p>}
                               </CardContent>
                               <CardFooter className="p-3 border-t flex gap-2">
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><Eye className="mr-1.5 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1.5 h-3 w-3" /> View</Button>
                                 <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3 w-3" /> Edit</Button>
                                 <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3 w-3" /> Delete</Button>
                               </CardFooter>
@@ -701,7 +730,7 @@ export default function ProjectDetailPage() {
                                           </p>
                                       </CardContent>
                                       <CardFooter className="p-4 border-t flex gap-2">
-                                          <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenWorkflowDesigner(workflow)}><Eye className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
+                                          <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenWorkflowDesigner(workflow)}><EyeIcon className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
                                           <Button variant="default" size="sm" className="text-xs flex-1" disabled><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
                                       </CardFooter>
                                   </Card>
@@ -731,10 +760,10 @@ export default function ProjectDetailPage() {
               </div>
               <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1">
                   <WorkflowPalette />
-                  <WorkflowCanvas 
-                    nodes={designingWorkflow.nodes || []} 
+                  <WorkflowCanvas
+                    nodes={designingWorkflow.nodes || []}
                     edges={designingWorkflow.edges || []}
-                    onNodesChange={handleWorkflowNodesChange} 
+                    onNodesChange={handleWorkflowNodesChange}
                     onEdgesChange={handleWorkflowEdgesChange}
                   />
               </div>
@@ -755,10 +784,10 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
       </Tabs>
-      <AddTaskDialog 
-        open={isAddTaskDialogOpen} 
-        onOpenChange={setIsAddTaskDialogOpen} 
-        onAddTask={handleAddTask} 
+      <AddTaskDialog
+        open={isAddTaskDialogOpen}
+        onOpenChange={setIsAddTaskDialogOpen}
+        onAddTask={handleAddTask}
         defaultStartDate={format(new Date(), 'yyyy-MM-dd')}
       />
       {editingTask && (
@@ -780,12 +809,15 @@ export default function ProjectDetailPage() {
       <AddWorkflowDialog open={isAddWorkflowDialogOpen} onOpenChange={setIsAddWorkflowDialogOpen} onAddWorkflow={handleAddProjectWorkflow} />
 
       {editingAgent && (
-        <EditAgentDialog
+        <EditAgentDialog // This is for Project-specific agent edits
           agent={editingAgent}
           open={isEditAgentDialogOpen}
-          onOpenChange={setIsEditAgentDialogOpen}
+          onOpenChange={(isOpen) => {
+            setIsEditAgentDialogOpen(isOpen);
+            if(!isOpen) setEditingAgent(null);
+          }}
           onUpdateAgent={handleUpdateProjectAgent}
-          projectId={projectId}
+          projectId={projectId} 
         />
       )}
 
@@ -826,5 +858,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
-    
