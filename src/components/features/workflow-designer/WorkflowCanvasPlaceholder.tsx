@@ -30,20 +30,19 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
   }, [initialNodes]);
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
-    // console.log('CANVAS: Dragging over...'); // This can be very noisy
-    event.preventDefault(); // CRITICAL: This allows the drop to happen.
+    event.preventDefault(); 
     event.dataTransfer.dropEffect = 'move';
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
-    event.preventDefault(); // CRITICAL: Prevents default browser action (e.g., opening file).
+    event.preventDefault(); 
     console.log('CANVAS: Drop event triggered.');
 
     const agentType = event.dataTransfer.getData('text/plain');
     console.log(`CANVAS: Agent type received from dataTransfer: '${agentType}'`);
     
     if (!agentType) {
-      console.error('CANVAS: Drop aborted - no agentType received. Ensure dataTransfer.setData was called correctly in onDragStart.');
+      console.error('CANVAS: Drop aborted - no agentType received.');
       return;
     }
     if (!canvasRef.current) {
@@ -65,7 +64,6 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
     let y = event.clientY - canvasRect.top;
     console.log(`CANVAS: Initial drop coords (relative to canvas): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
 
-    // Center the card on the drop point
     x = x - agentCardWidth / 2;
     y = y - agentCardHeight / 2;
     console.log(`CANVAS: Centered drop coords (for top-left of card): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
@@ -88,8 +86,12 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
       const newNodes = [...prevNodes, newAgentNode];
       console.log('CANVAS: Successfully updated droppedAgents state. New count:', newNodes.length, newNodes);
       if (onNodesChange) {
-        console.log('CANVAS: Calling onNodesChange callback.');
-        onNodesChange(newNodes);
+        console.log('CANVAS: Scheduling onNodesChange callback via setTimeout.');
+        // Defer the call to onNodesChange to prevent updating parent during child's render cycle
+        setTimeout(() => {
+            console.log('CANVAS: Executing onNodesChange callback via setTimeout.');
+            onNodesChange(newNodes);
+        }, 0);
       }
       return newNodes;
     });
@@ -124,9 +126,6 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
           key={agentNode.id}
           className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center"
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
-          // Basic drag functionality for moving existing nodes could be added here later
-          // draggable
-          // onDragStart={(e) => { e.stopPropagation(); console.log('Dragging existing card'); }}
         >
           <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full">
             <AgentIcon type={agentNode.type} />
