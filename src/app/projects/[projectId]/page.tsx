@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -160,7 +160,7 @@ export default function ProjectDetailPage() {
     
     if (foundProject) {
       setProject(foundProject);
-      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30);
+      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); // Mock progress based on ID
 
       const tasksStorageKey = getTasksStorageKey(projectId);
       const storedTasks = localStorage.getItem(tasksStorageKey);
@@ -172,19 +172,21 @@ export default function ProjectDetailPage() {
         } catch (error) {
           console.error(`Failed to parse tasks for project ${projectId} from localStorage`, error);
           const initialMockTasksForProject: Task[] = [
-            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100 },
-            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40 },
-            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0 },
-            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true },
+            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null },
+            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null },
+            { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2` },
+            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null },
+            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null },
           ];
           setTasks(initialMockTasksForProject);
         }
       } else {
         const initialMockTasksForProject: Task[] = [
-            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100 },
-            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40 },
-            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0 },
-            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true },
+            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null },
+            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null },
+            { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2` },
+            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null },
+            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null },
         ];
         setTasks(initialMockTasksForProject);
       }
@@ -242,10 +244,10 @@ export default function ProjectDetailPage() {
 
  useEffect(() => {
     if (isClient && projectId ) {
-        // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows, null, 2));
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
+                // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows, null, 2));
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
@@ -260,18 +262,13 @@ export default function ProjectDetailPage() {
   }, [projectWorkflows, projectId, isClient, toast]);
 
  useEffect(() => {
-    // This effect syncs the designingWorkflow state with the instance from projectWorkflows
-    // if projectWorkflows changes (e.g., nodes/edges are updated).
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance && 
           (updatedDesigningWorkflowInstance.nodes !== designingWorkflow.nodes || 
            updatedDesigningWorkflowInstance.edges !== designingWorkflow.edges)) {
-          // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated instance from projectWorkflows", updatedDesigningWorkflowInstance);
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
       } else if (!updatedDesigningWorkflowInstance && designingWorkflow) { 
-        // This case might occur if the workflow was deleted while being designed.
-        // console.warn("PROJECT_DETAIL_PAGE: designingWorkflow instance not found in projectWorkflows. Closing designer.", designingWorkflow.name);
         setDesigningWorkflow(null);
       }
     }
@@ -292,8 +289,10 @@ export default function ProjectDetailPage() {
     let newTask: Task = {
       ...taskData,
       id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
-      progress: taskData.isMilestone ? 0 : (taskData.progress || 0),
+      progress: taskData.isMilestone ? (taskData.status === 'Done' ? 100 : 0) : (taskData.progress || 0),
       durationDays: taskData.isMilestone ? 0 : (taskData.durationDays || 1),
+      status: taskData.isMilestone ? (taskData.status === 'Done' ? 'Done' : 'To Do') : taskData.status,
+      parentId: taskData.parentId || null,
     };
 
     let autoStarted = false;
@@ -316,11 +315,6 @@ export default function ProjectDetailPage() {
       }
     }
     
-    if (newTask.isMilestone) { // Milestones typically start as 'To Do' or 'Done'
-        newTask.status = 'To Do'; 
-    }
-
-
     setTasks(prevTasks => [newTask, ...prevTasks]);
     setIsAddTaskDialogOpen(false);
 
@@ -352,12 +346,11 @@ export default function ProjectDetailPage() {
     const taskToUpdate: Task = {
         ...updatedTaskData,
         durationDays: updatedTaskData.isMilestone ? 0 : (updatedTaskData.durationDays === undefined ? 1 : updatedTaskData.durationDays),
-        progress: updatedTaskData.isMilestone ? 0 : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress),
+        progress: updatedTaskData.isMilestone ? (updatedTaskData.status === 'Done' ? 100 : 0) : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress),
+        status: updatedTaskData.isMilestone ? (updatedTaskData.status === 'Done' ? 'Done' : 'To Do') : updatedTaskData.status,
+        parentId: updatedTaskData.parentId || null,
     }
-    if (updatedTaskData.isMilestone && updatedTaskData.status !== 'To Do' && updatedTaskData.status !== 'Done') {
-        taskToUpdate.status = 'To Do'; // Or 'Done' if progress is 100, handle appropriately
-    }
-
+    
     setTasks(prevTasks => prevTasks.map(task => task.id === taskToUpdate.id ? taskToUpdate : task));
     setIsEditTaskDialogOpen(false);
     setEditingTask(null);
@@ -471,7 +464,6 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
-    // console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.name, "ID:", workflow.id, "Nodes:", workflow.nodes, "Edges:", workflow.edges);
     setDesigningWorkflow(workflow);
   };
 
@@ -480,7 +472,7 @@ export default function ProjectDetailPage() {
     setDesigningWorkflow(null);
   };
 
- const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
+ const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) return;
     // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length} IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
     // console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id} Name: ${designingWorkflow.name}`);
@@ -495,13 +487,13 @@ export default function ProjectDetailPage() {
         return wf;
       });
       // newWorkflowsArray.forEach(wf => {
-      //   console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id} Nodes count: ${wf.nodes?.length || 0} Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
+      //    console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id} Nodes count: ${wf.nodes?.length || 0} Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
       // });
       return newWorkflowsArray;
     });
-  };
+  }, [designingWorkflow]);
 
-  const handleWorkflowEdgesChange = (updatedEdges: WorkflowEdge[]) => {
+  const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
      if (designingWorkflow) {
         // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange for workflow ${designingWorkflow.name}. New edges count: ${updatedEdges.length}`);
         setProjectWorkflows(prevWorkflows => 
@@ -510,7 +502,7 @@ export default function ProjectDetailPage() {
             )
         );
     }
-  };
+  }, [designingWorkflow]);
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -667,8 +659,9 @@ export default function ProjectDetailPage() {
                             <Card key={task.id} className="shadow-sm bg-card flex flex-col hover:shadow-md transition-shadow">
                               <CardHeader className="p-3">
                                 <div className="flex items-start justify-between gap-2">
-                                  <CardTitle className="text-sm font-medium leading-tight flex items-center">
-                                    {task.isMilestone && <Diamond className="mr-2 h-3 w-3 text-amber-500 flex-shrink-0" />}
+                                  <CardTitle className="text-sm font-medium leading-tight flex items-center" style={{ paddingLeft: `${(task.parentId ? 1 : 0) * 1.25}rem` }}>
+                                    {task.parentId && <FolderGit2 className="mr-1.5 h-3 w-3 text-muted-foreground/70 flex-shrink-0" />}
+                                    {task.isMilestone && <Diamond className="mr-1.5 h-3 w-3 text-amber-500 flex-shrink-0" />}
                                     {task.title}
                                   </CardTitle>
                                 </div>
@@ -838,6 +831,7 @@ export default function ProjectDetailPage() {
         onOpenChange={setIsAddTaskDialogOpen}
         onAddTask={handleAddTask}
         defaultStartDate={format(new Date(), 'yyyy-MM-dd')}
+        projectTasks={tasks}
       />
       {editingTask && (
         <EditTaskDialog
@@ -852,6 +846,7 @@ export default function ProjectDetailPage() {
           taskToEdit={editingTask}
           onUpdateTask={handleUpdateTask}
           isReadOnly={isViewingTask}
+          projectTasks={tasks}
         />
       )}
       
