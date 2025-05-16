@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Task } from '@/types';
@@ -9,13 +8,14 @@ import { cn } from '@/lib/utils';
 
 interface ProjectGanttChartViewProps {
   tasks: Task[];
-  onUpdateTask: (updatedTask: Task) => void; // Callback to update a task
+  onUpdateTask: (updatedTask: Task) => void;
 }
 
 const DAY_WIDTH_PX = 30;
 const ROW_HEIGHT_PX = 40;
-const HEADER_HEIGHT_PX = 60; // Combined height for month and day headers
+const HEADER_HEIGHT_PX = 60; 
 const TASK_NAME_WIDTH_PX = 200;
+const RESIZE_HANDLE_WIDTH_PX = 10;
 
 const statusGanttBarColors: { [key in Task['status']]: string } = {
   'To Do': 'bg-slate-400 hover:bg-slate-500',
@@ -34,45 +34,59 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     originalStartDate: Date;
   } | null>(null);
 
+  const [resizingTaskDetails, setResizingTaskDetails] = useState<{
+    task: Task;
+    initialMouseX: number;
+    originalDurationDays: number;
+  } | null>(null);
+
   const { chartStartDate, chartEndDate, totalDays, daysArray } = useMemo(() => {
     if (!tasks.length) {
       const today = startOfDay(new Date());
+      const defaultStartDate = addDays(today, -3); // Add some padding before today
+      const defaultEndDate = addDays(today, 29 + 7); // Add some padding after 30 days
       return {
-        chartStartDate: today,
-        chartEndDate: addDays(today, 29),
-        totalDays: 30,
-        daysArray: eachDayOfInterval({ start: today, end: addDays(today, 29) }),
+        chartStartDate: defaultStartDate,
+        chartEndDate: defaultEndDate,
+        totalDays: differenceInCalendarDays(defaultEndDate, defaultStartDate) + 1,
+        daysArray: eachDayOfInterval({ start: defaultStartDate, end: defaultEndDate }),
       };
     }
 
     const taskDates = tasks.reduce((acc, task) => {
       if (task.startDate) {
-        const start = startOfDay(parseISO(task.startDate));
-        acc.push(start);
-        if (task.durationDays && task.durationDays > 0) {
-          acc.push(addDays(start, task.durationDays - 1));
-        } else {
-          acc.push(start);
+        try {
+            const start = startOfDay(parseISO(task.startDate));
+            acc.push(start);
+            if (task.durationDays && task.durationDays > 0) {
+            acc.push(addDays(start, task.durationDays - 1));
+            } else {
+            acc.push(start); // Treat as 1 day if duration is invalid/missing
+            }
+        } catch (e) {
+            // console.warn(`Invalid start date for task "${task.title}": ${task.startDate}`);
         }
       }
       return acc;
     }, [] as Date[]);
 
-    if (!taskDates.length) {
+    if (!taskDates.length) { // If tasks exist but none have valid dates
       const today = startOfDay(new Date());
+      const fallbackStart = addDays(today, -3);
+      const fallbackEnd = addDays(today, 30 + 7);
       return {
-        chartStartDate: addDays(today, -3),
-        chartEndDate: addDays(today, 30 + 7),
-        totalDays: 30 + 10,
-        daysArray: eachDayOfInterval({ start: addDays(today, -3), end: addDays(today, 30 + 7) }),
+        chartStartDate: fallbackStart,
+        chartEndDate: fallbackEnd,
+        totalDays: differenceInCalendarDays(fallbackEnd, fallbackStart) + 1,
+        daysArray: eachDayOfInterval({ start: fallbackStart, end: fallbackEnd }),
       };
     }
 
     let overallMinDate = min(taskDates);
     let overallMaxDate = max(taskDates);
 
-    overallMinDate = addDays(overallMinDate, -3);
-    overallMaxDate = addDays(overallMaxDate, 7);
+    overallMinDate = addDays(overallMinDate, -3); // Padding before
+    overallMaxDate = addDays(overallMaxDate, 7);  // Padding after
 
     const days = eachDayOfInterval({ start: overallMinDate, end: overallMaxDate });
 
@@ -95,15 +109,15 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
             width: duration * DAY_WIDTH_PX,
         };
     } catch (e) {
-        // Fallback if date is invalid
         return { left: 0, width: DAY_WIDTH_PX };
     }
   };
 
+  // --- Task Dragging Logic ---
   const handleTaskBarMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!task.startDate) return; // Cannot drag tasks without a start date
+    if (!task.startDate) return;
 
     try {
         setDraggingTaskDetails({
@@ -128,13 +142,14 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
         ...draggingTaskDetails.task,
         startDate: format(newStartDate, 'yyyy-MM-dd'),
       };
-      // Call onUpdateTask for live updates if desired, or only on mouseup
       onUpdateTask(updatedTask); 
+      // To provide real-time feedback, we might want to update draggingTaskDetails.task here as well,
+      // so subsequent mouse moves calculate from the "new" original position if not updating parent state fully.
+      // For now, this relies on parent re-rendering.
     };
 
     const handleDocumentMouseUp = () => {
       if (!draggingTaskDetails) return;
-      // Final update already happened in mousemove, or could be done here explicitly
       setDraggingTaskDetails(null);
     };
 
@@ -147,7 +162,49 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
       document.removeEventListener('mousemove', handleDocumentMouseMove);
       document.removeEventListener('mouseup', handleDocumentMouseUp);
     };
-  }, [draggingTaskDetails, onUpdateTask, DAY_WIDTH_PX]);
+  }, [draggingTaskDetails, onUpdateTask]);
+
+  // --- Task Resizing Logic ---
+  const handleResizeMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setResizingTaskDetails({
+        task,
+        initialMouseX: event.clientX,
+        originalDurationDays: task.durationDays || 1,
+    });
+  };
+
+  useEffect(() => {
+    const handleDocumentMouseMoveForResize = (event: MouseEvent) => {
+        if (!resizingTaskDetails) return;
+
+        const deltaX = event.clientX - resizingTaskDetails.initialMouseX;
+        const changedDays = Math.round(deltaX / DAY_WIDTH_PX);
+        const newDurationDays = Math.max(1, resizingTaskDetails.originalDurationDays + changedDays);
+
+        const updatedTask: Task = {
+            ...resizingTaskDetails.task,
+            durationDays: newDurationDays,
+        };
+        onUpdateTask(updatedTask);
+    };
+
+    const handleDocumentMouseUpForResize = () => {
+        if (!resizingTaskDetails) return;
+        setResizingTaskDetails(null);
+    };
+
+    if (resizingTaskDetails) {
+        document.addEventListener('mousemove', handleDocumentMouseMoveForResize);
+        document.addEventListener('mouseup', handleDocumentMouseUpForResize);
+    }
+
+    return () => {
+        document.removeEventListener('mousemove', handleDocumentMouseMoveForResize);
+        document.removeEventListener('mouseup', handleDocumentMouseUpForResize);
+    };
+  }, [resizingTaskDetails, onUpdateTask]);
 
 
   if (!isClient) {
@@ -157,8 +214,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const totalChartWidth = totalDays * DAY_WIDTH_PX;
 
   return (
-    <ScrollArea className="w-full">
-      <div style={{ minWidth: `${TASK_NAME_WIDTH_PX + totalChartWidth}px` }} className="relative bg-card select-none">
+    <ScrollArea className="w-full border rounded-lg shadow-sm bg-card">
+      <div style={{ minWidth: `${TASK_NAME_WIDTH_PX + totalChartWidth}px` }} className="relative select-none">
         {/* Header Row - Task Names & Timeline */}
         <div className="flex sticky top-0 z-20 bg-card border-b">
           <div
@@ -195,7 +252,10 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                 <div
                   key={format(day, 'yyyy-MM-dd')}
                   style={{ width: `${DAY_WIDTH_PX}px`, minWidth: `${DAY_WIDTH_PX}px` }}
-                  className="p-1 text-[10px] text-center border-r last:border-r-0 text-muted-foreground"
+                  className={cn(
+                    "p-1 text-[10px] text-center border-r last:border-r-0 text-muted-foreground",
+                    (format(day, 'E') === 'Sat' || format(day, 'E') === 'Sun') && 'bg-muted/50' // Weekend highlighting
+                  )}
                 >
                   {format(day, 'd')}
                 </div>
@@ -222,6 +282,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
           {tasks.map((task, taskIndex) => {
             const { left: barLeftOffset, width: barWidth } = getTaskPositionAndWidth(task);
             const isDraggingThisTask = draggingTaskDetails?.task.id === task.id;
+            const isResizingThisTask = resizingTaskDetails?.task.id === task.id;
 
             return (
               <div
@@ -235,7 +296,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                 >
                   {task.title}
                 </div>
-                {/* Task Bar - positioned absolutely within the timeline part of its row area */}
+                
                 {task.startDate && (
                   <div
                     onMouseDown={(e) => handleTaskBarMouseDown(e, task)}
@@ -243,7 +304,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                     className={cn(
                       "absolute my-[5px] h-[calc(100%-10px)] rounded text-white text-[11px] px-2 flex items-center overflow-hidden shadow-sm transition-shadow duration-150 ease-in-out",
                       statusGanttBarColors[task.status] || 'bg-gray-500',
-                      isDraggingThisTask ? 'cursor-grabbing opacity-75 ring-2 ring-primary' : 'cursor-grab'
+                      isDraggingThisTask ? 'cursor-grabbing opacity-75 ring-2 ring-primary z-20' : 'cursor-grab',
+                      isResizingThisTask && 'z-20' // Ensure resizing task bar is also on top
                     )}
                     style={{
                       left: `${TASK_NAME_WIDTH_PX + barLeftOffset}px`,
@@ -251,15 +313,28 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                       top: `${taskIndex * ROW_HEIGHT_PX}px`,
                       height: `${ROW_HEIGHT_PX - 10}px`,
                       lineHeight: `${ROW_HEIGHT_PX - 10}px`,
-                      zIndex: isDraggingThisTask ? 20 : 10, // Ensure dragging task is on top
+                      zIndex: isDraggingThisTask || isResizingThisTask ? 20 : 10,
                     }}
                   >
                     <span className="truncate pointer-events-none">{task.title}</span>
+                     <div
+                        onMouseDown={(e) => handleResizeMouseDown(e, task)}
+                        className="absolute top-0 right-0 h-full cursor-col-resize bg-black/10 hover:bg-black/20 transition-colors"
+                        style={{ width: `${RESIZE_HANDLE_WIDTH_PX}px` }}
+                        title={`Resize ${task.title}`}
+                    >
+                        <span className="sr-only">Resize task</span>
+                    </div>
                   </div>
                 )}
               </div>
             );
           })}
+           {tasks.length === 0 && (
+             <div className="flex items-center justify-center" style={{height: `${ROW_HEIGHT_PX * 3}px`}}>
+                <p className="text-muted-foreground p-4">No tasks in this project yet.</p>
+             </div>
+           )}
         </div>
       </div>
       <ScrollBar orientation="horizontal" />
