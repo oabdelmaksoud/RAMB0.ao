@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types'; // Added WorkflowEdge
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +65,7 @@ const initialProjectScopedMockAgents: Agent[] = [
   { id: 'proj-agent-init-002', name: 'Basic Task Reporter', type: 'Reporting Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { frequency: 'on-demand' } },
 ];
 
-const PROJECTS_STORAGE_KEY = 'agentFlowProjects'; // Key for all projects
+const PROJECTS_STORAGE_KEY = 'agentFlowProjects';
 const getAgentsStorageKey = (projectId: string) => `agentFlowAgents_project_${projectId}`;
 const getTasksStorageKey = (projectId: string) => `agentFlowTasks_project_${projectId}`;
 const getWorkflowsStorageKey = (projectId: string) => `agentFlowWorkflows_project_${projectId}`;
@@ -240,32 +240,35 @@ export default function ProjectDetailPage() {
       console.log(
         'PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project',
         projectId,
-        `Raw length: ${projectWorkflows.length}, Content: ${JSON.stringify(projectWorkflows, null, 2)}`
+        `Raw length: ${projectWorkflows.length}, Content: ${JSON.stringify(projectWorkflows)}`
       );
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
     }
   }, [projectWorkflows, projectId, isClient]);
 
   useEffect(() => {
+    // This effect ensures that if `designingWorkflow` is set and `projectWorkflows` array
+    // changes (e.g. due to a node/edge update), `designingWorkflow` state is updated
+    // to the new instance from the `projectWorkflows` array. This keeps it in sync.
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        const nodesChanged = JSON.stringify(updatedDesigningWorkflowInstance.nodes || []) !== JSON.stringify(designingWorkflow.nodes || []);
-        const edgesChanged = JSON.stringify(updatedDesigningWorkflowInstance.edges || []) !== JSON.stringify(designingWorkflow.edges || []);
-        const mainPropsChanged = updatedDesigningWorkflowInstance.name !== designingWorkflow.name ||
-                                 updatedDesigningWorkflowInstance.description !== designingWorkflow.description ||
-                                 updatedDesigningWorkflowInstance.status !== designingWorkflow.status;
-
-        if (nodesChanged || edgesChanged || mainPropsChanged || updatedDesigningWorkflowInstance !== designingWorkflow) {
-           console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow state because changes detected.");
+        // Check if the instance in state is different from the one in the array
+        // This simple reference check might be enough if map creates new objects for changed items
+        // For more robust checking, you could compare .nodes and .edges content if necessary
+        if (updatedDesigningWorkflowInstance !== designingWorkflow ||
+            JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
+            JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
+          console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow state with updated instance from projectWorkflows.");
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else {
+        // If the workflow being designed is somehow removed from projectWorkflows, close the designer
         console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows, closing designer.");
         setDesigningWorkflow(null);
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]);
+  }, [projectWorkflows, designingWorkflow?.id]); // Rerun when projectWorkflows or designingWorkflow.id changes
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -683,7 +686,7 @@ export default function ProjectDetailPage() {
                                           <p className="text-muted-foreground text-xs mt-1">
                                               Nodes: {workflow.nodes ? workflow.nodes.length : 0}
                                           </p>
-                                          <p className="text-muted-foreground text-xs mt-1">
+                                           <p className="text-muted-foreground text-xs mt-1">
                                               Edges: {workflow.edges ? workflow.edges.length : 0}
                                           </p>
                                       </CardContent>

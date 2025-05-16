@@ -7,6 +7,7 @@ import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDas
 import type { LucideIcon } from 'lucide-react';
 import type { WorkflowNode, WorkflowEdge } from '@/types';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 const agentIcons: { [key: string]: LucideIcon } = {
   'Code Review Agent': Code2,
@@ -31,17 +32,18 @@ export default function WorkflowCanvas({
 }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [renderCount, setRenderCount] = useState(0); // For debugging renders
-  
+  const [renderCount, setRenderCount] = useState(0);
+
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragStartOffset, setDragStartOffset] = useState<{ x: number; y: number } | null>(null);
-  const [wasDragging, setWasDragging] = useState(false); // To differentiate click from drag end
+  const [wasDragging, setWasDragging] = useState(false);
+
+  const [sourceNodeForEdge, setSourceNodeForEdge] = useState<WorkflowNode | null>(null);
 
   useEffect(() => {
     setRenderCount(prev => prev + 1);
     // console.log(`CANVAS: component rendered/re-rendered: ${renderCount + 1}. Nodes:`, nodes.map(n=>({id:n.id, x:n.x, y:n.y})), "Edges:", edges);
   }, [nodes, edges]);
-
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -96,8 +98,6 @@ export default function WorkflowCanvas({
     if (onNodesChange) {
       const newNodesArray = [...nodes, newAgentNode];
       console.log('CANVAS: Scheduling onNodesChange with newNodesArray (add):', newNodesArray.map(n=>({id:n.id, x:n.x, y:n.y})));
-      // setTimeout is crucial here if onNodesChange directly causes parent state update
-      // which might lead to "cannot update parent while child is rendering"
       setTimeout(() => {
         console.log('CANVAS: Executing onNodesChange callback (add) via setTimeout.');
         onNodesChange(newNodesArray);
@@ -120,7 +120,7 @@ export default function WorkflowCanvas({
         x: event.clientX - canvasRect.left - node.x,
         y: event.clientY - canvasRect.top - node.y,
       });
-      setWasDragging(false); // Reset wasDragging flag
+      setWasDragging(false); 
       console.log(`CANVAS: Start dragging node ${nodeId}. Offset:`, {
         x: event.clientX - canvasRect.left - node.x,
         y: event.clientY - canvasRect.top - node.y,
@@ -132,7 +132,7 @@ export default function WorkflowCanvas({
     const handleMouseMove = (event: MouseEvent) => {
       if (!draggingNodeId || !dragStartOffset || !canvasRef.current) return;
 
-      setWasDragging(true); // Indicate that a drag is happening
+      setWasDragging(true);
 
       const canvasRect = canvasRef.current.getBoundingClientRect();
       let newX = event.clientX - canvasRect.left - dragStartOffset.x;
@@ -148,9 +148,6 @@ export default function WorkflowCanvas({
         const updatedNodes = nodes.map(node =>
           node.id === draggingNodeId ? { ...node, x: newX, y: newY } : node
         );
-        // No setTimeout here as the parent's onNodesChange (handleWorkflowNodesChange)
-        // already uses setTimeout for its own state update (setProjectWorkflows).
-        // Calling it directly makes the component fully controlled during drag.
         onNodesChange(updatedNodes);
       }
     };
@@ -160,13 +157,14 @@ export default function WorkflowCanvas({
         console.log(`CANVAS: MouseUp - Stopped dragging node ${draggingNodeId}`);
         setDraggingNodeId(null);
         setDragStartOffset(null);
-        // wasDragging flag will be checked in onClick
+        // Reset wasDragging after a short delay to allow click event to process
+        setTimeout(() => setWasDragging(false), 0);
       }
     };
 
     if (draggingNodeId) {
       window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp, { once: true }); // { once: true } can be useful
+      window.addEventListener('mouseup', handleMouseUp); 
     }
 
     return () => {
@@ -177,7 +175,7 @@ export default function WorkflowCanvas({
 
 
   const handleRemoveNode = (nodeIdToRemove: string) => {
-    console.log(`CANVAS: Remove button clicked for node ID: ${nodeIdToRemove}`);
+    console.log(`CANVAS: Attempting to remove node with ID: ${nodeIdToRemove}`);
     if (!nodeIdToRemove) {
       console.error('CANVAS: handleRemoveNode called with undefined or null nodeIdToRemove.');
       return;
@@ -194,11 +192,8 @@ export default function WorkflowCanvas({
     }
   };
   
-  const [sourceNodeForEdge, setSourceNodeForEdge] = useState<WorkflowNode | null>(null);
-
   const handleNodeClick = (clickedNode: WorkflowNode) => {
     if (wasDragging) {
-      setWasDragging(false); // Reset for next click
       console.log('CANVAS: Node click ignored due to recent drag operation.');
       return;
     }
@@ -230,6 +225,24 @@ export default function WorkflowCanvas({
         console.warn('CANVAS: onEdgesChange is not defined in props for adding edge.');
       }
       setSourceNodeForEdge(null); 
+    }
+  };
+
+  const handleRemoveEdge = (edgeIdToRemove: string) => {
+    console.log(`CANVAS: Attempting to remove edge with ID: ${edgeIdToRemove}`);
+    if (!edgeIdToRemove) {
+      console.error('CANVAS: handleRemoveEdge called with undefined or null edgeIdToRemove.');
+      return;
+    }
+    if (onEdgesChange) {
+      const newEdgesArray = edges.filter(edge => edge.id !== edgeIdToRemove);
+      console.log(`CANVAS: Scheduling onEdgesChange with newEdgesArray (remove edge):`, newEdgesArray.map(e=>e.id));
+      setTimeout(() => {
+          console.log('CANVAS: Executing onEdgesChange callback (remove edge) via setTimeout.');
+          onEdgesChange(newEdgesArray);
+      }, 0);
+    } else {
+      console.warn('CANVAS: onEdgesChange is not defined in props for removing edge.');
     }
   };
 
@@ -280,7 +293,10 @@ export default function WorkflowCanvas({
                 y2={y2}
                 stroke="hsl(var(--foreground))"
                 strokeOpacity={0.7}
-                strokeWidth="2"
+                strokeWidth="3" /* Increased strokeWidth for easier clicking */
+                className="cursor-pointer hover:stroke-destructive" /* Added cursor and hover effect */
+                style={{ pointerEvents: 'stroke' }} /* Ensure line is clickable */
+                onClick={() => handleRemoveEdge(edge.id)}
               />
             );
           }
@@ -293,13 +309,12 @@ export default function WorkflowCanvas({
           key={agentNode.id}
           onMouseDown={(e) => handleNodeMouseDown(e, agentNode.id)}
           onClick={(e) => {
-            // e.stopPropagation(); // Already done in handleNodeMouseDown if it's a drag start
             handleNodeClick(agentNode);
           }}
-          className={`absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node z-10
-                      ${sourceNodeForEdge?.id === agentNode.id ? 'ring-2 ring-primary ring-offset-2' : ''}
-                      ${draggingNodeId === agentNode.id ? 'ring-2 ring-blue-500 opacity-75' : ''} 
-                     `}
+          className={cn(`absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node z-10`,
+                      sourceNodeForEdge?.id === agentNode.id ? 'ring-2 ring-primary ring-offset-2' : '',
+                      draggingNodeId === agentNode.id ? 'ring-2 ring-blue-500 opacity-75' : '' 
+                     )}
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px`, userSelect: 'none' }}
         >
           <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full relative">
@@ -309,7 +324,7 @@ export default function WorkflowCanvas({
               variant="ghost"
               size="icon"
               className="absolute top-0 right-0 h-6 w-6 opacity-50 group-hover/node:opacity-100 transition-opacity"
-              onMouseDown={(e) => e.stopPropagation()} // Prevent drag from starting on X button
+              onMouseDown={(e) => e.stopPropagation()} 
               onClick={(e: ReactMouseEvent<HTMLButtonElement>) => {
                 console.log(`CANVAS: Remove button clicked for node ID: ${agentNode.id}`);
                 e.stopPropagation(); 
@@ -325,18 +340,17 @@ export default function WorkflowCanvas({
       ))}
 
       {nodes.length === 0 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none z-10">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none z-20">
           <div className="flex items-center justify-center gap-4 mb-6">
             <MousePointerSquareDashed className="h-12 w-12 text-muted-foreground/70" />
             <Hand className="h-12 w-12 text-muted-foreground/70" />
           </div>
           <h3 className="text-xl font-semibold text-foreground mb-2">Design Your Workflow</h3>
           <p className="text-muted-foreground max-w-xs sm:max-w-md mx-auto">
-            Drag agents from the palette. Click one agent then another to connect them.
+            Drag agents from the palette. Click one agent then another to connect them. Click on a connection line to remove it.
           </p>
         </div>
       )}
     </div>
   );
 }
-
