@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Agent } from '@/types'; 
@@ -109,25 +109,22 @@ export default function ProjectDetailPage() {
   const [isDeleteAgentDialogOpen, setIsDeleteAgentDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   
-  const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
-  const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false);
-
   // Load project details and project-specific agents
   useEffect(() => {
     setIsClient(true);
     const foundProject = mockProjects.find(p => p.id === projectId);
     if (foundProject) {
       setProject(foundProject);
-      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); // Keep mock progress for now
+      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); 
       
-      // Initialize tasks (remains mock for now)
       const initialMockTasks: Task[] = [
         { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
         { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
+        { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
+        { id: `${projectId}-task-4`, title: `Deploy ${foundProject.name} to staging`, status: 'Blocked', assignedTo: 'DevOps Team' },
       ];
       setTasks(initialMockTasks.slice(0, Math.floor(Math.random() * initialMockTasks.length) + 1));
 
-      // Load project-specific agents from localStorage
       const storageKey = getAgentsStorageKey(projectId);
       const storedAgents = localStorage.getItem(storageKey);
       if (storedAgents) {
@@ -135,10 +132,10 @@ export default function ProjectDetailPage() {
           setProjectAgents(JSON.parse(storedAgents));
         } catch (error) {
           console.error(`Failed to parse agents for project ${projectId} from localStorage`, error);
-          setProjectAgents(initialProjectScopedMockAgents); // Fallback to initial mocks on parse error
+          setProjectAgents(initialProjectScopedMockAgents); 
         }
       } else {
-        setProjectAgents(initialProjectScopedMockAgents); // No stored data, use initial mocks
+        setProjectAgents(initialProjectScopedMockAgents); 
       }
     }
   }, [projectId]);
@@ -484,11 +481,10 @@ export default function ProjectDetailPage() {
         </AlertDialog>
       )}
 
-       {/* Placeholder dialogs for agent linking/creation - now removed as Agent Management is integrated */}
-       {/* Dialogs for 'Link Global Agent' and 'Create Project Agent' are no longer needed here */}
-
     </div>
   );
 }
+
+    
 
     
