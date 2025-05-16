@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -12,10 +11,10 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Loader2, Send } from 'lucide-react';
 import { suggestAgentConfiguration, type SuggestAgentConfigurationInput, type SuggestAgentConfigurationOutput } from '@/ai/flows/suggest-agent-configuration';
-import { useRouter } from 'next/navigation'; // For redirection
+// Removed: import { useRouter } from 'next/navigation'; 
 import type { Agent } from '@/types';
-import { Label } from '@/components/ui/label'; // Added import
-import { Progress } from '@/components/ui/progress'; // Added import
+import { Label } from '@/components/ui/label'; 
+import { Progress } from '@/components/ui/progress'; 
 
 const formSchema = z.object({
   taskDescription: z.string().min(10, { message: 'Task description must be at least 10 characters.' }).max(2000),
@@ -30,7 +29,7 @@ export default function AgentConfigForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<SuggestAgentConfigurationOutput | null>(null);
   const { toast } = useToast();
-  const router = useRouter();
+  // Removed: const router = useRouter();
 
   const form = useForm<AgentConfigFormData>({
     resolver: zodResolver(formSchema),
@@ -78,9 +77,9 @@ export default function AgentConfigForm() {
         localStorage.setItem(AI_SUGGESTED_CONFIG_KEY, JSON.stringify(storedConfig));
         toast({
           title: 'Configuration Copied!',
-          description: 'Redirecting to Agent Management to create the new agent.',
+          description: "Go to the 'Project Agents' tab and click 'Add New Agent' to use this configuration.",
         });
-        router.push('/agent-management');
+        // Removed: router.push('/agent-management');
       } catch (e) {
         toast({
           title: 'Error',
