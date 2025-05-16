@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2 } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree } from 'lucide-react'; // Added ListTree
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, DragEvent as ReactDragEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -245,7 +245,7 @@ export default function ProjectDetailPage() {
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
-                 console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, projectWorkflows);
+                 // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] })), null, 2) );
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
                 toast({
@@ -475,24 +475,24 @@ export default function ProjectDetailPage() {
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) {
-        console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but no designingWorkflow is set.");
+        // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but no designingWorkflow is set.");
         return;
     }
-    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
-    console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
+    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
+    // console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
 
     setProjectWorkflows(prevWorkflows => {
-        console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
+        // console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
+                // console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-           console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id}, Nodes count: ${wf.nodes?.length || 0}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
-        });
+        // newWorkflowsArray.forEach(wf => {
+           // console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id}, Nodes count: ${wf.nodes?.length || 0}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
+        // });
         return newWorkflowsArray;
     });
   }, [designingWorkflow, setProjectWorkflows]);
@@ -528,7 +528,7 @@ export default function ProjectDetailPage() {
   // Kanban Drag and Drop Handlers
    const handleTaskCardDragStart = (event: ReactDragEvent<HTMLDivElement>, task: Task) => {
     event.dataTransfer.setData('taskId', task.id);
-    event.dataTransfer.setData('taskStatus', task.status); // Store the original status
+    event.dataTransfer.setData('taskStatus', task.status); 
   };
 
   const handleColumnDragOver = (event: ReactDragEvent<HTMLDivElement>, status: Task['status']) => {
@@ -543,14 +543,14 @@ export default function ProjectDetailPage() {
   const handleColumnDrop = (event: ReactDragEvent<HTMLDivElement>, newStatus: Task['status']) => {
     event.preventDefault();
     const draggedTaskId = event.dataTransfer.getData('taskId');
-    const sourceTaskStatus = event.dataTransfer.getData('taskStatus') as Task['status']; // Get original status
+    const sourceTaskStatus = event.dataTransfer.getData('taskStatus') as Task['status']; 
     setDraggingOverStatus(null);
-    setReorderTargetTaskId(null); // Clear reorder target when dropping on a column
+    setReorderTargetTaskId(null); 
 
     const taskToMove = tasks.find(task => task.id === draggedTaskId);
     if (!taskToMove) return;
 
-    if (sourceTaskStatus !== newStatus) { // Status change
+    if (sourceTaskStatus !== newStatus) { 
       const updatedTask: Task = {
         ...taskToMove,
         status: newStatus,
@@ -562,20 +562,14 @@ export default function ProjectDetailPage() {
         title: "Task Status Updated",
         description: `Task "${updatedTask.title}" moved to "${newStatus}".`,
       });
-    } else { // Dropped in the same column's empty space
-        // Move to the end of that status group if it's not already there
+    } else { 
         setTasks(prevTasks => {
             const taskToReorder = prevTasks.find(t => t.id === draggedTaskId);
             if (!taskToReorder) return prevTasks;
 
-            // Filter out the task, then add it to the end of tasks with the same status, then combine with other tasks
-            const otherTasksInSameStatus = prevTasks.filter(t => t.id !== draggedTaskId && t.status === sourceTaskStatus);
-            const tasksInOtherStatuses = prevTasks.filter(t => t.status !== sourceTaskStatus);
+            const otherTasks = prevTasks.filter(t => t.id !== draggedTaskId);
+            const finalReorderedTasks = [...otherTasks, taskToReorder];
 
-            // This reorders all tasks, placing the dragged task at the end of its status group
-            const finalReorderedTasks = [...tasksInOtherStatuses, ...otherTasksInSameStatus, taskToReorder];
-
-            // Check if order actually changed to avoid unnecessary toast
             if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(finalReorderedTasks.map(t=>t.id))) {
                  toast({
                     title: "Task Reordered",
@@ -589,13 +583,13 @@ export default function ProjectDetailPage() {
 
 
   const handleTaskCardDragOver = (event: ReactDragEvent<HTMLDivElement>, targetTask: Task) => {
-    event.preventDefault(); // Allow drop
+    event.preventDefault(); 
     const sourceTaskStatus = event.dataTransfer.getData('taskStatus') as Task['status'];
-    if (sourceTaskStatus === targetTask.status) { // Only allow reorder within same column
+    if (sourceTaskStatus === targetTask.status) { 
         event.dataTransfer.dropEffect = "move";
         setReorderTargetTaskId(targetTask.id);
     } else {
-        event.dataTransfer.dropEffect = "none"; // Disallow drop if from different column
+        event.dataTransfer.dropEffect = "none"; 
         setReorderTargetTaskId(null);
     }
   };
@@ -606,27 +600,24 @@ export default function ProjectDetailPage() {
 
   const handleTaskCardDrop = (event: ReactDragEvent<HTMLDivElement>, targetTask: Task) => {
     event.preventDefault();
-    event.stopPropagation(); // Prevent column's onDrop from firing
+    event.stopPropagation(); 
 
     const draggedTaskId = event.dataTransfer.getData('taskId');
     const sourceTaskStatus = event.dataTransfer.getData('taskStatus') as Task['status'];
-    setReorderTargetTaskId(null); // Clear visual cue
-    setDraggingOverStatus(null); // Also clear column drag status
+    setReorderTargetTaskId(null); 
+    setDraggingOverStatus(null); 
 
 
-    if (sourceTaskStatus === targetTask.status) { // Reordering within the same column
+    if (sourceTaskStatus === targetTask.status) { 
       setTasks(prevTasks => {
         const draggedTask = prevTasks.find(t => t.id === draggedTaskId);
         if (!draggedTask) return prevTasks;
 
-        // Remove draggedTask
         const tasksWithoutDragged = prevTasks.filter(t => t.id !== draggedTaskId);
-        // Find index of targetTask in the filtered list
         const targetIndex = tasksWithoutDragged.findIndex(t => t.id === targetTask.id);
 
-        if (targetIndex === -1) return prevTasks; // Should not happen if targetTask exists
+        if (targetIndex === -1) return prevTasks; 
 
-        // Insert draggedTask before targetTask
         const newTasks = [
           ...tasksWithoutDragged.slice(0, targetIndex),
           draggedTask,
@@ -639,7 +630,6 @@ export default function ProjectDetailPage() {
         return newTasks;
       });
     }
-    // If sourceTaskStatus !== targetTask.status, do nothing here; column drop will handle status change.
   };
 
   const handleGanttTaskReorder = (draggedTaskId: string, targetTaskId: string) => {
@@ -652,7 +642,6 @@ export default function ProjectDetailPage() {
       const newTasks = [...prevTasks];
       const [draggedTask] = newTasks.splice(draggedTaskIndex, 1);
       
-      // Adjust target index if dragged item was before target
       const adjustedTargetIndex = draggedTaskIndex < targetTaskIndex ? targetTaskIndex -1 : targetTaskIndex;
       
       newTasks.splice(adjustedTargetIndex, 0, draggedTask);
@@ -817,7 +806,9 @@ export default function ProjectDetailPage() {
                           </span>
                         </div>
                         <div className="p-2 space-y-3 bg-muted/30 rounded-b-lg border border-t-0 min-h-[200px]">
-                          {tasks.filter(task => task.status === status).map(task => (
+                          {tasks.filter(task => task.status === status).map(task => {
+                            const isParent = tasks.some(t => t.parentId === task.id);
+                            return (
                             <Card
                               key={task.id}
                               className={cn(
@@ -833,8 +824,15 @@ export default function ProjectDetailPage() {
                               <CardHeader className="p-3 flex items-start justify-between gap-2">
                                   <div className="flex items-center">
                                     <GripVertical className="h-4 w-4 mr-1.5 text-muted-foreground/50 cursor-grab flex-shrink-0" />
-                                    <CardTitle className="text-sm font-medium leading-tight flex items-center" style={{ paddingLeft: `${(task.parentId ? 1 : 0) * 0.5}rem` }}>
+                                    <CardTitle 
+                                        className={cn(
+                                            "text-sm font-medium leading-tight flex items-center",
+                                            isParent && "font-bold"
+                                        )}
+                                        style={{ paddingLeft: `${(task.parentId ? 1 : 0) * 0.5}rem` }}
+                                    >
                                         {task.parentId && <FolderGit2 className="mr-1.5 h-3 w-3 text-muted-foreground/70 flex-shrink-0" />}
+                                        {isParent && <ListTree className="mr-1.5 h-3 w-3 text-sky-600 flex-shrink-0" />}
                                         {task.isMilestone && <Diamond className="mr-1.5 h-3 w-3 text-amber-500 flex-shrink-0" />}
                                         {task.title}
                                     </CardTitle>
@@ -857,7 +855,7 @@ export default function ProjectDetailPage() {
                                 <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
-                          ))}
+                          )})}
                           {tasks.filter(task => task.status === status).length === 0 && (
                             <p className="text-xs text-muted-foreground text-center py-4">No tasks in this stage.</p>
                           )}
