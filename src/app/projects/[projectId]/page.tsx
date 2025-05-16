@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2 } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Agent } from '@/types'; 
@@ -104,6 +104,10 @@ export default function ProjectDetailPage() {
   
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
+  const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false); // For placeholder edit dialog
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
+  
   const { toast } = useToast();
 
   // State for Agent Management within Project
@@ -191,6 +195,25 @@ export default function ProjectDetailPage() {
     setTasks(prevTasks => [newTask, ...prevTasks]);
     setIsAddTaskDialogOpen(false);
     toast({ title: "Task Added", description: `Task "${newTask.title}" has been added to project "${project?.name}".` });
+  };
+
+  const handleOpenEditTaskDialog = (task: Task) => {
+    // For now, this just opens a placeholder "coming soon" dialog
+    setIsEditTaskDialogOpen(true);
+  };
+
+  const handleOpenDeleteTaskDialog = (task: Task) => {
+    setTaskToDelete(task);
+    setIsDeleteTaskDialogOpen(true);
+  };
+
+  const confirmDeleteTask = () => {
+    if (taskToDelete) {
+      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskToDelete.id));
+      toast({ title: "Task Deleted", description: `Task "${taskToDelete.title}" has been deleted from project "${project?.name}".`, variant: 'destructive' });
+      setTaskToDelete(null);
+      setIsDeleteTaskDialogOpen(false);
+    }
   };
 
   // Agent Management Handlers (scoped to projectAgents)
@@ -371,7 +394,8 @@ export default function ProjectDetailPage() {
                       <CardContent className="p-4 pt-0 text-sm flex-grow"><p className="text-muted-foreground">Assigned to: {task.assignedTo}</p></CardContent>
                       <CardFooter className="p-4 border-t flex gap-2">
                         <Button variant="outline" size="sm" className="text-xs flex-1" disabled><Eye className="mr-1.5 h-3.5 w-3.5" /> View</Button>
-                        <Button variant="outline" size="sm" className="text-xs flex-1" disabled><Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
+                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
+                        <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete</Button>
                       </CardFooter>
                     </Card>
                   ))}
@@ -508,6 +532,43 @@ export default function ProjectDetailPage() {
         </AlertDialog>
       )}
 
+      {/* Placeholder Edit Task Dialog */}
+      <AlertDialog open={isEditTaskDialogOpen} onOpenChange={setIsEditTaskDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Task</AlertDialogTitle>
+            <AlertDialogDescription>
+              This feature will allow you to modify task details. Coming soon!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsEditTaskDialogOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Task Confirmation Dialog */}
+      {taskToDelete && (
+        <AlertDialog open={isDeleteTaskDialogOpen} onOpenChange={setIsDeleteTaskDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure you want to delete this task?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the task
+                "{taskToDelete.title}" from project "{project?.name}".
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setTaskToDelete(null); setIsDeleteTaskDialogOpen(false); }}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
     </div>
   );
 }
+
