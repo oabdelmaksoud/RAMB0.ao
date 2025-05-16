@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Agent } from '@/types'; 
+import type { Project } from '@/types'; 
 import { mockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import AddTaskDialog from '@/components/features/projects/AddTaskDialog';
+import EditTaskDialog from '@/components/features/projects/EditTaskDialog';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -27,12 +28,12 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import Link from 'next/link';
 
 // Agent Management Imports
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
+import type { Agent } from '@/types'; // Ensure Agent type is imported if not already
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
 import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
 
@@ -101,6 +102,7 @@ export default function ProjectDetailPage() {
   
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false); 
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
@@ -216,8 +218,15 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenEditTaskDialog = (task: Task) => {
-    // For now, this is a placeholder. In future, would set editingTask and open a full edit dialog.
+    setEditingTask(task);
     setIsEditTaskDialogOpen(true);
+  };
+
+  const handleUpdateTask = (updatedTaskData: Task) => {
+    setTasks(prevTasks => prevTasks.map(task => task.id === updatedTaskData.id ? updatedTaskData : task));
+    setIsEditTaskDialogOpen(false);
+    setEditingTask(null);
+    toast({ title: "Task Updated", description: `Task "${updatedTaskData.title}" has been updated.`});
   };
 
   const handleOpenDeleteTaskDialog = (task: Task) => {
@@ -375,7 +384,7 @@ export default function ProjectDetailPage() {
               <div className="flex items-center"><Bot className="h-4 w-4 mr-2 text-muted-foreground" /><span className="text-muted-foreground">Agents:</span><span className="ml-auto font-medium">{projectAgents.length}</span></div>
             )}
             {project.workflowCount !== undefined && (
-              <div className="flex items-center"><WorkflowIcon className="h-4 w-4 mr-2 text-muted-foreground" /><span className="text-muted-foreground">Workflows:</span><span className="ml-auto font-medium">{projectWorkflows.length}</span></div>
+              <div className="flex items-center"><WorkflowIcon className="h-4 w-4 mr-2 text-muted-foreground" /><span className="text-muted-foreground">Workflows:</span><span className="ml-auto font-medium">{projectWorkflows.filter(w => w.status === 'Active').length} / {projectWorkflows.length}</span></div>
             )}
           </CardContent>
         </Card>
@@ -542,6 +551,17 @@ export default function ProjectDetailPage() {
 
       </Tabs>
       <AddTaskDialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen} onAddTask={handleAddTask} />
+      {editingTask && (
+        <EditTaskDialog
+          open={isEditTaskDialogOpen}
+          onOpenChange={(isOpen) => {
+            setIsEditTaskDialogOpen(isOpen);
+            if (!isOpen) setEditingTask(null);
+          }}
+          taskToEdit={editingTask}
+          onUpdateTask={handleUpdateTask}
+        />
+      )}
       <AddWorkflowDialog open={isAddWorkflowDialogOpen} onOpenChange={setIsAddWorkflowDialogOpen} onAddWorkflow={handleAddProjectWorkflow} />
       
       {editingAgent && (
@@ -567,20 +587,6 @@ export default function ProjectDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-
-      <AlertDialog open={isEditTaskDialogOpen} onOpenChange={setIsEditTaskDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Edit Task</AlertDialogTitle>
-            <AlertDialogDescription>
-              This feature will allow you to modify task details. Coming soon!
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsEditTaskDialogOpen(false)}>OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {taskToDelete && (
         <AlertDialog open={isDeleteTaskDialogOpen} onOpenChange={setIsDeleteTaskDialogOpen}>
@@ -628,3 +634,4 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
