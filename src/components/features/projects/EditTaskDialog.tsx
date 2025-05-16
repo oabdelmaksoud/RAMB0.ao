@@ -42,10 +42,11 @@ interface EditTaskDialogProps {
   taskToEdit: Task | null;
   onUpdateTask: (taskData: Task) => void;
   isReadOnly?: boolean;
-  projectTasks: Task[]; // Pass all project tasks to populate parent task dropdown
+  projectTasks: Task[];
 }
 
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
+const NO_PARENT_VALUE = "__NO_PARENT_SELECTED__";
 
 export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdateTask, isReadOnly = false, projectTasks }: EditTaskDialogProps) {
   const form = useForm<TaskFormData>({
@@ -63,32 +64,22 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
   });
 
   const isMilestoneWatch = form.watch("isMilestone");
-
-  React.useEffect(() => {
-    if (isMilestoneWatch && !isReadOnly) {
-      form.setValue("durationDays", 0, { shouldValidate: true });
-      form.setValue("progress", 0, { shouldValidate: true });
-      // For existing milestones being edited, allow 'To Do' or 'Done'
-      const currentStatus = form.getValues("status");
-      if (currentStatus !== 'To Do' && currentStatus !== 'Done') {
-        form.setValue("status", "To Do", { shouldValidate: true });
-      }
-    }
-  }, [isMilestoneWatch, form, isReadOnly]);
+  const statusWatch = form.watch("status");
 
   React.useEffect(() => {
     if (taskToEdit && open) {
+      const initialParentId = taskToEdit.parentId === undefined ? null : taskToEdit.parentId;
       form.reset({
         title: taskToEdit.title,
         status: taskToEdit.status,
         assignedTo: taskToEdit.assignedTo,
         startDate: taskToEdit.startDate ? format(parseISO(taskToEdit.startDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'),
         durationDays: taskToEdit.durationDays === undefined ? (taskToEdit.isMilestone ? 0 : 1) : taskToEdit.durationDays,
-        progress: taskToEdit.progress === undefined ? (taskToEdit.isMilestone ? 0 : 0) : taskToEdit.progress,
+        progress: taskToEdit.progress === undefined ? (taskToEdit.isMilestone && taskToEdit.status === 'Done' ? 100 : 0) : taskToEdit.progress,
         isMilestone: taskToEdit.isMilestone || false,
-        parentId: taskToEdit.parentId || null,
+        parentId: initialParentId,
       });
-    } else if (!open && !form.formState.isSubmitSuccessful) { // Reset only if not submitted
+    } else if (!open && !form.formState.isSubmitSuccessful) {
       form.reset({ 
         title: "",
         status: "To Do",
@@ -102,6 +93,32 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
     }
   }, [open, taskToEdit, form]);
 
+  React.useEffect(() => {
+    if (!isReadOnly) {
+      if (isMilestoneWatch) {
+        form.setValue("durationDays", 0, { shouldValidate: true });
+        // For milestones being edited, allow 'To Do' or 'Done'
+        if (form.getValues("status") !== 'To Do' && form.getValues("status") !== 'Done') {
+          form.setValue("status", "To Do", { shouldValidate: true });
+        }
+        if (form.getValues("status") === 'Done') {
+            form.setValue("progress", 100, { shouldValidate: true });
+        } else {
+            form.setValue("progress", 0, { shouldValidate: true });
+        }
+      }
+    }
+  }, [isMilestoneWatch, form, isReadOnly]);
+  
+  React.useEffect(() => {
+    if (!isReadOnly && isMilestoneWatch && statusWatch === 'Done') {
+        form.setValue("progress", 100, { shouldValidate: true });
+    } else if (!isReadOnly && isMilestoneWatch && statusWatch === 'To Do') {
+        form.setValue("progress", 0, { shouldValidate: true });
+    }
+  }, [statusWatch, isMilestoneWatch, form, isReadOnly]);
+
+
   const onSubmit: SubmitHandler<TaskFormData> = (data) => {
     if (!taskToEdit || isReadOnly) return; 
 
@@ -109,12 +126,11 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
       ...taskToEdit, 
       ...data,      
       durationDays: data.isMilestone ? 0 : (data.durationDays === undefined ? 1 : data.durationDays),
-      progress: data.isMilestone ? 0 : (data.progress === undefined ? 0 : data.progress),
-      status: data.isMilestone ? (data.progress === 100 ? 'Done' : 'To Do') : data.status,
-      parentId: data.parentId === "" ? null : data.parentId,
+      progress: data.isMilestone ? (data.status === 'Done' ? 100 : 0) : (data.progress === undefined ? 0 : data.progress),
+      status: data.isMilestone ? (data.status === 'Done' ? 'Done' : 'To Do') : data.status, // Status for milestone can be To Do or Done
+      parentId: data.parentId, // Already null if "No Parent" was selected
     };
     onUpdateTask(updatedTask);
-    // onOpenChange(false); // Parent will handle closing
   };
 
   if (!taskToEdit && open) return null; 
@@ -125,9 +141,9 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>{isReadOnly ? 'View Task' : 'Edit Task'}: {taskToEdit?.title}</DialogTitle>
+          <DialogTitle>{isReadOnly ? `View ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}` : `Edit ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}`}: {taskToEdit?.title}</DialogTitle>
           <DialogDescription>
-            {isReadOnly ? 'Viewing task details.' : "Update the details for this task. Click save when you're done."}
+            {isReadOnly ? `Viewing ${taskToEdit?.isMilestone ? 'milestone' : 'task'} details.` : `Update the details for this ${taskToEdit?.isMilestone ? 'milestone' : 'task'}. Click save when you're done.`}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -137,7 +153,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Task Title</FormLabel>
+                  <FormLabel>Title</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Implement user authentication" {...field} disabled={isReadOnly} />
                   </FormControl>
@@ -167,7 +183,11 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly || isMilestoneWatch}>
+                  <Select 
+                    onValueChange={field.onChange} 
+                    value={field.value} 
+                    disabled={isReadOnly || (isMilestoneWatch && field.value !== 'To Do' && field.value !== 'Done')}
+                  >
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a status" />
@@ -175,7 +195,13 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                     </FormControl>
                     <SelectContent>
                       {taskStatuses.map(status => (
-                        <SelectItem key={status} value={status} disabled={isMilestoneWatch && status !== 'To Do' && status !== 'Done'}>{status}</SelectItem>
+                         <SelectItem 
+                          key={status} 
+                          value={status} 
+                          disabled={isMilestoneWatch && status !== 'To Do' && status !== 'Done'}
+                        >
+                          {status}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -204,9 +230,8 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                 <FormItem>
                   <FormLabel>Parent Task (Optional)</FormLabel>
                   <Select 
-                    onValueChange={field.onChange} 
-                    value={field.value || ""} 
-                    defaultValue={field.value || ""}
+                    onValueChange={(value) => field.onChange(value === NO_PARENT_VALUE ? null : value)} 
+                    value={field.value ?? NO_PARENT_VALUE}
                     disabled={isReadOnly}
                   >
                     <FormControl>
@@ -215,7 +240,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">No Parent</SelectItem>
+                      <SelectItem value={NO_PARENT_VALUE}>No Parent</SelectItem>
                       {availableParentTasks.map(task => (
                         <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
                       ))}
@@ -248,7 +273,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                   <FormItem>
                     <FormLabel>Duration (Days)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="e.g., 5" {...field} disabled={isReadOnly || isMilestoneWatch}/>
+                      <Input type="number" placeholder="e.g., 5" {...field} value={field.value ?? (isMilestoneWatch ? 0 : 1)} disabled={isReadOnly || isMilestoneWatch}/>
                     </FormControl>
                      <FormDescription className="text-xs">{isMilestoneWatch ? 'Not applicable for milestones.' : 'Optional.'}</FormDescription>
                     <FormMessage />
@@ -263,9 +288,14 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                 <FormItem>
                   <FormLabel>Progress (%)</FormLabel>
                   <FormControl>
-                    <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} disabled={isReadOnly || isMilestoneWatch} />
+                    <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} value={field.value ?? (isMilestoneWatch ? 0 : 0)} disabled={isReadOnly || (isMilestoneWatch && !(form.getValues("status") === 'Done'))} />
                   </FormControl>
-                  <FormDescription className="text-xs">{isMilestoneWatch ? 'Not applicable for milestones.' : 'Optional (0-100).'}</FormDescription>
+                   <FormDescription className="text-xs">
+                    {isMilestoneWatch 
+                      ? (form.getValues("status") === 'Done' ? "Set to 100% for completed milestones." : "Set to 0% for milestones not yet done.")
+                      : "Optional (0-100)."
+                    }
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
