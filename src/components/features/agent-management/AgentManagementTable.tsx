@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { Agent } from '@/types';
@@ -8,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Edit3, Trash2, Copy, Play, PowerOff } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useState, useEffect } from 'react'; // Added useState and useEffect
 
 interface AgentManagementTableProps {
   agents: Agent[];
@@ -21,6 +23,12 @@ const statusColors: { [key in Agent['status']]: string } = {
 };
 
 export default function AgentManagementTable({ agents }: AgentManagementTableProps) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const formatDate = (dateString: string) => {
     try {
       return format(parseISO(dateString), "MMM d, yyyy HH:mm");
@@ -58,7 +66,9 @@ export default function AgentManagementTable({ agents }: AgentManagementTablePro
                   {agent.status}
                 </Badge>
               </TableCell>
-              <TableCell className="text-sm text-muted-foreground">{formatDate(agent.lastActivity)}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {isClient ? formatDate(agent.lastActivity) : 'Processing...'}
+              </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
