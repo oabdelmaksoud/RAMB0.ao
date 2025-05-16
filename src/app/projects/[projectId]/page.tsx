@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -44,6 +44,7 @@ import AddWorkflowDialog from '@/components/features/projects/AddWorkflowDialog'
 
 // AI Suggestions Imports
 import AgentConfigForm from '@/components/features/ai-suggestions/AgentConfigForm';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 
 
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -53,7 +54,9 @@ const projectStatusColors: { [key in Project['status']]: string } = {
   Archived: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
 
-export const taskStatusColors: { [key: string]: string } = {
+export const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
+
+export const taskStatusColors: { [key in Task['status']]: string } = {
   'To Do': 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
   'In Progress': 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border-blue-300 dark:border-blue-700',
   'Done': 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 border-green-300 dark:border-green-700',
@@ -237,38 +240,24 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)) !== null)) {
-      console.log(
-        'PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project',
-        projectId,
-        `Raw length: ${projectWorkflows.length}, Content: ${JSON.stringify(projectWorkflows)}`
-      );
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
     }
   }, [projectWorkflows, projectId, isClient]);
 
   useEffect(() => {
-    // This effect ensures that if `designingWorkflow` is set and `projectWorkflows` array
-    // changes (e.g. due to a node/edge update), `designingWorkflow` state is updated
-    // to the new instance from the `projectWorkflows` array. This keeps it in sync.
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        // Check if the instance in state is different from the one in the array
-        // This simple reference check might be enough if map creates new objects for changed items
-        // For more robust checking, you could compare .nodes and .edges content if necessary
         if (updatedDesigningWorkflowInstance !== designingWorkflow ||
             JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
-          console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow state with updated instance from projectWorkflows.");
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else {
-        // If the workflow being designed is somehow removed from projectWorkflows, close the designer
-        console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows, closing designer.");
         setDesigningWorkflow(null);
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]); // Rerun when projectWorkflows or designingWorkflow.id changes
+  }, [projectWorkflows, designingWorkflow?.id]);
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -442,7 +431,6 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
-    console.log("PROJECT_DETAIL_PAGE: Opening workflow designer for:", workflow);
     setDesigningWorkflow(workflow);
   };
 
@@ -452,50 +440,32 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
-    console.log('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:', updatedNodes.length, 'IDs:', updatedNodes.map(n => n.id).join(', '));
     if (designingWorkflow) {
       const currentDesigningWorkflowId = designingWorkflow.id;
-      console.log('PROJECT_DETAIL_PAGE: Current designingWorkflow ID:', currentDesigningWorkflowId, 'Name:', designingWorkflow.name);
       setProjectWorkflows(prevWorkflows => {
-        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows (nodes). prevWorkflows length:', prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
           if (wf.id === currentDesigningWorkflowId) {
-            console.log('PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:', wf.id, '. New nodes count:', updatedNodes.length);
             return { ...wf, nodes: updatedNodes };
           }
           return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-             console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:', wf.id, 'Nodes count:', wf.nodes?.length, 'Nodes IDs:', wf.nodes?.map(n=>n.id).join(', '));
-        });
         return newWorkflowsArray;
       });
-    } else {
-      console.warn('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but designingWorkflow is null.');
     }
   };
 
   const handleWorkflowEdgesChange = (updatedEdges: WorkflowEdge[]) => {
-    console.log('PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Count:', updatedEdges.length);
     if (designingWorkflow) {
       const currentDesigningWorkflowId = designingWorkflow.id;
-      console.log('PROJECT_DETAIL_PAGE: Current designingWorkflow ID for edges:', currentDesigningWorkflowId, 'Name:', designingWorkflow.name);
       setProjectWorkflows(prevWorkflows => {
-        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows (edges). prevWorkflows length:', prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
           if (wf.id === currentDesigningWorkflowId) {
-            console.log('PROJECT_DETAIL_PAGE: Updating edges for workflow ID:', wf.id, '. New edges count:', updatedEdges.length);
             return { ...wf, edges: updatedEdges };
           }
           return wf;
         });
-         newWorkflowsArray.forEach(wf => {
-             console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:', wf.id, 'Edges count:', wf.edges?.length);
-        });
         return newWorkflowsArray;
       });
-    } else {
-      console.warn('PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called but designingWorkflow is null.');
     }
   };
 
@@ -601,21 +571,46 @@ export default function ProjectDetailPage() {
             </CardHeader>
             <CardContent>
               {tasks.length > 0 ? (
-                 <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                  {tasks.map(task => (
-                    <Card key={task.id} className="shadow-sm bg-card flex flex-col">
-                      <CardHeader className="p-4">
-                        <div className="flex items-start justify-between gap-2"><CardTitle className="text-base font-medium leading-tight">{task.title}</CardTitle><Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap shrink-0", taskStatusColors[task.status])}>{task.status}</Badge></div>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-0 text-sm flex-grow"><p className="text-muted-foreground">Assigned to: {task.assignedTo}</p></CardContent>
-                      <CardFooter className="p-4 border-t flex gap-2">
-                        <Button variant="outline" size="sm" className="text-xs flex-1" disabled><Eye className="mr-1.5 h-3.5 w-3.5" /> View</Button>
-                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
-                        <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete</Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
+                <ScrollArea className="w-full whitespace-nowrap pb-4">
+                  <div className="flex gap-4">
+                    {taskStatuses.map(status => (
+                      <div key={status} className="min-w-[300px] w-[300px] rounded-lg">
+                        <div className={cn("p-2 rounded-t-lg font-semibold flex items-center justify-between", taskStatusColors[status])}>
+                          {status}
+                          <span className="text-xs font-normal opacity-75">
+                            ({tasks.filter(task => task.status === status).length})
+                          </span>
+                        </div>
+                        <div className="p-2 space-y-3 bg-muted/30 rounded-b-lg border border-t-0 min-h-[200px]">
+                          {tasks.filter(task => task.status === status).map(task => (
+                            <Card key={task.id} className="shadow-sm bg-card flex flex-col hover:shadow-md transition-shadow">
+                              <CardHeader className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <CardTitle className="text-sm font-medium leading-tight">{task.title}</CardTitle>
+                                  {/* Optional: Small icon for drag handle if implementing drag-and-drop later */}
+                                  {/* <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" /> */}
+                                </div>
+                              </CardHeader>
+                              <CardContent className="p-3 pt-0 text-xs flex-grow">
+                                <p className="text-muted-foreground">Assigned to: {task.assignedTo}</p>
+                                {/* Add more task details here if needed, e.g., due date, priority */}
+                              </CardContent>
+                              <CardFooter className="p-3 border-t flex gap-2">
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => setIsEditTaskPlaceholderDialogOpen(true)}><Eye className="mr-1.5 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3 w-3" /> Edit</Button>
+                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3 w-3" /> Delete</Button>
+                              </CardFooter>
+                            </Card>
+                          ))}
+                          {tasks.filter(task => task.status === status).length === 0 && (
+                            <p className="text-xs text-muted-foreground text-center py-4">No tasks in this stage.</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
               ) : (
                  <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
                   <ListChecks className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
@@ -850,3 +845,5 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
+    
