@@ -33,11 +33,12 @@ interface EditTaskDialogProps {
   onOpenChange: (open: boolean) => void;
   taskToEdit: Task | null;
   onUpdateTask: (taskData: Task) => void;
+  isReadOnly?: boolean;
 }
 
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
-export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdateTask }: EditTaskDialogProps) {
+export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdateTask, isReadOnly = false }: EditTaskDialogProps) {
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: { // Will be overridden by useEffect
@@ -64,7 +65,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
   }, [open, taskToEdit, form]);
 
   const onSubmit: SubmitHandler<TaskFormData> = (data) => {
-    if (!taskToEdit) return; // Should not happen if dialog is open with a task
+    if (!taskToEdit || isReadOnly) return; 
 
     const updatedTask: Task = {
       ...taskToEdit, // Preserve ID
@@ -81,9 +82,9 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Edit Task: {taskToEdit.title}</DialogTitle>
+          <DialogTitle>{isReadOnly ? 'View Task' : 'Edit Task'}: {taskToEdit.title}</DialogTitle>
           <DialogDescription>
-            Update the details for this task. Click save when you're done.
+            {isReadOnly ? 'Viewing task details.' : "Update the details for this task. Click save when you're done."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -95,7 +96,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                 <FormItem>
                   <FormLabel>Task Title</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Implement user authentication" {...field} />
+                    <Input placeholder="e.g., Implement user authentication" {...field} disabled={isReadOnly} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -107,7 +108,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isReadOnly}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a status" />
@@ -130,15 +131,15 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                 <FormItem>
                   <FormLabel>Assigned To</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., AI Agent X or Team Member" {...field} />
+                    <Input placeholder="e.g., AI Agent X or Team Member" {...field} disabled={isReadOnly} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button type="submit">Save Changes</Button>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
+              {!isReadOnly && <Button type="submit">Save Changes</Button>}
             </DialogFooter>
           </form>
         </Form>

@@ -34,7 +34,7 @@ import Link from 'next/link';
 // Agent Management Imports
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
-import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
+// EditAgentDialog is already imported for project agents
 
 // Workflow Designer Imports
 import WorkflowPalette from '@/components/features/workflow-designer/WorkflowPalette';
@@ -80,8 +80,9 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
   Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
 };
 
-const predefinedWorkflowsData = (projectId: string): Omit<ProjectWorkflow, 'id'>[] => [
+const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => [
   {
+    id: `pd-wf-${projectId}-1-${Date.now().toString().slice(-4)}`,
     name: "Software Development Lifecycle",
     description: "A standard workflow for planning, developing, testing, and deploying software features.",
     status: 'Draft',
@@ -97,6 +98,7 @@ const predefinedWorkflowsData = (projectId: string): Omit<ProjectWorkflow, 'id'>
     ],
   },
   {
+    id: `pd-wf-${projectId}-2-${Date.now().toString().slice(-4)}`,
     name: "Software Testing Cycle",
     description: "A comprehensive workflow for various testing phases including unit, integration, and user acceptance testing.",
     status: 'Draft',
@@ -123,9 +125,9 @@ export default function ProjectDetailPage() {
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
+  const [isViewingTask, setIsViewingTask] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
-  const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false);
 
 
   const { toast } = useToast();
@@ -205,22 +207,21 @@ export default function ProjectDetailPage() {
           setProjectWorkflows(JSON.parse(storedWorkflows));
         } catch (error) {
           console.error(`Failed to parse workflows for project ${projectId} from localStorage`, error);
-           const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map((wf, index) => ({
+           const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map(wf => ({
             ...wf,
-            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
             nodes: wf.nodes || [],
             edges: wf.edges || [],
           }));
           setProjectWorkflows(defaultWorkflowsWithIds);
         }
       } else { 
-        const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map((wf, index) => ({
+        const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map(wf => ({
             ...wf,
-            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
             nodes: wf.nodes || [],
             edges: wf.edges || [],
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
+        console.log("PROJECT_DETAIL_PAGE: Initialized with predefined workflows", defaultWorkflowsWithIds);
       }
 
     }
@@ -241,19 +242,25 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)) !== null)) {
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
+      console.log("PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project", projectId, JSON.stringify(projectWorkflows, null, 2));
     }
   }, [projectWorkflows, projectId, isClient]);
 
   useEffect(() => {
+    // This effect ensures that `designingWorkflow` state always holds the latest version
+    // of the workflow object from the `projectWorkflows` array.
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
+        // Only update if the object reference or content (nodes/edges) has changed
         if (updatedDesigningWorkflowInstance !== designingWorkflow ||
             JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
+          // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow state with updated instance from projectWorkflows array.");
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else {
+        // The workflow being designed was somehow removed from the main list, so stop designing.
         setDesigningWorkflow(null);
       }
     }
@@ -318,8 +325,9 @@ export default function ProjectDetailPage() {
     }
   };
 
-  const handleOpenEditTaskDialog = (task: Task) => {
+  const handleOpenEditTaskDialog = (task: Task, isViewMode: boolean = false) => {
     setEditingTask(task);
+    setIsViewingTask(isViewMode);
     setIsEditTaskDialogOpen(true);
   };
 
@@ -327,6 +335,7 @@ export default function ProjectDetailPage() {
     setTasks(prevTasks => prevTasks.map(task => task.id === updatedTaskData.id ? updatedTaskData : task));
     setIsEditTaskDialogOpen(false);
     setEditingTask(null);
+    setIsViewingTask(false);
     toast({ title: "Task Updated", description: `Task "${updatedTaskData.title}" has been updated.`});
   };
 
@@ -352,6 +361,10 @@ export default function ProjectDetailPage() {
       lastActivity: new Date().toISOString(),
     };
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
+     toast({
+      title: "Project Agent Added",
+      description: `Agent "${newAgent.name}" has been added to project "${project?.name}".`
+    });
   };
 
   const handleOpenEditAgentDialog = (agent: Agent) => {
@@ -440,14 +453,20 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
+    console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n=>n.id).join(', '));
     if (designingWorkflow) {
-      const currentDesigningWorkflowId = designingWorkflow.id;
+      console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
       setProjectWorkflows(prevWorkflows => {
+        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
-          if (wf.id === currentDesigningWorkflowId) {
+          if (wf.id === designingWorkflow.id) {
+            console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
             return { ...wf, nodes: updatedNodes };
           }
           return wf;
+        });
+        newWorkflowsArray.forEach(wf => {
+          console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", wf.nodes?.map(n=>n.id).join(', '));
         });
         return newWorkflowsArray;
       });
@@ -455,17 +474,23 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowEdgesChange = (updatedEdges: WorkflowEdge[]) => {
-    if (designingWorkflow) {
-      const currentDesigningWorkflowId = designingWorkflow.id;
-      setProjectWorkflows(prevWorkflows => {
-        const newWorkflowsArray = prevWorkflows.map(wf => {
-          if (wf.id === currentDesigningWorkflowId) {
-            return { ...wf, edges: updatedEdges };
-          }
-          return wf;
+    console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length, "IDs:", updatedEdges.map(e=>e.id).join(', '));
+     if (designingWorkflow) {
+        console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID for edges:", designingWorkflow.id, "Name:", designingWorkflow.name);
+        setProjectWorkflows(prevWorkflows => {
+            console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows (for edges). prevWorkflows length:", prevWorkflows.length);
+            const newWorkflowsArray = prevWorkflows.map(wf => {
+                if (wf.id === designingWorkflow.id) {
+                    console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
+                    return { ...wf, edges: updatedEdges };
+                }
+                return wf;
+            });
+             newWorkflowsArray.forEach(wf => {
+                console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", wf.edges?.length);
+            });
+            return newWorkflowsArray;
         });
-        return newWorkflowsArray;
-      });
     }
   };
 
@@ -587,16 +612,14 @@ export default function ProjectDetailPage() {
                               <CardHeader className="p-3">
                                 <div className="flex items-start justify-between gap-2">
                                   <CardTitle className="text-sm font-medium leading-tight">{task.title}</CardTitle>
-                                  {/* Optional: Small icon for drag handle if implementing drag-and-drop later */}
                                   {/* <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" /> */}
                                 </div>
                               </CardHeader>
                               <CardContent className="p-3 pt-0 text-xs flex-grow">
                                 <p className="text-muted-foreground">Assigned to: {task.assignedTo}</p>
-                                {/* Add more task details here if needed, e.g., due date, priority */}
                               </CardContent>
                               <CardFooter className="p-3 border-t flex gap-2">
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => setIsEditTaskPlaceholderDialogOpen(true)}><Eye className="mr-1.5 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><Eye className="mr-1.5 h-3 w-3" /> View</Button>
                                 <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3 w-3" /> Edit</Button>
                                 <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3 w-3" /> Delete</Button>
                               </CardFooter>
@@ -746,10 +769,14 @@ export default function ProjectDetailPage() {
           open={isEditTaskDialogOpen}
           onOpenChange={(isOpen) => {
             setIsEditTaskDialogOpen(isOpen);
-            if (!isOpen) setEditingTask(null);
+            if (!isOpen) {
+                setEditingTask(null);
+                setIsViewingTask(false);
+            }
           }}
           taskToEdit={editingTask}
           onUpdateTask={handleUpdateTask}
+          isReadOnly={isViewingTask}
         />
       )}
       
@@ -799,20 +826,6 @@ export default function ProjectDetailPage() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-
-       <AlertDialog open={isEditTaskPlaceholderDialogOpen} onOpenChange={setIsEditTaskPlaceholderDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Edit Task</AlertDialogTitle>
-            <AlertDialogDescription>
-              This feature will allow you to modify task details. Coming soon!
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIsEditTaskPlaceholderDialogOpen(false)}>OK</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={isLinkGlobalAgentDialogOpen} onOpenChange={setIsLinkGlobalAgentDialogOpen}>
         <AlertDialogContent>
