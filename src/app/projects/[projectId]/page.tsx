@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project } from '@/types';
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -28,14 +29,15 @@ export default function ProjectDetailPage() {
   const projectId = params.projectId as string;
   const [project, setProject] = useState<Project | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [mockProgress, setMockProgress] = useState(0);
 
   useEffect(() => {
     setIsClient(true);
-    // In a real app, you would fetch project details using this projectId
-    // For now, we find it in the mock data
     const foundProject = mockProjects.find(p => p.id === projectId);
     if (foundProject) {
       setProject(foundProject);
+      // Generate a mock progress value based on project ID for visual variety
+      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30);
     }
   }, [projectId]);
 
@@ -72,6 +74,12 @@ export default function ProjectDetailPage() {
       </div>
     );
   }
+
+  const mockRecentActivities = [
+    `Agent "Data Analyzer" completed a task.`,
+    `Workflow "Nightly Reports" initiated.`,
+    `New comment on "Feature X" task.`,
+  ];
 
   return (
     <div className="container mx-auto">
@@ -142,18 +150,43 @@ export default function ProjectDetailPage() {
             <CardTitle className="text-lg">Quick Overview</CardTitle>
             <CardDescription>A brief summary of the project's current state and key metrics.</CardDescription>
           </CardHeader>
-          <CardContent>
-            {/* Placeholder for overview charts or key metrics */}
-            <p className="text-muted-foreground">Further implementation will show activity feeds, progress charts, or key performance indicators here.</p>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-                <div className="p-4 bg-accent/50 rounded-lg">
-                    <h4 className="font-semibold text-sm">Pending Tasks</h4>
+          <CardContent className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <h4 className="font-semibold text-sm text-muted-foreground flex items-center">
+                  <TrendingUp className="h-4 w-4 mr-2" /> Project Progress
+                </h4>
+                <span className="text-sm font-medium">{mockProgress}%</span>
+              </div>
+              <Progress value={mockProgress} aria-label={`${mockProgress}% project progress`} className="h-2" />
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
+                    <h4 className="font-semibold text-sm text-muted-foreground mb-1">Pending Tasks</h4>
                     <p className="text-2xl font-bold">12</p> {/* Mock Data */}
                 </div>
-                 <div className="p-4 bg-accent/50 rounded-lg">
-                    <h4 className="font-semibold text-sm">Active Agents</h4>
+                 <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
+                    <h4 className="font-semibold text-sm text-muted-foreground mb-1">Active Agents</h4>
                     <p className="text-2xl font-bold">{project.agentCount || 0}</p>
                 </div>
+                <div className="p-4 bg-accent/50 rounded-lg shadow-sm">
+                    <h4 className="font-semibold text-sm text-muted-foreground mb-1">Active Workflows</h4>
+                    <p className="text-2xl font-bold">{project.workflowCount || 0}</p>
+                </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm text-muted-foreground mb-2 flex items-center">
+                <ActivityIcon className="h-4 w-4 mr-2" /> Recent Activity
+              </h4>
+              <ul className="space-y-2 text-sm">
+                {mockRecentActivities.map((activity, index) => (
+                  <li key={index} className="p-2 bg-background rounded-md border text-muted-foreground text-xs">
+                    {activity}
+                  </li>
+                ))}
+              </ul>
             </div>
           </CardContent>
         </Card>
@@ -216,4 +249,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
