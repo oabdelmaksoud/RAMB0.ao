@@ -345,8 +345,9 @@ export default function ProjectDetailPage() {
                             {agent.name}
                           </CardTitle>
                            {agent.status && <Badge variant="outline" className={cn("text-xs", 
-                            agent.status === 'Running' ? 'border-green-500 text-green-700' : 
-                            agent.status === 'Idle' ? 'border-yellow-500 text-yellow-700' : 'border-gray-500 text-gray-700'
+                            agent.status === 'Running' ? 'border-green-500 text-green-700 dark:text-green-400 dark:border-green-600' : 
+                            agent.status === 'Idle' ? 'border-yellow-500 text-yellow-700 dark:text-yellow-400 dark:border-yellow-600' : 
+                            'border-gray-500 text-gray-700 dark:text-gray-400 dark:border-gray-600'
                           )}>{agent.status}</Badge>}
                         </div>
                         <CardDescription className="text-xs">{agent.type}</CardDescription>
