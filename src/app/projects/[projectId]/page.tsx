@@ -252,8 +252,8 @@ export default function ProjectDetailPage() {
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
+                // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows.map(wf => ({...wf, id: wf.id, nodesCount: wf.nodes?.length, edgesCount: wf.edges?.length }))));
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
-                 console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows.map(wf => ({...wf, id: wf.id, nodesCount: wf.nodes?.length, edgesCount: wf.edges?.length }))));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
                 toast({
@@ -274,12 +274,12 @@ export default function ProjectDetailPage() {
         // This comparison should ideally be more robust if nodes/edges order doesn't matter or if they have complex nested objects
         if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
-            console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state from projectWorkflows due to node/edge change.");
+            // console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state from projectWorkflows due to node/edge change.");
             setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else if (designingWorkflow) { 
           // If the designingWorkflow is no longer in projectWorkflows (e.g., deleted), reset designingWorkflow
-          console.log("PROJECT_DETAIL_PAGE: designingWorkflow no longer found in projectWorkflows, resetting.");
+          // console.log("PROJECT_DETAIL_PAGE: designingWorkflow no longer found in projectWorkflows, resetting.");
           setDesigningWorkflow(null); 
       }
     }
@@ -297,7 +297,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleTaskPlannedAndAccepted = (plannedTaskData: Omit<Task, 'id'>) => {
-    let newTask: Task = {
+    let newTask: Task = { // Use let to allow modification
       ...plannedTaskData,
       id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
       // Ensure defaults from AI are respected, or apply our own if missing
@@ -312,14 +312,20 @@ export default function ProjectDetailPage() {
     let autoStarted = false;
     let targetAgentName: string | null = null;
 
-    if (!newTask.isMilestone && newTask.assignedTo && newTask.assignedTo !== "Unassigned" && newTask.assignedTo !== "AI Assistant to determine") {
+    if (!newTask.isMilestone && 
+        newTask.assignedTo && 
+        newTask.assignedTo !== "Unassigned" && 
+        newTask.assignedTo !== "AI Assistant to determine" &&
+        newTask.status !== 'Done' 
+    ) {
       const assignedAgent = projectAgents.find(agent => agent.name === newTask.assignedTo);
 
       if (assignedAgent) {
         targetAgentName = assignedAgent.name;
         if (assignedAgent.status === 'Running') {
-          newTask.status = 'In Progress';
-          newTask.progress = newTask.progress === 0 ? 10 : newTask.progress; // Give some initial progress
+          newTask.status = 'In Progress'; 
+          newTask.progress = (newTask.progress === 0 || newTask.progress === undefined) ? 10 : newTask.progress; 
+          
           setProjectAgents(prevAgents =>
             prevAgents.map(agent =>
               agent.id === assignedAgent.id ? { ...agent, lastActivity: new Date().toISOString() } : agent
@@ -331,17 +337,22 @@ export default function ProjectDetailPage() {
     }
     
     setTasks(prevTasks => [newTask, ...prevTasks]);
-    setIsAITaskPlannerDialogOpen(false); // Close the AI planner dialog
+    setIsAITaskPlannerDialogOpen(false); 
 
     if (autoStarted && targetAgentName) {
       toast({
         title: "Task In Progress (AI Planned)",
         description: `Task "${newTask.title}" assigned to agent "${targetAgentName}" and is now being processed.`
       });
-    } else {
+    } else if (targetAgentName && !newTask.isMilestone) { 
+        toast({
+            title: "Task Added (AI Planned)",
+            description: `Task "${newTask.title}" assigned to agent "${targetAgentName}". Start the agent to begin processing.`,
+        });
+    } else { 
       toast({
         title: newTask.isMilestone ? "Milestone Added (AI Planned)" : "Task Added (AI Planned)",
-        description: `${newTask.isMilestone ? "Milestone" : "Task"} "${newTask.title}" has been added to project "${project?.name}". ${targetAgentName ? `Assigned to ${targetAgentName}.` : ''}`
+        description: `${newTask.isMilestone ? "Milestone" : "Task"} "${newTask.title}" has been added to project "${project?.name}". ${newTask.assignedTo && newTask.assignedTo !== "AI Assistant to determine" && !newTask.isMilestone ? `Assigned to ${newTask.assignedTo}.` : ''}`.trim()
       });
     }
   };
@@ -485,24 +496,24 @@ export default function ProjectDetailPage() {
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) {
-      console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
+      // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
       return;
     }
-    console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n => n.id).join(', '));
-    console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
+    // console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n => n.id).join(', '));
+    // console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
 
     setProjectWorkflows(prevWorkflows => {
-        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:", prevWorkflows.length);
+        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                 console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
+                // console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-            console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", wf.nodes?.map(n => n.id).join(', '));
-        });
+        // newWorkflowsArray.forEach(wf => {
+        //     console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", wf.nodes?.map(n => n.id).join(', '));
+        // });
         return newWorkflowsArray;
     });
   }, [designingWorkflow, setProjectWorkflows]); 
@@ -510,10 +521,10 @@ export default function ProjectDetailPage() {
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
      if (!designingWorkflow) {
-        console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
+        // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
         return;
     }
-    console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length);
+    // console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length);
     setProjectWorkflows(prevWorkflows =>
         prevWorkflows.map(wf =>
             wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
@@ -571,7 +582,6 @@ export default function ProjectDetailPage() {
       };
       let updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
       
-      // Move to end of new status group
       const taskToReorder = updatedTasks.find(t => t.id === draggedTaskId)!;
       updatedTasks = updatedTasks.filter(t => t.id !== draggedTaskId);
       updatedTasks.push(taskToReorder);
@@ -582,13 +592,13 @@ export default function ProjectDetailPage() {
         title: "Task Status Updated",
         description: `Task "${updatedTask.title}" moved to "${newStatus}".`,
       });
-    } else { // Dropped in the same column's empty space
+    } else { 
          setTasks(prevTasks => {
             const taskToReorder = prevTasks.find(t => t.id === draggedTaskId);
             if (!taskToReorder) return prevTasks;
 
             let newTasksArray = prevTasks.filter(t => t.id !== draggedTaskId);
-            newTasksArray.push(taskToReorder); // Add to the end
+            newTasksArray.push(taskToReorder); 
 
             if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(newTasksArray.map(t=>t.id))) {
                  toast({
@@ -662,12 +672,11 @@ export default function ProjectDetailPage() {
       const newTasks = [...prevTasks];
       const [draggedTask] = newTasks.splice(draggedTaskIndex, 1);
       
-      // Adjust target index if dragging downwards
       const adjustedTargetIndex = draggedTaskIndex < targetTaskIndex ? targetTaskIndex -1 : targetTaskIndex;
       
       newTasks.splice(adjustedTargetIndex, 0, draggedTask);
       
-      setTimeout(() => { // Defer toast to allow UI to update
+      setTimeout(() => { 
         toast({
           title: "Tasks Reordered",
           description: `Task "${draggedTask.title}" moved in Gantt chart.`,
@@ -1019,7 +1028,7 @@ export default function ProjectDetailPage() {
                     <PageHeaderDescription>Get optimal agent configuration suggestions for tasks within project "{project?.name}".</PageHeaderDescription>
                 </div>
             </PageHeader>
-            <div className="max-w-full"> {/* Ensure form can take full width */}
+            <div className="max-w-full"> 
                 <AgentConfigForm projectId={projectId} />
             </div>
         </TabsContent>
