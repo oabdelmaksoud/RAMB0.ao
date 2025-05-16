@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree } from 'lucide-react'; // Added ListTree
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare } from 'lucide-react'; // Added MessageSquare
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, DragEvent as ReactDragEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -45,6 +45,7 @@ import AddWorkflowDialog from '@/components/features/projects/AddWorkflowDialog'
 import AgentConfigForm from '@/components/features/ai-suggestions/AgentConfigForm';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import ProjectGanttChartView from '@/components/features/projects/ProjectGanttChartView';
+import TaskChatDialog from '@/components/features/tasks/TaskChatDialog'; // New Import
 
 
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -148,6 +149,10 @@ export default function ProjectDetailPage() {
   const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<ProjectWorkflow | null>(null);
   const [isDeleteWorkflowDialogOpen, setIsDeleteWorkflowDialogOpen] = useState(false);
+  
+  // State for Task Chat Dialog
+  const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
+  const [chattingTask, setChattingTask] = useState<Task | null>(null);
 
 
   useEffect(() => {
@@ -245,7 +250,6 @@ export default function ProjectDetailPage() {
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
-                 // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] })), null, 2) );
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
                 toast({
@@ -266,7 +270,8 @@ export default function ProjectDetailPage() {
            JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges))) {
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
       } else if (!updatedDesigningWorkflowInstance && designingWorkflow) {
-          setDesigningWorkflow(null);
+          // Current designing workflow was deleted
+          setDesigningWorkflow(null); 
       }
     }
   }, [projectWorkflows, designingWorkflow?.id]);
@@ -475,24 +480,15 @@ export default function ProjectDetailPage() {
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) {
-        // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but no designingWorkflow is set.");
         return;
     }
-    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
-    // console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
-
     setProjectWorkflows(prevWorkflows => {
-        // console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                // console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
-        // newWorkflowsArray.forEach(wf => {
-           // console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id}, Nodes count: ${wf.nodes?.length || 0}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
-        // });
         return newWorkflowsArray;
     });
   }, [designingWorkflow, setProjectWorkflows]);
@@ -556,19 +552,24 @@ export default function ProjectDetailPage() {
         status: newStatus,
         progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : taskToMove.progress)),
       };
-      const updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
+      let updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
+       // Move to end of the new status group
+      const taskToReorder = updatedTasks.find(t => t.id === draggedTaskId)!;
+      updatedTasks = updatedTasks.filter(t => t.id !== draggedTaskId);
+      updatedTasks.push(taskToReorder);
+
       setTasks(updatedTasks);
       toast({
         title: "Task Status Updated",
         description: `Task "${updatedTask.title}" moved to "${newStatus}".`,
       });
-    } else { 
-        setTasks(prevTasks => {
+    } else { // Dropped in the same column's empty space
+         setTasks(prevTasks => {
             const taskToReorder = prevTasks.find(t => t.id === draggedTaskId);
             if (!taskToReorder) return prevTasks;
 
             const otherTasks = prevTasks.filter(t => t.id !== draggedTaskId);
-            const finalReorderedTasks = [...otherTasks, taskToReorder];
+            const finalReorderedTasks = [...otherTasks, taskToReorder]; // Move to end
 
             if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(finalReorderedTasks.map(t=>t.id))) {
                  toast({
@@ -654,6 +655,11 @@ export default function ProjectDetailPage() {
       }, 0);
       return newTasks;
     });
+  };
+
+  const handleOpenChatDialog = (task: Task) => {
+    setChattingTask(task);
+    setIsChatDialogOpen(true);
   };
 
 
@@ -852,6 +858,7 @@ export default function ProjectDetailPage() {
                               <CardFooter className="p-3 border-t flex gap-2">
                                 <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
                                 <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="ghost" size="sm" className="text-xs flex-1" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
                                 <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
@@ -1090,6 +1097,16 @@ export default function ProjectDetailPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      )}
+      {chattingTask && (
+        <TaskChatDialog
+          open={isChatDialogOpen}
+          onOpenChange={(isOpen) => {
+            setIsChatDialogOpen(isOpen);
+            if (!isOpen) setChattingTask(null);
+          }}
+          task={chattingTask}
+        />
       )}
     </div>
   );
