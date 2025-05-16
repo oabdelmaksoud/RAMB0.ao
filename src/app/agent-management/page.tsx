@@ -9,6 +9,7 @@ import AddAgentDialog from '@/components/features/agent-management/AddAgentDialo
 import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
   AlertDialogAction,

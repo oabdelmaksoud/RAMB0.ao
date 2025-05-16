@@ -780,9 +780,9 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="gantt">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <div><CardTitle>Task Gantt Chart</CardTitle><CardDescription>Timeline view of tasks for project "{project.name}".</CardDescription></div>
-              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
+              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
             </CardHeader>
             <CardContent>
                 {tasks.length > 0 ? (
@@ -796,7 +796,7 @@ export default function ProjectDetailPage() {
                         <GanttChartSquare className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                         <p className="text-lg font-medium text-muted-foreground">No tasks found for this project to display in Gantt chart.</p>
                         <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a task to get started!</p>
-                        <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}>
+                        <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
                             <PlusCircle className="mr-2 h-4 w-4" />Add First Task
                         </Button>
                     </div>
@@ -807,9 +807,9 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="board">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <div><CardTitle>Task Board (Kanban)</CardTitle><CardDescription>Manage tasks by status for project "{project.name}".</CardDescription></div>
-              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
+              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
             </CardHeader>
             <CardContent>
               {tasks.length > 0 ? (
@@ -898,7 +898,7 @@ export default function ProjectDetailPage() {
                   <ListChecks className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                   <p className="text-lg font-medium text-muted-foreground">No tasks found for this project.</p>
                   <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a task to get started!</p>
-                  <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}>
+                  <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
                     <PlusCircle className="mr-2 h-4 w-4" />Add First Task
                   </Button>
                 </div>
@@ -933,7 +933,7 @@ export default function ProjectDetailPage() {
                       <PageHeaderHeading className="text-2xl">Project Workflow Management</PageHeaderHeading>
                       <PageHeaderDescription>Define workflows for project "{project?.name}". Select a workflow to design its steps.</PageHeaderDescription>
                   </div>
-                  <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
+                  <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}  className="w-full mt-4 sm:w-auto sm:mt-0">
                       <PlusSquareIcon className="mr-2 h-4 w-4"/>Add New Project Workflow
                   </Button>
               </PageHeader>
@@ -983,7 +983,7 @@ export default function ProjectDetailPage() {
                               <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                               <p className="text-lg font-medium text-muted-foreground">No workflows found for this project.</p>
                               <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a workflow definition to get started!</p>
-                              <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
+                              <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
                                   <PlusSquareIcon className="mr-2 h-4 w-4"/>Add First Workflow Definition
                               </Button>
                           </div>
@@ -993,12 +993,12 @@ export default function ProjectDetailPage() {
             </>
           ) : (
             <div className="h-full flex flex-col">
-              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+              <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4 pb-2 border-b">
                   <div>
                     <PageHeaderHeading className="text-2xl">Designing Workflow: {designingWorkflow.name}</PageHeaderHeading>
                     <PageHeaderDescription>{designingWorkflow.description}</PageHeaderDescription>
                   </div>
-                  <Button variant="outline" onClick={handleCloseWorkflowDesigner}><XSquare className="mr-2 h-4 w-4"/>Close Designer</Button>
+                  <Button variant="outline" onClick={handleCloseWorkflowDesigner} className="w-full mt-2 sm:w-auto sm:mt-0"><XSquare className="mr-2 h-4 w-4"/>Close Designer</Button>
               </div>
               <div className="flex flex-col md:flex-row flex-grow gap-6 mt-2 overflow-hidden p-1">
                   <WorkflowPalette />
@@ -1020,7 +1020,7 @@ export default function ProjectDetailPage() {
                     <PageHeaderDescription>Get optimal agent configuration suggestions for tasks within project "{project?.name}".</PageHeaderDescription>
                 </div>
             </PageHeader>
-            <div className="max-w-2xl"> {/* Consider max-w-full or other responsive classes for wider layouts */}
+            <div className="max-w-full"> {/* Ensure form can take full width */}
                 <AgentConfigForm projectId={projectId} />
             </div>
         </TabsContent>

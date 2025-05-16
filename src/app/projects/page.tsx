@@ -139,7 +139,7 @@ export default function ProjectsPage() {
             Manage your ongoing and completed projects. Track progress and access project-specific resources and agents.
           </PageHeaderDescription>
         </div>
-        <Button onClick={() => setIsAddProjectDialogOpen(true)}>
+        <Button onClick={() => setIsAddProjectDialogOpen(true)} className="w-full mt-4 sm:w-auto sm:mt-0">
           <PlusCircle className="mr-2 h-4 w-4" /> Add New Project
         </Button>
       </PageHeader>
@@ -155,7 +155,7 @@ export default function ProjectsPage() {
           <Briefcase className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
           <p className="text-lg font-medium text-muted-foreground">No projects found.</p>
           <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Create your first project to get started!</p>
-          <Button onClick={() => setIsAddProjectDialogOpen(true)}>
+          <Button onClick={() => setIsAddProjectDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
             <PlusCircle className="mr-2 h-4 w-4" /> Add First Project
           </Button>
         </div>
