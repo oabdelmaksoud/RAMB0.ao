@@ -19,6 +19,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Task } from '@/types';
 import { format, isValid, parseISO } from 'date-fns';
+import { Checkbox } from "@/components/ui/checkbox"; // Import Checkbox
 
 const taskSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title must be 100 characters or less"),
@@ -29,6 +30,7 @@ const taskSchema = z.object({
   }),
   durationDays: z.coerce.number().int().min(0, "Duration must be non-negative").optional(),
   progress: z.coerce.number().int().min(0, "Progress must be between 0 and 100").max(100, "Progress must be between 0 and 100").optional(),
+  isMilestone: z.boolean().optional(),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -52,24 +54,40 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       startDate: defaultStartDate || format(new Date(), 'yyyy-MM-dd'),
       durationDays: 1,
       progress: 0,
+      isMilestone: false,
     },
   });
 
+  const isMilestoneWatch = form.watch("isMilestone");
+
+  React.useEffect(() => {
+    if (isMilestoneWatch) {
+      form.setValue("durationDays", 0, { shouldValidate: true });
+      form.setValue("progress", 0, { shouldValidate: true });
+    }
+  }, [isMilestoneWatch, form]);
+
   const onSubmit: SubmitHandler<TaskFormData> = (data) => {
-    onAddTask(data);
-    form.reset({ // Reset to defaults after submission
+    const taskData: Omit<Task, 'id'> = {
+      ...data,
+      durationDays: data.isMilestone ? 0 : (data.durationDays === undefined ? 1 : data.durationDays),
+      progress: data.isMilestone ? 0 : (data.progress === undefined ? 0 : data.progress),
+    };
+    onAddTask(taskData);
+    form.reset({ 
       title: "",
       status: "To Do",
       assignedTo: "Unassigned",
       startDate: defaultStartDate || format(new Date(), 'yyyy-MM-dd'),
       durationDays: 1,
       progress: 0,
+      isMilestone: false,
     });
     // onOpenChange(false) is handled by the parent component after onAddTask
   };
 
   React.useEffect(() => {
-    if (open) { // Reset form when dialog is opened (or re-opened)
+    if (open) { 
       form.reset({
         title: "",
         status: "To Do",
@@ -77,6 +95,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
         startDate: defaultStartDate || format(new Date(), 'yyyy-MM-dd'),
         durationDays: 1,
         progress: 0,
+        isMilestone: false,
       });
     }
   }, [open, form, defaultStartDate]);
@@ -105,13 +124,28 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
                 </FormItem>
               )}
             />
+             <FormField
+              control={form.control}
+              name="isMilestone"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-2 space-y-0 py-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormLabel className="font-normal cursor-pointer">Mark as Milestone</FormLabel>
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="status"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isMilestoneWatch}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a status" />
@@ -123,6 +157,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
                       ))}
                     </SelectContent>
                   </Select>
+                  {isMilestoneWatch && <FormDescription className="text-xs">Status set to 'To Do' for milestones.</FormDescription>}
                   <FormMessage />
                 </FormItem>
               )}
@@ -146,11 +181,11 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
                 name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Start Date</FormLabel>
+                    <FormLabel>Date</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
-                    <FormDescription className="text-xs">Optional.</FormDescription>
+                    <FormDescription className="text-xs">{isMilestoneWatch ? 'Milestone Date.' : 'Optional Start Date.'}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -162,9 +197,9 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
                   <FormItem>
                     <FormLabel>Duration (Days)</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="e.g., 5" {...field} />
+                      <Input type="number" placeholder="e.g., 5" {...field} disabled={isMilestoneWatch} />
                     </FormControl>
-                    <FormDescription className="text-xs">Optional.</FormDescription>
+                    <FormDescription className="text-xs">{isMilestoneWatch ? 'Set to 0 for milestones.' : 'Optional.'}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -177,9 +212,9 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
                 <FormItem>
                   <FormLabel>Progress (%)</FormLabel>
                   <FormControl>
-                    <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} />
+                    <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} disabled={isMilestoneWatch} />
                   </FormControl>
-                  <FormDescription>Optional. Enter a value between 0 and 100.</FormDescription>
+                  <FormDescription className="text-xs">{isMilestoneWatch ? 'Set to 0 for milestones.' : 'Optional (0-100).'}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

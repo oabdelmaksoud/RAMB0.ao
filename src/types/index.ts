@@ -58,5 +58,6 @@ export interface Task {
   startDate?: string; // ISO date string e.g., "2024-07-01"
   durationDays?: number; // Duration in days
   progress?: number; // Percentage 0-100
+  isMilestone?: boolean; // New field for milestones
 }
 

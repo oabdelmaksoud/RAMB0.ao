@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -175,6 +175,7 @@ export default function ProjectDetailPage() {
             { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100 },
             { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40 },
             { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0 },
+            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true },
           ];
           setTasks(initialMockTasksForProject);
         }
@@ -183,6 +184,7 @@ export default function ProjectDetailPage() {
             { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100 },
             { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40 },
             { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0 },
+            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true },
         ];
         setTasks(initialMockTasksForProject);
       }
@@ -258,12 +260,17 @@ export default function ProjectDetailPage() {
   }, [projectWorkflows, projectId, isClient, toast]);
 
  useEffect(() => {
+    // This effect syncs the designingWorkflow state with the instance from projectWorkflows
+    // if projectWorkflows changes (e.g., nodes/edges are updated).
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
-      if (updatedDesigningWorkflowInstance && updatedDesigningWorkflowInstance !== designingWorkflow) {
+      if (updatedDesigningWorkflowInstance && 
+          (updatedDesigningWorkflowInstance.nodes !== designingWorkflow.nodes || 
+           updatedDesigningWorkflowInstance.edges !== designingWorkflow.edges)) {
           // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated instance from projectWorkflows", updatedDesigningWorkflowInstance);
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
       } else if (!updatedDesigningWorkflowInstance && designingWorkflow) { 
+        // This case might occur if the workflow was deleted while being designed.
         // console.warn("PROJECT_DETAIL_PAGE: designingWorkflow instance not found in projectWorkflows. Closing designer.", designingWorkflow.name);
         setDesigningWorkflow(null);
       }
@@ -285,13 +292,14 @@ export default function ProjectDetailPage() {
     let newTask: Task = {
       ...taskData,
       id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
-      progress: taskData.progress || 0, // Ensure progress has a default
+      progress: taskData.isMilestone ? 0 : (taskData.progress || 0),
+      durationDays: taskData.isMilestone ? 0 : (taskData.durationDays || 1),
     };
 
     let autoStarted = false;
     let targetAgentName: string | null = null;
 
-    if (taskData.assignedTo && taskData.assignedTo !== "Unassigned") {
+    if (!newTask.isMilestone && taskData.assignedTo && taskData.assignedTo !== "Unassigned") {
       const assignedAgent = projectAgents.find(agent => agent.name === taskData.assignedTo);
 
       if (assignedAgent) {
@@ -307,6 +315,11 @@ export default function ProjectDetailPage() {
         }
       }
     }
+    
+    if (newTask.isMilestone) { // Milestones typically start as 'To Do' or 'Done'
+        newTask.status = 'To Do'; 
+    }
+
 
     setTasks(prevTasks => [newTask, ...prevTasks]);
     setIsAddTaskDialogOpen(false);
@@ -323,8 +336,8 @@ export default function ProjectDetailPage() {
       });
     } else {
       toast({
-        title: "Task Added",
-        description: `Task "${newTask.title}" has been added to project "${project?.name}".`
+        title: newTask.isMilestone ? "Milestone Added" : "Task Added",
+        description: `${newTask.isMilestone ? "Milestone" : "Task"} "${newTask.title}" has been added to project "${project?.name}".`
       });
     }
   };
@@ -336,11 +349,20 @@ export default function ProjectDetailPage() {
   };
 
   const handleUpdateTask = (updatedTaskData: Task) => {
-    setTasks(prevTasks => prevTasks.map(task => task.id === updatedTaskData.id ? updatedTaskData : task));
+    const taskToUpdate: Task = {
+        ...updatedTaskData,
+        durationDays: updatedTaskData.isMilestone ? 0 : (updatedTaskData.durationDays === undefined ? 1 : updatedTaskData.durationDays),
+        progress: updatedTaskData.isMilestone ? 0 : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress),
+    }
+    if (updatedTaskData.isMilestone && updatedTaskData.status !== 'To Do' && updatedTaskData.status !== 'Done') {
+        taskToUpdate.status = 'To Do'; // Or 'Done' if progress is 100, handle appropriately
+    }
+
+    setTasks(prevTasks => prevTasks.map(task => task.id === taskToUpdate.id ? taskToUpdate : task));
     setIsEditTaskDialogOpen(false);
     setEditingTask(null);
     setIsViewingTask(false);
-    toast({ title: "Task Updated", description: `Task "${updatedTaskData.title}" has been updated.`});
+    toast({ title: taskToUpdate.isMilestone ? "Milestone Updated" : "Task Updated", description: `${taskToUpdate.isMilestone ? "Milestone" : "Task"} "${taskToUpdate.title}" has been updated.`});
   };
 
   const handleOpenDeleteTaskDialog = (task: Task) => {
@@ -351,7 +373,7 @@ export default function ProjectDetailPage() {
   const confirmDeleteTask = () => {
     if (taskToDelete) {
       setTasks(prevTasks => prevTasks.filter(task => task.id !== taskToDelete.id));
-      toast({ title: "Task Deleted", description: `Task "${taskToDelete.title}" has been deleted from project "${project?.name}".`, variant: 'destructive' });
+      toast({ title: taskToDelete.isMilestone ? "Milestone Deleted" : "Task Deleted", description: `${taskToDelete.isMilestone ? "Milestone" : "Task"} "${taskToDelete.title}" has been deleted from project "${project?.name}".`, variant: 'destructive' });
       setTaskToDelete(null);
       setIsDeleteTaskDialogOpen(false);
     }
@@ -645,13 +667,22 @@ export default function ProjectDetailPage() {
                             <Card key={task.id} className="shadow-sm bg-card flex flex-col hover:shadow-md transition-shadow">
                               <CardHeader className="p-3">
                                 <div className="flex items-start justify-between gap-2">
-                                  <CardTitle className="text-sm font-medium leading-tight">{task.title}</CardTitle>
+                                  <CardTitle className="text-sm font-medium leading-tight flex items-center">
+                                    {task.isMilestone && <Diamond className="mr-2 h-3 w-3 text-amber-500 flex-shrink-0" />}
+                                    {task.title}
+                                  </CardTitle>
                                 </div>
                               </CardHeader>
                               <CardContent className="p-3 pt-0 text-xs flex-grow">
                                 <p className="text-muted-foreground">Assigned to: {task.assignedTo}</p>
-                                {task.startDate && <p className="text-muted-foreground mt-1">Starts: {format(parseISO(task.startDate), 'MMM d')}</p>}
-                                {task.durationDays && <p className="text-muted-foreground">Duration: {task.durationDays}d</p>}
+                                {task.startDate && <p className="text-muted-foreground mt-1">{task.isMilestone ? 'Date' : 'Starts'}: {format(parseISO(task.startDate), 'MMM d')}</p>}
+                                {!task.isMilestone && task.durationDays && <p className="text-muted-foreground">Duration: {task.durationDays}d</p>}
+                                {!task.isMilestone && task.progress !== undefined && 
+                                  <div className="mt-1.5">
+                                    <div className="flex justify-between text-muted-foreground text-[11px] mb-0.5"><span>Progress</span><span>{task.progress}%</span></div>
+                                    <Progress value={task.progress} className="h-1.5" />
+                                  </div>
+                                }
                               </CardContent>
                               <CardFooter className="p-3 border-t flex gap-2">
                                 <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1.5 h-3 w-3" /> View</Button>
@@ -858,9 +889,9 @@ export default function ProjectDetailPage() {
         <AlertDialog open={isDeleteTaskDialogOpen} onOpenChange={setIsDeleteTaskDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to delete this task?</AlertDialogTitle>
+              <AlertDialogTitle>Are you sure you want to delete this {taskToDelete.isMilestone ? 'milestone' : 'task'}?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the task
+                This action cannot be undone. This will permanently delete the {taskToDelete.isMilestone ? 'milestone' : 'task'}
                 "{taskToDelete.title}" from project "{project?.name}".
               </AlertDialogDescription>
             </AlertDialogHeader>
