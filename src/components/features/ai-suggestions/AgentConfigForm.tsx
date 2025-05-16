@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -11,10 +12,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Loader2, Send } from 'lucide-react';
 import { suggestAgentConfiguration, type SuggestAgentConfigurationInput, type SuggestAgentConfigurationOutput } from '@/ai/flows/suggest-agent-configuration';
-// Removed: import { useRouter } from 'next/navigation'; 
 import type { Agent } from '@/types';
-import { Label } from '@/components/ui/label'; 
-import { Progress } from '@/components/ui/progress'; 
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 
 const formSchema = z.object({
   taskDescription: z.string().min(10, { message: 'Task description must be at least 10 characters.' }).max(2000),
@@ -23,13 +23,21 @@ const formSchema = z.object({
 
 type AgentConfigFormData = z.infer<typeof formSchema>;
 
-const AI_SUGGESTED_CONFIG_KEY = 'aiSuggestedAgentConfig';
+const getAiSuggestedConfigStorageKey = (projectId?: string): string => {
+  if (projectId) {
+    return `aiSuggestedAgentConfig_project_${projectId}`;
+  }
+  return 'aiSuggestedAgentConfig';
+};
 
-export default function AgentConfigForm() {
+interface AgentConfigFormProps {
+  projectId?: string;
+}
+
+export default function AgentConfigForm({ projectId }: AgentConfigFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<SuggestAgentConfigurationOutput | null>(null);
   const { toast } = useToast();
-  // Removed: const router = useRouter();
 
   const form = useForm<AgentConfigFormData>({
     resolver: zodResolver(formSchema),
@@ -73,13 +81,15 @@ export default function AgentConfigForm() {
         type,
         configString: JSON.stringify(config, null, 2) // Store config as string for Textarea
       };
+      const storageKey = getAiSuggestedConfigStorageKey(projectId);
       try {
-        localStorage.setItem(AI_SUGGESTED_CONFIG_KEY, JSON.stringify(storedConfig));
+        localStorage.setItem(storageKey, JSON.stringify(storedConfig));
         toast({
           title: 'Configuration Copied!',
-          description: "Go to the 'Project Agents' tab and click 'Add New Agent' to use this configuration.",
+          description: projectId 
+            ? "Go to this project's 'Project Agents' tab and click 'Add New Agent' to use this configuration."
+            : "Go to the 'Agent Management' page and click 'Add New Agent' to use this configuration.",
         });
-        // Removed: router.push('/agent-management');
       } catch (e) {
         toast({
           title: 'Error',
@@ -95,7 +105,7 @@ export default function AgentConfigForm() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Get Agent Configuration Suggestion</CardTitle>
-          <CardDescription>Fill in the details below and let AI assist you.</CardDescription>
+          <CardDescription>Fill in the details below and let AI assist you{projectId ? ` for project "${projectId}"` : ''}.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>

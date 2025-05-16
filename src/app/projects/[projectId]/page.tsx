@@ -73,8 +73,6 @@ interface ProjectWorkflow {
   description: string;
   status: 'Active' | 'Inactive' | 'Draft';
   lastRun?: string; // ISO Date string
-  // nodes?: any[]; // Placeholder for actual node data
-  // edges?: any[]; // Placeholder for actual edge data
 }
 
 const initialProjectScopedMockAgents: Agent[] = [ 
@@ -120,7 +118,6 @@ export default function ProjectDetailPage() {
   const [projectWorkflows, setProjectWorkflows] = useState<ProjectWorkflow[]>([]);
   const [isAddWorkflowDialogOpen, setIsAddWorkflowDialogOpen] = useState(false);
   
-  // Load project details, project-specific agents, tasks, and workflows
   useEffect(() => {
     setIsClient(true);
     const foundProject = mockProjects.find(p => p.id === projectId);
@@ -134,7 +131,6 @@ export default function ProjectDetailPage() {
         { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
       ];
       
-      // Load Tasks
       const tasksStorageKey = getTasksStorageKey(projectId);
       const storedTasks = localStorage.getItem(tasksStorageKey);
       if (storedTasks) {
@@ -148,7 +144,6 @@ export default function ProjectDetailPage() {
         setTasks(initialMockTasksForProject);
       }
 
-      // Load Agents
       const agentsStorageKey = getAgentsStorageKey(projectId);
       const storedAgents = localStorage.getItem(agentsStorageKey);
       if (storedAgents) {
@@ -162,7 +157,6 @@ export default function ProjectDetailPage() {
         setProjectAgents(initialProjectScopedMockAgents); 
       }
 
-      // Load Workflows
       const workflowsStorageKey = getWorkflowsStorageKey(projectId);
       const storedWorkflows = localStorage.getItem(workflowsStorageKey);
       if (storedWorkflows) {
@@ -170,30 +164,27 @@ export default function ProjectDetailPage() {
           setProjectWorkflows(JSON.parse(storedWorkflows));
         } catch (error) {
           console.error(`Failed to parse workflows for project ${projectId} from localStorage`, error);
-          setProjectWorkflows([]); // Start with empty if error
+          setProjectWorkflows([]); 
         }
       } else {
-        setProjectWorkflows([]); // Start with empty if nothing stored
+        setProjectWorkflows([]); 
       }
 
     }
   }, [projectId]);
 
-  // Save project-specific agents to localStorage
   useEffect(() => {
     if (projectId && (projectAgents.length > 0 || localStorage.getItem(getAgentsStorageKey(projectId)))) {
       localStorage.setItem(getAgentsStorageKey(projectId), JSON.stringify(projectAgents));
     }
   }, [projectAgents, projectId]);
 
-  // Save project-specific tasks to localStorage
   useEffect(() => {
     if (projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)))) {
       localStorage.setItem(getTasksStorageKey(projectId), JSON.stringify(tasks));
     }
   }, [tasks, projectId]);
 
-  // Save project-specific workflows to localStorage
   useEffect(() => {
     if (projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)))) {
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
@@ -240,7 +231,6 @@ export default function ProjectDetailPage() {
     }
   };
 
-  // Agent Management Handlers
   const handleAddProjectAgent = (newAgentData: Omit<Agent, 'id' | 'lastActivity' | 'status'>) => {
     const newAgent: Agent = {
       ...newAgentData,
@@ -314,7 +304,6 @@ export default function ProjectDetailPage() {
     }
   };
 
-  // Workflow Management Handlers
   const handleAddProjectWorkflow = (workflowData: { name: string; description: string }) => {
     const newWorkflow: ProjectWorkflow = {
       id: `wf-proj-${projectId}-${Date.now().toString().slice(-3)}-${Math.random().toString(36).substring(2, 5)}`,
@@ -458,7 +447,7 @@ export default function ProjectDetailPage() {
                 <PageHeaderHeading className="text-2xl">Project Agent Management</PageHeaderHeading>
                 <PageHeaderDescription>Manage agent configurations specific to project "{project.name}".</PageHeaderDescription>
                 </div>
-                <AddAgentDialog onAddAgent={handleAddProjectAgent} />
+                <AddAgentDialog onAddAgent={handleAddProjectAgent} projectId={projectId} />
             </PageHeader>
             <AgentManagementTable
                 agents={projectAgents}
@@ -539,7 +528,7 @@ export default function ProjectDetailPage() {
                 </div>
             </PageHeader>
             <div className="max-w-2xl">
-                <AgentConfigForm />
+                <AgentConfigForm projectId={projectId} />
             </div>
         </TabsContent>
 
@@ -571,7 +560,6 @@ export default function ProjectDetailPage() {
         </AlertDialog>
       )}
 
-      {/* Placeholder Edit Task Dialog */}
       <AlertDialog open={isEditTaskDialogOpen} onOpenChange={setIsEditTaskDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -586,7 +574,6 @@ export default function ProjectDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Task Confirmation Dialog */}
       {taskToDelete && (
         <AlertDialog open={isDeleteTaskDialogOpen} onOpenChange={setIsDeleteTaskDialogOpen}>
           <AlertDialogContent>
@@ -610,4 +597,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-

@@ -28,7 +28,7 @@ const initialMockAgents: Agent[] = [
   { id: 'cfg-005', name: 'User Onboarding Helper', type: 'Notification Agent', status: 'Idle', lastActivity: '2024-07-20T16:00:00Z', config: { template: 'welcome_email_v2' } },
 ];
 
-const AGENTS_STORAGE_KEY = 'agentFlowAgents';
+const AGENTS_STORAGE_KEY = 'agentFlowAgents'; // Global key for this page
 
 export default function AgentManagementPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -38,7 +38,6 @@ export default function AgentManagementPage() {
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const { toast } = useToast();
 
-  // Load agents from localStorage on initial mount
   useEffect(() => {
     const storedAgents = localStorage.getItem(AGENTS_STORAGE_KEY);
     if (storedAgents) {
@@ -46,16 +45,14 @@ export default function AgentManagementPage() {
         setAgents(JSON.parse(storedAgents));
       } catch (error) {
         console.error("Failed to parse agents from localStorage", error);
-        setAgents(initialMockAgents); // Fallback to initial mocks on parse error
+        setAgents(initialMockAgents); 
       }
     } else {
       setAgents(initialMockAgents);
     }
   }, []);
 
-  // Save agents to localStorage whenever the agents state changes
   useEffect(() => {
-    // Only save if agents array is not in its initial empty state during setup
     if (agents.length > 0 || localStorage.getItem(AGENTS_STORAGE_KEY)) {
       localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents));
     }
@@ -140,10 +137,10 @@ export default function AgentManagementPage() {
         <div>
           <PageHeaderHeading>
             <SlidersHorizontal className="mr-2 inline-block h-6 w-6" />
-            Agent Configuration Management
+            Agent Configuration Management (Global)
           </PageHeaderHeading>
           <PageHeaderDescription>
-            Centrally manage agent configurations, types, and view execution logs.
+            Manage global agent configurations. Project-specific agents are managed within each project.
           </PageHeaderDescription>
         </div>
         <AddAgentDialog onAddAgent={handleAddAgent} />
