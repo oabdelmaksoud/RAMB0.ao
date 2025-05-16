@@ -11,7 +11,7 @@ const mockProjects: Project[] = [
     description: 'Develop an integrated suite of marketing tools powered by generative AI to automate content creation and campaign management.',
     status: 'Active',
     lastUpdated: '2024-07-20T10:00:00Z',
-    thumbnailUrl: 'https://placehold.co/600x400.png',
+    thumbnailUrl: 'https://placehold.co/600x400.png', // Ensure data-ai-hint is in ProjectCard
     agentCount: 5,
     workflowCount: 3,
   },
@@ -21,7 +21,7 @@ const mockProjects: Project[] = [
     description: 'A system to automatically pull financial data from various sources, generate reports, and identify anomalies using intelligent agents.',
     status: 'Active',
     lastUpdated: '2024-07-21T14:30:00Z',
-    thumbnailUrl: 'https://placehold.co/600x400.png',
+    thumbnailUrl: 'https://placehold.co/600x400.png', // Ensure data-ai-hint is in ProjectCard
     agentCount: 3,
     workflowCount: 2,
   },
@@ -31,7 +31,7 @@ const mockProjects: Project[] = [
     description: 'Complete overhaul of the existing e-commerce platform with a focus on UX, performance, and AI-driven personalization.',
     status: 'On Hold',
     lastUpdated: '2024-06-15T09:00:00Z',
-    thumbnailUrl: 'https://placehold.co/600x400.png',
+    thumbnailUrl: 'https://placehold.co/600x400.png', // Ensure data-ai-hint is in ProjectCard
     agentCount: 8,
     workflowCount: 5,
   },
@@ -41,7 +41,7 @@ const mockProjects: Project[] = [
     description: 'Create an AI-powered search and Q&A system for the company\'s internal knowledge base and documentation.',
     status: 'Completed',
     lastUpdated: '2024-05-30T17:00:00Z',
-    thumbnailUrl: 'https://placehold.co/600x400.png',
+    thumbnailUrl: 'https://placehold.co/600x400.png', // Ensure data-ai-hint is in ProjectCard
     agentCount: 2,
     workflowCount: 1,
   },
@@ -51,7 +51,7 @@ const mockProjects: Project[] = [
     description: 'Utilize AI agents to optimize traffic flow in real-time based on sensor data and predictive analytics.',
     status: 'Active',
     lastUpdated: '2024-07-22T11:00:00Z',
-    thumbnailUrl: 'https://placehold.co/600x400.png',
+    thumbnailUrl: 'https://placehold.co/600x400.png', // Ensure data-ai-hint is in ProjectCard
     agentCount: 12,
     workflowCount: 7,
   },
@@ -61,7 +61,7 @@ const mockProjects: Project[] = [
     description: 'A system using wearable sensor data and AI agents to monitor patient vitals and alert healthcare providers to critical changes.',
     status: 'Archived',
     lastUpdated: '2023-12-01T08:00:00Z',
-    thumbnailUrl: 'https://placehold.co/600x400.png',
+    thumbnailUrl: 'https://placehold.co/600x400.png', // Ensure data-ai-hint is in ProjectCard
     agentCount: 4,
     workflowCount: 2,
   }

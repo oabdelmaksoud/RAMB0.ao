@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Bot, Workflow, CalendarDays } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { useState, useEffect } from 'react';
 
 interface ProjectCardProps {
   project: Project;
@@ -22,10 +23,21 @@ const statusColors: { [key in Project['status']]: string } = {
 };
 
 export default function ProjectCard({ project }: ProjectCardProps) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   const formatDate = (dateString: string) => {
+    if (!isClient) {
+      return 'Loading date...'; // Or some placeholder
+    }
     try {
       // Check if it's already human-readable (e.g., "3 days ago")
-      if (!dateString.includes('-') && !dateString.includes('/')) return dateString;
+      if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(dateString)) {
+        return dateString;
+      }
       return format(parseISO(dateString), "MMM d, yyyy");
     } catch (error) {
       return dateString; // Fallback
@@ -42,7 +54,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
               alt={`${project.name} thumbnail`}
               fill
               style={{ objectFit: 'cover' }}
-              data-ai-hint="project abstract"
+              data-ai-hint="project abstract" // Added AI hint
             />
           </div>
         )}
@@ -78,7 +90,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
       </CardContent>
       <CardFooter>
         <Button variant="outline" size="sm" className="w-full" asChild>
-          <a href="#"> {/* Placeholder link */}
+          <a href="#"> {/* Placeholder link for now */}
             View Project
             <ArrowRight className="ml-2 h-4 w-4" />
           </a>
