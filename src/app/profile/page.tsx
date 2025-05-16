@@ -1,3 +1,7 @@
+
+'use client';
+
+import { useState } from 'react';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { UserCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -6,8 +10,23 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfilePage() {
+  const { toast } = useToast();
+  const [displayName, setDisplayName] = useState('Current User');
+  const [bio, setBio] = useState('Loves building awesome apps with AI and AgentFlow!');
+  const [email] = useState('user.name@example.com'); // Email is typically not changed by user directly
+
+  const handleSaveChanges = () => {
+    // In a real app, you would send this data to a backend
+    console.log('Saving profile:', { displayName, bio });
+    toast({
+      title: 'Profile Updated',
+      description: 'Your profile information has been (mock) saved.',
+    });
+  };
+
   return (
     <div className="container mx-auto">
       <PageHeader>
@@ -25,13 +44,13 @@ export default function ProfilePage() {
           <CardHeader className="items-center text-center">
             <Avatar className="h-24 w-24 mb-4">
               <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="person avatar" />
-              <AvatarFallback>U</AvatarFallback>
+              <AvatarFallback>{displayName.charAt(0).toUpperCase() || 'U'}</AvatarFallback>
             </Avatar>
-            <CardTitle className="text-xl">Current User</CardTitle>
-            <p className="text-sm text-muted-foreground">user.name@example.com</p>
+            <CardTitle className="text-xl">{displayName}</CardTitle>
+            <p className="text-sm text-muted-foreground">{email}</p>
           </CardHeader>
           <CardContent className="flex-grow flex items-end">
-            <Button variant="outline" className="w-full">Change Avatar</Button>
+            <Button variant="outline" className="w-full" disabled>Change Avatar</Button>
           </CardContent>
         </Card>
 
@@ -42,24 +61,34 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="displayName">Display Name</Label>
-              <Input id="displayName" defaultValue="Current User" />
+              <Input 
+                id="displayName" 
+                value={displayName} 
+                onChange={(e) => setDisplayName(e.target.value)} 
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="email">Email Address</Label>
-              <Input id="email" type="email" defaultValue="user.name@example.com" disabled />
+              <Input 
+                id="email" 
+                type="email" 
+                value={email} 
+                disabled 
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="bio">Bio</Label>
               <Textarea
                 id="bio"
                 placeholder="Tell us a little about yourself"
-                defaultValue="Loves building awesome apps with AI and AgentFlow!"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
                 className="min-h-[100px]"
               />
             </div>
           </CardContent>
           <CardFooter className="border-t pt-6 flex justify-end">
-            <Button>Save Changes</Button>
+            <Button onClick={handleSaveChanges}>Save Changes</Button>
           </CardFooter>
         </Card>
       </div>
