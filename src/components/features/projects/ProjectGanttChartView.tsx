@@ -57,24 +57,25 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   } | null>(null);
   
   const processedTasks = useMemo(() => {
-    const taskMap = new Map(tasks.map(task => [task.id, { ...task, children: [] as Task[], level: 0 }]));
-    const rootTasks: Task[] = [];
+    const taskMap = new Map<string, Task & { children: Task[], level: number }>();
+    tasks.forEach(task => taskMap.set(task.id, { ...task, children: [], level: 0 }));
+
+    const rootTasks: (Task & { children: Task[], level: number })[] = [];
 
     tasks.forEach(task => {
       const currentTask = taskMap.get(task.id)!;
       if (task.parentId && taskMap.has(task.parentId)) {
         const parent = taskMap.get(task.parentId)!;
-        // @ts-ignore
         parent.children.push(currentTask);
       } else {
         rootTasks.push(currentTask);
       }
     });
 
-    const flattenTasks = (tasksToFlatten: Task[], level: number): Task[] => {
-      let result: Task[] = [];
+    const flattenTasks = (tasksToFlatten: (Task & { children: Task[], level: number })[], level: number): (Task & { level: number })[] => {
+      let result: (Task & { level: number })[] = [];
       for (const task of tasksToFlatten) {
-        // @ts-ignore
+        // @ts-ignore - level is being added dynamically
         task.level = level;
         result.push(task);
         // @ts-ignore
@@ -85,7 +86,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
       }
       return result;
     };
-    // Sort root tasks by start date for better initial rendering, then flatten
+    
     rootTasks.sort((a,b) => (a.startDate && b.startDate ? parseISO(a.startDate).getTime() - parseISO(b.startDate).getTime() : 0));
     return flattenTasks(rootTasks, 0);
   }, [tasks]);
@@ -94,7 +95,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
   const { chartStartDate, chartEndDate, totalDays, daysArray } = useMemo(() => {
     if (!processedTasks.length) {
       const today = startOfDay(new Date());
-      const defaultStartDate = addDays(today, -10); // Adjusted padding
+      const defaultStartDate = addDays(today, -15); 
       const defaultEndDate = addDays(today, 30);
       return {
         chartStartDate: defaultStartDate,
@@ -123,7 +124,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
 
     if (!taskDates.length) {
       const today = startOfDay(new Date());
-      const fallbackStart = addDays(today, -10);
+      const fallbackStart = addDays(today, -15);
       const fallbackEnd = addDays(today, 30);
       return {
         chartStartDate: fallbackStart,
@@ -136,16 +137,16 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     let overallMinDate = min(taskDates);
     let overallMaxDate = max(taskDates);
 
-    overallMinDate = addDays(overallMinDate, -10); // More padding
-    overallMaxDate = addDays(overallMaxDate, 20); // More padding
+    overallMinDate = addDays(overallMinDate, -15); 
+    overallMaxDate = addDays(overallMaxDate, 20); 
 
     const days = eachDayOfInterval({ start: overallMinDate, end: overallMaxDate });
 
     return {
       chartStartDate: overallMinDate,
       chartEndDate: overallMaxDate,
-      totalDays: days.length > 0 ? days.length : 40,
-      daysArray: days.length > 0 ? days : eachDayOfInterval({ start: addDays(startOfDay(new Date()), -10), end: addDays(startOfDay(new Date()), 29) }),
+      totalDays: days.length > 0 ? days.length : 45,
+      daysArray: days.length > 0 ? days : eachDayOfInterval({ start: addDays(startOfDay(new Date()), -15), end: addDays(startOfDay(new Date()), 29) }),
     };
   }, [processedTasks]);
 
@@ -197,6 +198,10 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
 
     const handleDocumentMouseUp = () => {
       if (!draggingTaskDetails) return;
+       const finalTaskState = tasks.find(t => t.id === draggingTaskDetails.task.id);
+      if (finalTaskState) {
+         // onUpdateTask(finalTaskState); // This confirms the final position.
+      }
       setDraggingTaskDetails(null);
     };
 
@@ -209,7 +214,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
       document.removeEventListener('mousemove', handleDocumentMouseMove);
       document.removeEventListener('mouseup', handleDocumentMouseUp);
     };
-  }, [draggingTaskDetails, onUpdateTask]);
+  }, [draggingTaskDetails, onUpdateTask, tasks]);
 
   const handleResizeMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
@@ -240,6 +245,10 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
 
     const handleDocumentMouseUpForResize = () => {
         if (!resizingTaskDetails) return;
+        const finalTaskState = tasks.find(t => t.id === resizingTaskDetails.task.id);
+        if (finalTaskState) {
+            // onUpdateTask(finalTaskState); // This confirms the final position.
+        }
         setResizingTaskDetails(null);
     };
 
@@ -252,7 +261,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
         document.removeEventListener('mousemove', handleDocumentMouseMoveForResize);
         document.removeEventListener('mouseup', handleDocumentMouseUpForResize);
     };
-  }, [resizingTaskDetails, onUpdateTask]);
+  }, [resizingTaskDetails, onUpdateTask, tasks]);
 
   if (!isClient) {
     return <div className="p-4 text-muted-foreground">Loading Gantt chart...</div>;
@@ -372,7 +381,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
                     width: `${TASK_NAME_WIDTH_PX}px`, 
                     minWidth: `${TASK_NAME_WIDTH_PX}px`, 
                     height: '100%',
-                    paddingLeft: `${0.5 + (indentLeveL * INDENT_WIDTH_PX / 16)}rem` // Convert px to rem for padding
+                    paddingLeft: `${0.5 + (task.level * INDENT_WIDTH_PX / 16)}rem` // Convert px to rem for padding
                    }}
                   className="text-sm truncate sticky left-0 bg-card group-hover:bg-muted/10 z-10 border-r flex items-center"
                 >
@@ -446,3 +455,4 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask }: ProjectGa
     </ScrollArea>
   );
 }
+
