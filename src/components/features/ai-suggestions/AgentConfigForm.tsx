@@ -14,6 +14,8 @@ import { Sparkles, Loader2, Send } from 'lucide-react';
 import { suggestAgentConfiguration, type SuggestAgentConfigurationInput, type SuggestAgentConfigurationOutput } from '@/ai/flows/suggest-agent-configuration';
 import { useRouter } from 'next/navigation'; // For redirection
 import type { Agent } from '@/types';
+import { Label } from '@/components/ui/label'; // Added import
+import { Progress } from '@/components/ui/progress'; // Added import
 
 const formSchema = z.object({
   taskDescription: z.string().min(10, { message: 'Task description must be at least 10 characters.' }).max(2000),
@@ -155,35 +157,42 @@ export default function AgentConfigForm() {
       </Card>
 
       {suggestion && (
-        <Card className="mt-6 bg-accent/50 border-accent">
+        <Card className="mt-6 bg-accent/50 border-accent shadow-lg">
           <CardHeader>
-            <CardTitle className="text-lg">AI Suggestion</CardTitle>
+            <CardTitle className="text-lg flex items-center">
+              <Sparkles className="w-5 h-5 mr-2 text-primary" />
+              AI Configuration Suggestion
+            </CardTitle>
+            <CardDescription>Review the AI-generated suggestion below and use it to create a new agent.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h4 className="font-semibold text-sm">Suggested Agent Name:</h4>
-              <p className="text-sm p-2 bg-background rounded-md">{suggestion.suggestedAgent.name}</p>
+          <CardContent className="space-y-4 pt-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Suggested Agent Name</Label>
+              <p className="text-sm p-2 bg-background/70 rounded-md border font-medium">{suggestion.suggestedAgent.name}</p>
             </div>
-            <div>
-              <h4 className="font-semibold text-sm">Suggested Agent Type:</h4>
-              <p className="text-sm p-2 bg-background rounded-md">{suggestion.suggestedAgent.type}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Suggested Agent Type</Label>
+              <p className="text-sm p-2 bg-background/70 rounded-md border">{suggestion.suggestedAgent.type}</p>
             </div>
-            <div>
-              <h4 className="font-semibold text-sm">Suggested Configuration (JSON):</h4>
-              <pre className="mt-1 p-3 bg-background rounded-md text-sm overflow-x-auto whitespace-pre-wrap">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Suggested Configuration (JSON)</Label>
+              <pre className="mt-1 p-3 bg-background/70 rounded-md border text-xs sm:text-sm overflow-x-auto whitespace-pre-wrap font-mono">
                 {JSON.stringify(suggestion.suggestedAgent.config, null, 2)}
               </pre>
             </div>
-            <div>
-              <h4 className="font-semibold text-sm">Reasoning:</h4>
-              <p className="text-sm p-2 bg-background rounded-md">{suggestion.reasoning}</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Reasoning</Label>
+              <p className="text-sm p-2 bg-background/70 rounded-md border italic">{suggestion.reasoning}</p>
             </div>
-            <div>
-              <h4 className="font-semibold text-sm">Confidence Score:</h4>
-              <p className="text-sm p-2 bg-background rounded-md">{(suggestion.confidenceScore * 100).toFixed(0)}%</p>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Confidence Score</Label>
+              <div className="flex items-center gap-2 pt-1">
+                <Progress value={suggestion.confidenceScore * 100} className="h-2 w-full sm:w-1/2" aria-label={`Confidence: ${(suggestion.confidenceScore * 100).toFixed(0)}%`} />
+                <span className="text-sm font-medium">{(suggestion.confidenceScore * 100).toFixed(0)}%</span>
+              </div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-end">
+          <CardFooter className="flex justify-end border-t pt-6">
             <Button onClick={handleUseConfiguration}>
               <Send className="mr-2 h-4 w-4" /> Use this Configuration
             </Button>
