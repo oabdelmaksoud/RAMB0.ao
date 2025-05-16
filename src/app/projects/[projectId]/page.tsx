@@ -1,10 +1,9 @@
-
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -143,6 +142,8 @@ export default function ProjectDetailPage() {
   const [projectWorkflows, setProjectWorkflows] = useState<ProjectWorkflow[]>([]);
   const [isAddWorkflowDialogOpen, setIsAddWorkflowDialogOpen] = useState(false);
   const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null);
+  const [workflowToDelete, setWorkflowToDelete] = useState<ProjectWorkflow | null>(null);
+  const [isDeleteWorkflowDialogOpen, setIsDeleteWorkflowDialogOpen] = useState(false);
 
 
   useEffect(() => {
@@ -238,7 +239,7 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (isClient && projectId ) {
-        console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, projectWorkflows);
+        // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows, null, 2));
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
@@ -261,13 +262,13 @@ export default function ProjectDetailPage() {
       if (updatedDesigningWorkflowInstance && updatedDesigningWorkflowInstance !== designingWorkflow) {
           // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated instance from projectWorkflows", updatedDesigningWorkflowInstance);
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
-      } else if (!updatedDesigningWorkflowInstance) {
+      } else if (!updatedDesigningWorkflowInstance && designingWorkflow) { // Check if designingWorkflow is not null
         // If the workflow being designed is somehow removed from the main list, close the designer
-        console.warn("PROJECT_DETAIL_PAGE: designingWorkflow instance not found in projectWorkflows. Closing designer.");
+        console.warn("PROJECT_DETAIL_PAGE: designingWorkflow instance not found in projectWorkflows. Closing designer.", designingWorkflow.name);
         setDesigningWorkflow(null);
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]);
+  }, [projectWorkflows, designingWorkflow]);
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -447,7 +448,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
-    console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.name, "ID:", workflow.id, "Nodes:", workflow.nodes, "Edges:", workflow.edges);
+    // console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.name, "ID:", workflow.id, "Nodes:", workflow.nodes, "Edges:", workflow.edges);
     setDesigningWorkflow(workflow);
   };
 
@@ -458,35 +459,48 @@ export default function ProjectDetailPage() {
 
  const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) return;
-    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length} IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
-    
+    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length} IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
     // Ensure designingWorkflow ID is still valid before proceeding
-    console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id} Name: ${designingWorkflow.name}`);
+    // console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id} Name: ${designingWorkflow.name}`);
 
     setProjectWorkflows(prevWorkflows => {
-      console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
+      // console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
       const newWorkflowsArray = prevWorkflows.map(wf => {
         if (wf.id === designingWorkflow.id) {
-          console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
+          // console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
           return { ...wf, nodes: updatedNodes };
         }
         return wf;
       });
-      newWorkflowsArray.forEach(wf => {
-        console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id} Nodes count: ${wf.nodes?.length || 0} Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
-      });
+      // newWorkflowsArray.forEach(wf => {
+      //   console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id} Nodes count: ${wf.nodes?.length || 0} Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
+      // });
       return newWorkflowsArray;
     });
   };
 
   const handleWorkflowEdgesChange = (updatedEdges: WorkflowEdge[]) => {
      if (designingWorkflow) {
-        console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange for workflow ${designingWorkflow.name}. New edges count: ${updatedEdges.length}`);
+        // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange for workflow ${designingWorkflow.name}. New edges count: ${updatedEdges.length}`);
         setProjectWorkflows(prevWorkflows => 
             prevWorkflows.map(wf => 
                 wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
             )
         );
+    }
+  };
+
+  const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
+    setWorkflowToDelete(workflow);
+    setIsDeleteWorkflowDialogOpen(true);
+  };
+
+  const confirmDeleteWorkflow = () => {
+    if (workflowToDelete) {
+      setProjectWorkflows(prevWorkflows => prevWorkflows.filter(wf => wf.id !== workflowToDelete.id));
+      toast({ title: "Workflow Deleted", description: `Workflow "${workflowToDelete.name}" has been deleted from project "${project?.name}".`, variant: 'destructive' });
+      setWorkflowToDelete(null);
+      setIsDeleteWorkflowDialogOpen(false);
     }
   };
 
@@ -581,7 +595,7 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="gantt"><GanttChartSquare className="mr-2 h-4 w-4"/>Gantt Chart</TabsTrigger>
           <TabsTrigger value="board"><ListChecks className="mr-2 h-4 w-4"/>Task Board</TabsTrigger>
           <TabsTrigger value="projectAgents"><SlidersHorizontal className="mr-2 h-4 w-4"/>Project Agents</TabsTrigger>
-          <TabsTrigger value="projectWorkflows"><WorkflowIcon className="mr-2 h-4 w-4"/>Project Workflows & Design</TabsTrigger>
+          <TabsTrigger value="projectWorkflows"><WorkflowIcon className="mr-2 h-4 w-4"/>Project Workflows &amp; Design</TabsTrigger>
           <TabsTrigger value="aiSuggestions"><Lightbulb className="mr-2 h-4 w-4"/>AI Agent Suggestions</TabsTrigger>
         </TabsList>
 
@@ -731,6 +745,10 @@ export default function ProjectDetailPage() {
                                       </CardContent>
                                       <CardFooter className="p-4 border-t flex gap-2">
                                           <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenWorkflowDesigner(workflow)}><EyeIcon className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
+                                          <Button variant="destructive" size="icon" className="shrink-0 h-8 w-8" onClick={() => handleOpenDeleteWorkflowDialog(workflow)} title="Delete Workflow">
+                                            <Trash2 className="h-4 w-4" />
+                                            <span className="sr-only">Delete Workflow</span>
+                                          </Button>
                                           <Button variant="default" size="sm" className="text-xs flex-1" disabled><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
                                       </CardFooter>
                                   </Card>
@@ -850,6 +868,26 @@ export default function ProjectDetailPage() {
               <AlertDialogCancel onClick={() => { setTaskToDelete(null); setIsDeleteTaskDialogOpen(false); }}>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {workflowToDelete && (
+        <AlertDialog open={isDeleteWorkflowDialogOpen} onOpenChange={setIsDeleteWorkflowDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you sure you want to delete this workflow?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the workflow
+                "{workflowToDelete.name}" and its design from project "{project?.name}".
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => { setWorkflowToDelete(null); setIsDeleteWorkflowDialogOpen(false); }}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDeleteWorkflow} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete Workflow
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
