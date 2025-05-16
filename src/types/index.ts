@@ -31,3 +31,14 @@ export interface Workflow {
   nodes: WorkflowNodeData[];
   edges: WorkflowEdgeData[];
 }
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  status: 'Active' | 'On Hold' | 'Completed' | 'Archived';
+  lastUpdated: string; // ISO date string or human-readable
+  thumbnailUrl?: string; 
+  agentCount?: number;
+  workflowCount?: number;
+}

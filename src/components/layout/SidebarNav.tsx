@@ -13,16 +13,18 @@ import {
   Settings2,
   Workflow,
   SlidersHorizontal,
-  UserCircle, // Added UserCircle
+  UserCircle,
+  Briefcase, // Added Briefcase
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/projects', label: 'Projects', icon: Briefcase }, // Added Projects link
   { href: '/ai-suggestions', label: 'AI Suggestions', icon: Settings2 },
   { href: '/workflow-designer', label: 'Workflow Designer', icon: Workflow },
   { href: '/agent-management', label: 'Agent Management', icon: SlidersHorizontal },
-  { href: '/profile', label: 'Profile', icon: UserCircle }, // Added Profile link
+  { href: '/profile', label: 'Profile', icon: UserCircle },
 ];
 
 export default function SidebarNav() {
