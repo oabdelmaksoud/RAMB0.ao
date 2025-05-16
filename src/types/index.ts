@@ -27,7 +27,6 @@ export interface WorkflowEdge {
   id: string;
   sourceNodeId: string; // ID of the source WorkflowNode
   targetNodeId: string; // ID of the target WorkflowNode
-  // Potentially add type, label, etc. for edges later
 }
 
 export interface ProjectWorkflow {
@@ -37,7 +36,7 @@ export interface ProjectWorkflow {
   status: 'Active' | 'Inactive' | 'Draft';
   lastRun?: string; // ISO Date string
   nodes?: WorkflowNode[];
-  edges?: WorkflowEdge[]; // Added edges array
+  edges?: WorkflowEdge[];
 }
 
 export interface Project {
@@ -56,5 +55,7 @@ export interface Task {
   title: string;
   status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
   assignedTo: string;
+  startDate?: string; // ISO date string e.g., "2024-07-01"
+  durationDays?: number; // Duration in days
 }
 

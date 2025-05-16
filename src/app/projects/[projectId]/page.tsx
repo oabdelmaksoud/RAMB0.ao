@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays, differenceInDays, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import AddTaskDialog from '@/components/features/projects/AddTaskDialog';
@@ -34,17 +34,16 @@ import Link from 'next/link';
 // Agent Management Imports
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
-// EditAgentDialog is already imported for project agents
 
 // Workflow Designer Imports
 import WorkflowPalette from '@/components/features/workflow-designer/WorkflowPalette';
 import WorkflowCanvas from '@/components/features/workflow-designer/WorkflowCanvasPlaceholder';
 import AddWorkflowDialog from '@/components/features/projects/AddWorkflowDialog';
 
-
 // AI Suggestions Imports
 import AgentConfigForm from '@/components/features/ai-suggestions/AgentConfigForm';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import ProjectGanttChartView from '@/components/features/projects/ProjectGanttChartView';
 
 
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -166,23 +165,25 @@ export default function ProjectDetailPage() {
 
       const tasksStorageKey = getTasksStorageKey(projectId);
       const storedTasks = localStorage.getItem(tasksStorageKey);
+      const today = startOfDay(new Date());
+
       if (storedTasks) {
         try {
           setTasks(JSON.parse(storedTasks));
         } catch (error) {
           console.error(`Failed to parse tasks for project ${projectId} from localStorage`, error);
           const initialMockTasksForProject: Task[] = [
-            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
-            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
-            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
+            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2 },
+            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5 },
+            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3 },
           ];
           setTasks(initialMockTasksForProject);
         }
       } else {
         const initialMockTasksForProject: Task[] = [
-            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha' },
-            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta' },
-            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma' },
+            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2 },
+            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5 },
+            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3 },
         ];
         setTasks(initialMockTasksForProject);
       }
@@ -240,27 +241,26 @@ export default function ProjectDetailPage() {
   }, [tasks, projectId, isClient]);
 
   useEffect(() => {
-    if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)) !== null)) {
-      localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
-      console.log("PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project", projectId, JSON.stringify(projectWorkflows, null, 2));
+    if (isClient && projectId ) {
+        const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
+        // Only save if there are workflows to save OR if it was previously non-null (meaning user might have deleted all)
+        if (projectWorkflows.length > 0 || currentWorkflows !== null) {
+            localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
+             console.log("PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project", projectId, JSON.stringify(projectWorkflows, null, 2));
+        }
     }
   }, [projectWorkflows, projectId, isClient]);
 
   useEffect(() => {
-    // This effect ensures that `designingWorkflow` state always holds the latest version
-    // of the workflow object from the `projectWorkflows` array.
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        // Only update if the object reference or content (nodes/edges) has changed
         if (updatedDesigningWorkflowInstance !== designingWorkflow ||
             JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
-          // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow state with updated instance from projectWorkflows array.");
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else {
-        // The workflow being designed was somehow removed from the main list, so stop designing.
         setDesigningWorkflow(null);
       }
     }
@@ -580,18 +580,42 @@ export default function ProjectDetailPage() {
 
       <Separator className="my-6" />
 
-      <Tabs defaultValue="tasks" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:w-auto xl:inline-flex mb-4">
-          <TabsTrigger value="tasks"><ListChecks className="mr-2 h-4 w-4"/>Tasks</TabsTrigger>
+      <Tabs defaultValue="gantt" className="w-full">
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:w-auto xl:inline-flex mb-4">
+          <TabsTrigger value="gantt"><GanttChartSquare className="mr-2 h-4 w-4"/>Gantt Chart</TabsTrigger>
+          <TabsTrigger value="board"><ListChecks className="mr-2 h-4 w-4"/>Task Board</TabsTrigger>
           <TabsTrigger value="projectAgents"><SlidersHorizontal className="mr-2 h-4 w-4"/>Project Agents</TabsTrigger>
           <TabsTrigger value="projectWorkflows"><WorkflowIcon className="mr-2 h-4 w-4"/>Project Workflows & Design</TabsTrigger>
           <TabsTrigger value="aiSuggestions"><Lightbulb className="mr-2 h-4 w-4"/>AI Agent Suggestions</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tasks">
+        <TabsContent value="gantt">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <div><CardTitle>Task Management</CardTitle><CardDescription>Track and manage all tasks for project "{project.name}".</CardDescription></div>
+              <div><CardTitle>Task Gantt Chart</CardTitle><CardDescription>Timeline view of tasks for project "{project.name}".</CardDescription></div>
+              <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
+            </CardHeader>
+            <CardContent>
+                {tasks.length > 0 ? (
+                    <ProjectGanttChartView tasks={tasks} />
+                ) : (
+                    <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
+                        <ListChecks className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                        <p className="text-lg font-medium text-muted-foreground">No tasks found for this project to display in Gantt chart.</p>
+                        <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a task to get started!</p>
+                        <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}>
+                            <PlusCircle className="mr-2 h-4 w-4" />Add First Task
+                        </Button>
+                    </div>
+                )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="board">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div><CardTitle>Task Board (Kanban)</CardTitle><CardDescription>Manage tasks by status for project "{project.name}".</CardDescription></div>
               <Button variant="outline" size="sm" onClick={() => setIsAddTaskDialogOpen(true)}><PlusCircle className="mr-2 h-4 w-4" />Add New Task</Button>
             </CardHeader>
             <CardContent>
@@ -612,11 +636,12 @@ export default function ProjectDetailPage() {
                               <CardHeader className="p-3">
                                 <div className="flex items-start justify-between gap-2">
                                   <CardTitle className="text-sm font-medium leading-tight">{task.title}</CardTitle>
-                                  {/* <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" /> */}
                                 </div>
                               </CardHeader>
                               <CardContent className="p-3 pt-0 text-xs flex-grow">
                                 <p className="text-muted-foreground">Assigned to: {task.assignedTo}</p>
+                                {task.startDate && <p className="text-muted-foreground mt-1">Starts: {format(parseISO(task.startDate), 'MMM d')}</p>}
+                                {task.durationDays && <p className="text-muted-foreground">Duration: {task.durationDays}d</p>}
                               </CardContent>
                               <CardFooter className="p-3 border-t flex gap-2">
                                 <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><Eye className="mr-1.5 h-3 w-3" /> View</Button>
@@ -763,7 +788,12 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
       </Tabs>
-      <AddTaskDialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen} onAddTask={handleAddTask} />
+      <AddTaskDialog 
+        open={isAddTaskDialogOpen} 
+        onOpenChange={setIsAddTaskDialogOpen} 
+        onAddTask={handleAddTask} 
+        defaultStartDate={format(new Date(), 'yyyy-MM-dd')}
+      />
       {editingTask && (
         <EditTaskDialog
           open={isEditTaskDialogOpen}
