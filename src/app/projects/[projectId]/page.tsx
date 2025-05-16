@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Agent } from '@/types';
 import { mockProjects } from '@/app/projects/page'; // Temporary: Import mock data
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
