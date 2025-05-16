@@ -81,36 +81,36 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
 };
 
 const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => [
-  {
-    id: `pd-wf-${projectId}-1-${Date.now().toString().slice(-4)}`,
-    name: "Software Development Lifecycle",
-    description: "A standard workflow for planning, developing, testing, and deploying software features.",
-    status: 'Draft',
-    lastRun: undefined,
-    nodes: [
-      { id: `sdlc-${projectId}-node-1`, name: 'Planning Phase', type: 'Custom Logic Agent', x: 50, y: 50, config: {} },
-      { id: `sdlc-${projectId}-node-2`, name: 'Development Sprint', type: 'Code Review Agent', x: 250, y: 150, config: {} },
-      { id: `sdlc-${projectId}-node-3`, name: 'QA Testing', type: 'Testing Agent', x: 50, y: 250, config: {} },
-    ],
-    edges: [
-      { id: `sdlc-${projectId}-edge-1`, sourceNodeId: `sdlc-${projectId}-node-1`, targetNodeId: `sdlc-${projectId}-node-2` },
-      { id: `sdlc-${projectId}-edge-2`, sourceNodeId: `sdlc-${projectId}-node-2`, targetNodeId: `sdlc-${projectId}-node-3` },
-    ],
-  },
-  {
-    id: `pd-wf-${projectId}-2-${Date.now().toString().slice(-4)}`,
-    name: "Software Testing Cycle",
-    description: "A comprehensive workflow for various testing phases including unit, integration, and user acceptance testing.",
-    status: 'Draft',
-    lastRun: undefined,
-    nodes: [
-      { id: `stc-${projectId}-node-1`, name: 'Unit Tests', type: 'Testing Agent', x: 100, y: 80, config: {} },
-      { id: `stc-${projectId}-node-2`, name: 'Integration Tests', type: 'Testing Agent', x: 300, y: 180, config: {} },
-    ],
-    edges: [
-       { id: `stc-${projectId}-edge-1`, sourceNodeId: `stc-${projectId}-node-1`, targetNodeId: `stc-${projectId}-node-2` },
-    ],
-  },
+    {
+        id: `pd-wf-${projectId}-1-${Date.now().toString().slice(-4)}`,
+        name: "Software Development Lifecycle",
+        description: "A standard workflow for planning, developing, testing, and deploying software features.",
+        status: 'Draft',
+        lastRun: undefined,
+        nodes: [
+            { id: `sdlc-${projectId}-node-1`, name: 'Planning Phase', type: 'Custom Logic Agent', x: 50, y: 50, config: {} },
+            { id: `sdlc-${projectId}-node-2`, name: 'Development Sprint', type: 'Code Review Agent', x: 250, y: 150, config: {} },
+            { id: `sdlc-${projectId}-node-3`, name: 'QA Testing', type: 'Testing Agent', x: 50, y: 250, config: {} },
+        ],
+        edges: [
+            { id: `sdlc-${projectId}-edge-1`, sourceNodeId: `sdlc-${projectId}-node-1`, targetNodeId: `sdlc-${projectId}-node-2` },
+            { id: `sdlc-${projectId}-edge-2`, sourceNodeId: `sdlc-${projectId}-node-2`, targetNodeId: `sdlc-${projectId}-node-3` },
+        ],
+    },
+    {
+        id: `pd-wf-${projectId}-2-${Date.now().toString().slice(-4)}`,
+        name: "Software Testing Cycle",
+        description: "A comprehensive workflow for various testing phases including unit, integration, and user acceptance testing.",
+        status: 'Draft',
+        lastRun: undefined,
+        nodes: [
+            { id: `stc-${projectId}-node-1`, name: 'Unit Tests', type: 'Testing Agent', x: 100, y: 80, config: {} },
+            { id: `stc-${projectId}-node-2`, name: 'Integration Tests', type: 'Testing Agent', x: 300, y: 180, config: {} },
+        ],
+        edges: [
+            { id: `stc-${projectId}-edge-1`, sourceNodeId: `stc-${projectId}-node-1`, targetNodeId: `stc-${projectId}-node-2` },
+        ],
+    },
 ];
 
 
@@ -130,6 +130,7 @@ export default function ProjectDetailPage() {
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
 
   const [draggingOverStatus, setDraggingOverStatus] = useState<Task['status'] | null>(null);
+  const [reorderTargetTaskId, setReorderTargetTaskId] = useState<string | null>(null);
 
 
   const { toast } = useToast();
@@ -169,10 +170,10 @@ export default function ProjectDetailPage() {
       const today = startOfDay(new Date());
 
       const initialMockTasksForProject: Task[] = [
-        { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null, dependencies: [] },
-        { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null, dependencies: [`${projectId}-task-1`] },
-        { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2`, dependencies: [] },
-        { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null, dependencies: [`${projectId}-task-2`] },
+        { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null, dependencies: [], isMilestone: false },
+        { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null, dependencies: [`${projectId}-task-1`], isMilestone: false },
+        { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2`, dependencies: [], isMilestone: false },
+        { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null, dependencies: [`${projectId}-task-2`], isMilestone: false },
         { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null, dependencies: [] },
       ];
 
@@ -243,7 +244,8 @@ export default function ProjectDetailPage() {
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
-                localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
+                // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, projectWorkflows);
+                localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
                 toast({
@@ -262,9 +264,11 @@ export default function ProjectDetailPage() {
       if (updatedDesigningWorkflowInstance && 
           (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) || 
            JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges))) {
+          // console.log("PROJECT_DETAIL_PAGE: designingWorkflow instance has changed in projectWorkflows. Updating local designingWorkflow state.");
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
       } else if (!updatedDesigningWorkflowInstance && designingWorkflow) { 
-        setDesigningWorkflow(null);
+          // console.log("PROJECT_DETAIL_PAGE: designingWorkflow was removed from projectWorkflows (e.g., deleted). Clearing local designingWorkflow state.");
+          setDesigningWorkflow(null);
       }
     }
   }, [projectWorkflows, designingWorkflow?.id]);
@@ -289,6 +293,7 @@ export default function ProjectDetailPage() {
       status: taskData.isMilestone ? (taskData.status === 'Done' ? 'Done' : 'To Do') : taskData.status,
       parentId: taskData.parentId === "" ? null : taskData.parentId,
       dependencies: taskData.dependencies || [],
+      isMilestone: taskData.isMilestone || false,
     };
 
     let autoStarted = false;
@@ -301,6 +306,7 @@ export default function ProjectDetailPage() {
         targetAgentName = assignedAgent.name;
         if (assignedAgent.status === 'Running') {
           newTask.status = 'In Progress';
+           newTask.progress = newTask.progress === 0 ? 10 : newTask.progress; // Start with some progress
           setProjectAgents(prevAgents =>
             prevAgents.map(agent =>
               agent.id === assignedAgent.id ? { ...agent, lastActivity: new Date().toISOString() } : agent
@@ -379,7 +385,7 @@ export default function ProjectDetailPage() {
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
      toast({
       title: "Project Agent Added",
-      description: `Agent "${newAgent.name}" has been added to the current project.`,
+      description: `Agent "${newAgent.name}" has been added to project "${project?.name}".`,
     });
   };
 
@@ -470,12 +476,27 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
-    if (!designingWorkflow) return;
-    setProjectWorkflows(prevWorkflows => 
-      prevWorkflows.map(wf => 
-        wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
-      )
-    );
+    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n => n.id).join(', ')}`);
+    if (!designingWorkflow) {
+        // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but no designingWorkflow is set.");
+        return;
+    }
+    // console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
+
+    setProjectWorkflows(prevWorkflows => {
+        // console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
+        const newWorkflowsArray = prevWorkflows.map(wf => {
+            if (wf.id === designingWorkflow.id) {
+                // console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
+                return { ...wf, nodes: updatedNodes };
+            }
+            return wf;
+        });
+        // newWorkflowsArray.forEach(wf => {
+        //     console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id}, Nodes count: ${wf.nodes?.length || 0}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ')}`);
+        // });
+        return newWorkflowsArray;
+    });
   }, [designingWorkflow, setProjectWorkflows]);
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
@@ -506,40 +527,131 @@ export default function ProjectDetailPage() {
   };
 
   // Kanban Drag and Drop Handlers
-  const handleDragStart = (event: ReactDragEvent<HTMLDivElement>, taskId: string) => {
-    event.dataTransfer.setData('taskId', taskId);
+  const handleTaskCardDragStart = (event: ReactDragEvent<HTMLDivElement>, task: Task) => {
+    event.dataTransfer.setData('taskId', task.id);
+    event.dataTransfer.setData('taskStatus', task.status);
   };
 
-  const handleDragOver = (event: ReactDragEvent<HTMLDivElement>, status: Task['status']) => {
+  const handleColumnDragOver = (event: ReactDragEvent<HTMLDivElement>, status: Task['status']) => {
     event.preventDefault();
     setDraggingOverStatus(status);
   };
 
-  const handleDragLeave = () => {
+  const handleColumnDragLeave = () => {
     setDraggingOverStatus(null);
   };
 
-  const handleDrop = (event: ReactDragEvent<HTMLDivElement>, newStatus: Task['status']) => {
+  const handleColumnDrop = (event: ReactDragEvent<HTMLDivElement>, newStatus: Task['status']) => {
     event.preventDefault();
-    const taskId = event.dataTransfer.getData('taskId');
+    const draggedTaskId = event.dataTransfer.getData('taskId');
+    const sourceTaskStatus = event.dataTransfer.getData('taskStatus') as Task['status'];
+    setDraggingOverStatus(null);
+    setReorderTargetTaskId(null);
+
+    const taskToMove = tasks.find(task => task.id === draggedTaskId);
+    if (!taskToMove) return;
+
+    if (sourceTaskStatus !== newStatus) { // Status change
+      const updatedTask: Task = {
+        ...taskToMove,
+        status: newStatus,
+        progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : taskToMove.progress)),
+      };
+      setTasks(prevTasks => prevTasks.map(task => (task.id === draggedTaskId ? updatedTask : task)));
+      toast({
+        title: "Task Status Updated",
+        description: `Task "${updatedTask.title}" moved to "${newStatus}".`,
+      });
+    } else { // Dropped in the same column's empty space - move to end of that status group
+        setTasks(prevTasks => {
+            const otherTasksInSameStatus = prevTasks.filter(t => t.id !== draggedTaskId && t.status === sourceTaskStatus);
+            const tasksInOtherStatuses = prevTasks.filter(t => t.status !== sourceTaskStatus);
+            const reorderedTasks = [...otherTasksInSameStatus, taskToMove]; // taskToMove at the end of its group
+
+            const finalTasks = [...tasksInOtherStatuses];
+            // This is a simplified way to re-insert; proper sorting might be needed if tasks have explicit order indices
+            // For now, just group by status and then place the reordered group
+             taskStatuses.forEach(status => {
+                if (status === sourceTaskStatus) {
+                    finalTasks.push(...reorderedTasks);
+                } else {
+                    finalTasks.push(...prevTasks.filter(t => t.status === status && t.id !== draggedTaskId && !reorderedTasks.find(rt => rt.id === t.id)));
+                }
+            });
+             const uniqueTasks = Array.from(new Map(finalTasks.map(task => [task.id, task])).values());
+
+
+            // Correctly rebuild the tasks array to maintain groups but put the dragged one at the end of its group
+            const tasksWithoutMoved = prevTasks.filter(t => t.id !== draggedTaskId);
+            const newTasksArray = [...tasksWithoutMoved, taskToMove]; // Add to end globally, filtering will group it visually
+            
+            // Better approach: remove, then add to end of tasks with same status
+            const filteredTasks = prevTasks.filter(t => t.id !== draggedTaskId);
+            const tasksInDraggedStatus = filteredTasks.filter(t => t.status === sourceTaskStatus);
+            const tasksNotInDraggedStatus = filteredTasks.filter(t => t.status !== sourceTaskStatus);
+            
+            const finalReorderedTasks = [...tasksNotInDraggedStatus, ...tasksInDraggedStatus, taskToMove];
+
+            if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(finalReorderedTasks.map(t=>t.id))) {
+                 toast({
+                    title: "Task Reordered",
+                    description: `Task "${taskToMove.title}" moved to the end of "${sourceTaskStatus}".`,
+                });
+            }
+            return finalReorderedTasks;
+        });
+    }
+  };
+
+  const handleTaskCardDragOver = (event: ReactDragEvent<HTMLDivElement>, targetTask: Task) => {
+    event.preventDefault();
+    const sourceTaskStatus = event.dataTransfer.getData('taskStatus') as Task['status'];
+    if (sourceTaskStatus === targetTask.status) {
+        event.dataTransfer.dropEffect = "move";
+        setReorderTargetTaskId(targetTask.id);
+    } else {
+        event.dataTransfer.dropEffect = "none"; // Disallow dropping on a card in a different column
+        setReorderTargetTaskId(null);
+    }
+  };
+  
+  const handleTaskCardDragLeave = () => {
+    setReorderTargetTaskId(null);
+  };
+
+  const handleTaskCardDrop = (event: ReactDragEvent<HTMLDivElement>, targetTask: Task) => {
+    event.preventDefault();
+    event.stopPropagation(); // Prevent column's onDrop from firing
+
+    const draggedTaskId = event.dataTransfer.getData('taskId');
+    const sourceTaskStatus = event.dataTransfer.getData('taskStatus') as Task['status'];
+    setReorderTargetTaskId(null);
     setDraggingOverStatus(null);
 
-    setTasks(prevTasks => {
-      const taskToMove = prevTasks.find(task => task.id === taskId);
-      if (taskToMove && taskToMove.status !== newStatus) {
-        const updatedTask = { 
-          ...taskToMove, 
-          status: newStatus,
-          progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : taskToMove.progress))
-        };
+
+    if (sourceTaskStatus === targetTask.status) { // Reordering within the same column
+      setTasks(prevTasks => {
+        const draggedTask = prevTasks.find(t => t.id === draggedTaskId);
+        if (!draggedTask) return prevTasks;
+
+        const tasksWithoutDragged = prevTasks.filter(t => t.id !== draggedTaskId);
+        const targetIndex = tasksWithoutDragged.findIndex(t => t.id === targetTask.id);
+
+        if (targetIndex === -1) return prevTasks; // Should not happen
+
+        const newTasks = [
+          ...tasksWithoutDragged.slice(0, targetIndex),
+          draggedTask,
+          ...tasksWithoutDragged.slice(targetIndex)
+        ];
         toast({
-          title: "Task Status Updated",
-          description: `Task "${updatedTask.title}" moved to "${newStatus}".`
+          title: "Task Reordered",
+          description: `Task "${draggedTask.title}" reordered within "${sourceTaskStatus}".`,
         });
-        return prevTasks.map(task => task.id === taskId ? updatedTask : task);
-      }
-      return prevTasks;
-    });
+        return newTasks;
+      });
+    }
+    // If statuses are different, this drop is ignored, column drop handler will manage status change
   };
 
 
@@ -677,9 +789,9 @@ export default function ProjectDetailPage() {
                           "min-w-[300px] w-[300px] rounded-lg border border-transparent transition-colors",
                           draggingOverStatus === status && "border-primary ring-2 ring-primary bg-primary/10"
                         )}
-                        onDragOver={(e) => handleDragOver(e, status)}
-                        onDrop={(e) => handleDrop(e, status)}
-                        onDragLeave={handleDragLeave}
+                        onDragOver={(e) => handleColumnDragOver(e, status)}
+                        onDrop={(e) => handleColumnDrop(e, status)}
+                        onDragLeave={handleColumnDragLeave}
                       >
                         <div className={cn("p-2 rounded-t-lg font-semibold flex items-center justify-between", taskStatusColors[status])}>
                           {status}
@@ -691,23 +803,30 @@ export default function ProjectDetailPage() {
                           {tasks.filter(task => task.status === status).map(task => (
                             <Card 
                               key={task.id} 
-                              className="shadow-sm bg-card flex flex-col hover:shadow-md transition-shadow cursor-grab"
+                              className={cn(
+                                "shadow-sm bg-card flex flex-col hover:shadow-md transition-shadow cursor-grab",
+                                reorderTargetTaskId === task.id && "ring-2 ring-green-500"
+                               )}
                               draggable
-                              onDragStart={(e) => handleDragStart(e, task.id)}
+                              onDragStart={(e) => handleTaskCardDragStart(e, task)}
+                              onDragOver={(e) => handleTaskCardDragOver(e, task)}
+                              onDragLeave={handleTaskCardDragLeave}
+                              onDrop={(e) => handleTaskCardDrop(e, task)}
                             >
-                              <CardHeader className="p-3">
-                                <div className="flex items-start justify-between gap-2">
-                                  <CardTitle className="text-sm font-medium leading-tight flex items-center" style={{ paddingLeft: `${(task.parentId ? 1 : 0) * 1.25}rem` }}>
-                                    {task.parentId && <FolderGit2 className="mr-1.5 h-3 w-3 text-muted-foreground/70 flex-shrink-0" />}
-                                    {task.isMilestone && <Diamond className="mr-1.5 h-3 w-3 text-amber-500 flex-shrink-0" />}
-                                    {task.title}
-                                  </CardTitle>
-                                </div>
+                              <CardHeader className="p-3 flex items-start justify-between gap-2">
+                                  <div className="flex items-center">
+                                    <GripVertical className="h-4 w-4 mr-1.5 text-muted-foreground/50 cursor-grab flex-shrink-0" />
+                                    <CardTitle className="text-sm font-medium leading-tight flex items-center" style={{ paddingLeft: `${(task.parentId ? 1 : 0) * 0.5}rem` }}>
+                                        {task.parentId && <FolderGit2 className="mr-1.5 h-3 w-3 text-muted-foreground/70 flex-shrink-0" />}
+                                        {task.isMilestone && <Diamond className="mr-1.5 h-3 w-3 text-amber-500 flex-shrink-0" />}
+                                        {task.title}
+                                    </CardTitle>
+                                  </div>
                               </CardHeader>
                               <CardContent className="p-3 pt-0 text-xs flex-grow">
                                 <p className="text-muted-foreground">Assigned to: {task.assignedTo}</p>
                                 {task.startDate && <p className="text-muted-foreground mt-1">{task.isMilestone ? 'Date' : 'Starts'}: {format(parseISO(task.startDate), 'MMM d')}</p>}
-                                {!task.isMilestone && task.durationDays && <p className="text-muted-foreground">Duration: {task.durationDays}d</p>}
+                                {!task.isMilestone && task.durationDays !== undefined && <p className="text-muted-foreground">Duration: {task.durationDays}d</p>}
                                 {!task.isMilestone && task.progress !== undefined && 
                                   <div className="mt-1.5">
                                     <div className="flex justify-between text-muted-foreground text-[11px] mb-0.5"><span>Progress</span><span>{task.progress}%</span></div>
@@ -716,9 +835,9 @@ export default function ProjectDetailPage() {
                                 }
                               </CardContent>
                               <CardFooter className="p-3 border-t flex gap-2">
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1.5 h-3 w-3" /> View</Button>
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3 w-3" /> Edit</Button>
-                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3 w-3" /> Delete</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
                           ))}
