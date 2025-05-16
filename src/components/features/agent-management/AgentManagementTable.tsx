@@ -9,10 +9,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { MoreHorizontal, Edit3, Trash2, Copy, Play, PowerOff } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { useState, useEffect } from 'react'; // Added useState and useEffect
+import { useState, useEffect } from 'react';
 
 interface AgentManagementTableProps {
   agents: Agent[];
+  onEditAgent: (agent: Agent) => void; // Added prop for editing
 }
 
 const statusColors: { [key in Agent['status']]: string } = {
@@ -22,7 +23,7 @@ const statusColors: { [key in Agent['status']]: string } = {
   Stopped: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
 
-export default function AgentManagementTable({ agents }: AgentManagementTableProps) {
+export default function AgentManagementTable({ agents, onEditAgent }: AgentManagementTableProps) {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -85,7 +86,7 @@ export default function AgentManagementTable({ agents }: AgentManagementTablePro
                       <PowerOff className="mr-2 h-4 w-4" /> Stop Agent
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onEditAgent(agent)}> {/* Modified this line */}
                       <Edit3 className="mr-2 h-4 w-4" /> Edit Configuration
                     </DropdownMenuItem>
                     <DropdownMenuItem>

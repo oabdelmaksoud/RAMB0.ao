@@ -1,3 +1,4 @@
+
 'use client';
 
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
@@ -5,6 +6,7 @@ import type { Agent } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { SlidersHorizontal } from 'lucide-react';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
+import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog'; // Added import
 import { useState } from 'react';
 
 const initialMockAgents: Agent[] = [
@@ -18,6 +20,8 @@ const initialMockAgents: Agent[] = [
 
 export default function AgentManagementPage() {
   const [agents, setAgents] = useState<Agent[]>(initialMockAgents);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
 
   const handleAddAgent = (newAgentData: Omit<Agent, 'id' | 'lastActivity' | 'status'>) => {
     const newAgent: Agent = {
@@ -27,6 +31,21 @@ export default function AgentManagementPage() {
       lastActivity: new Date().toISOString(),
     };
     setAgents(prevAgents => [newAgent, ...prevAgents]);
+  };
+
+  const handleOpenEditDialog = (agent: Agent) => {
+    setEditingAgent(agent);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateAgent = (updatedAgent: Agent) => {
+    setAgents(prevAgents => 
+      prevAgents.map(agent => 
+        agent.id === updatedAgent.id ? updatedAgent : agent
+      )
+    );
+    setIsEditDialogOpen(false);
+    setEditingAgent(null);
   };
 
   return (
@@ -44,7 +63,16 @@ export default function AgentManagementPage() {
         <AddAgentDialog onAddAgent={handleAddAgent} />
       </PageHeader>
 
-      <AgentManagementTable agents={agents} />
+      <AgentManagementTable agents={agents} onEditAgent={handleOpenEditDialog} />
+
+      {editingAgent && (
+        <EditAgentDialog
+          agent={editingAgent}
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          onUpdateAgent={handleUpdateAgent}
+        />
+      )}
     </div>
   );
 }
