@@ -13,24 +13,28 @@ export interface Agent {
   logs?: string[];
 }
 
-export interface WorkflowNodeData {
+export interface WorkflowNode { // Renamed from WorkflowNodeData and made more specific for canvas
   id: string;
-  type: string; // e.g., 'CodeReviewAgent', 'NotificationAgent'
-  label: string;
-  config?: Record<string, any>;
+  name: string; // Typically the agent type or a user-defined name for the node
+  type: string; // Agent type from palette
+  x: number;
+  y: number;
+  config?: Record<string, any>; // For node-specific configurations later
 }
 
-export interface WorkflowEdgeData {
+export interface WorkflowEdgeData { // Kept for potential future use with connections
   id: string;
   source: string;
   target: string;
 }
 
-export interface Workflow {
+export interface ProjectWorkflow {
   id: string;
   name: string;
-  nodes: WorkflowNodeData[];
-  edges: WorkflowEdgeData[];
+  description: string;
+  status: 'Active' | 'Inactive' | 'Draft';
+  lastRun?: string; // ISO Date string
+  nodes?: WorkflowNode[]; // Stores the visual design of the workflow
 }
 
 export interface Project {
@@ -39,19 +43,14 @@ export interface Project {
   description: string;
   status: 'Active' | 'On Hold' | 'Completed' | 'Archived';
   lastUpdated: string; // ISO date string or human-readable
-  thumbnailUrl?: string; 
+  thumbnailUrl?: string;
   agentCount?: number;
   workflowCount?: number;
 }
 
-// Moved Task interface here to be globally accessible if needed,
-// or it can stay within [projectId]/page.tsx if only used there.
-// For now, keeping it in [projectId]/page.tsx to avoid potential circular dependencies
-// if other types might reference it later. If it needs to be shared, move it here.
-// export interface Task {
-//   id: string;
-//   title: string;
-//   status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
-//   assignedTo: string;
-// }
-
+export interface Task {
+  id: string;
+  title: string;
+  status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
+  assignedTo: string;
+}

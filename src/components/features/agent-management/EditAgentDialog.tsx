@@ -43,6 +43,7 @@ interface EditAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateAgent: (agent: Agent) => void;
+  projectId?: string; // Optional projectId for project-specific context
 }
 
 const agentTypes = [
@@ -57,7 +58,7 @@ const agentTypes = [
   "Custom Logic Agent",
 ];
 
-export default function EditAgentDialog({ agent, open, onOpenChange, onUpdateAgent }: EditAgentDialogProps) {
+export default function EditAgentDialog({ agent, open, onOpenChange, onUpdateAgent, projectId }: EditAgentDialogProps) {
   const { toast } = useToast();
   
   const form = useForm<AgentFormData>({
@@ -70,16 +71,16 @@ export default function EditAgentDialog({ agent, open, onOpenChange, onUpdateAge
   });
 
   useEffect(() => {
-    if (agent) {
+    if (agent && open) { // Ensure form resets only when dialog is open and agent is present
       form.reset({
         name: agent.name,
         type: agent.type,
         configString: agent.config ? JSON.stringify(agent.config, null, 2) : "{}",
       });
-    } else {
+    } else if (!open) { // Reset if dialog is closed without submission
       form.reset({ name: "", type: "", configString: "{}" });
     }
-  }, [agent, form, open]); // Added open to dependency array to reset form if agent changes while dialog is open (e.g. quick edit another)
+  }, [agent, form, open]);
 
   const onSubmit: SubmitHandler<AgentFormData> = (data) => {
     if (!agent) return;
@@ -108,10 +109,10 @@ export default function EditAgentDialog({ agent, open, onOpenChange, onUpdateAge
     onUpdateAgent(updatedAgent);
     
     toast({
-      title: "Agent Updated",
+      title: projectId ? "Project Agent Updated" : "Agent Updated",
       description: `Agent "${data.name}" has been updated.`,
     });
-    onOpenChange(false); // Close dialog on successful update
+    onOpenChange(false); 
   };
 
   if (!agent) return null;
@@ -119,13 +120,10 @@ export default function EditAgentDialog({ agent, open, onOpenChange, onUpdateAge
   return (
     <Dialog open={open} onOpenChange={(isOpen) => {
       onOpenChange(isOpen);
-      if (!isOpen) {
-        form.reset({ name: "", type: "", configString: "{}"}); // Reset form when dialog is closed by clicking outside or X
-      }
     }}>
       <DialogContent className="sm:max-w-[525px]">
         <DialogHeader>
-          <DialogTitle>Edit Agent: {agent.name}</DialogTitle>
+          <DialogTitle>Edit Agent: {agent.name} {projectId ? `(Project-Scoped)` : ''}</DialogTitle>
           <DialogDescription>
             Update the configuration for this agent.
           </DialogDescription>
@@ -187,7 +185,6 @@ export default function EditAgentDialog({ agent, open, onOpenChange, onUpdateAge
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => {
                 onOpenChange(false);
-                // form.reset(); // useEffect handles reset better based on 'agent' and 'open'
               }}>Cancel</Button>
               <Button type="submit">Save Changes</Button>
             </DialogFooter>

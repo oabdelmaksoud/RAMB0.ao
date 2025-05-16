@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project } from '@/types';
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types'; // Added WorkflowNode
 import { mockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +33,6 @@ import Link from 'next/link';
 
 // Agent Management Imports
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
-import type { Agent } from '@/types';
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
 import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
 
@@ -61,20 +60,7 @@ export const taskStatusColors: { [key: string]: string } = {
   'Blocked': 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border-red-300 dark:border-red-700',
 };
 
-export interface Task {
-  id: string;
-  title: string;
-  status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
-  assignedTo: string;
-}
-
-interface ProjectWorkflow {
-  id: string;
-  name: string;
-  description: string;
-  status: 'Active' | 'Inactive' | 'Draft';
-  lastRun?: string; // ISO Date string
-}
+// Task interface moved to types/index.ts
 
 const initialProjectScopedMockAgents: Agent[] = [
   { id: 'proj-agent-init-001', name: 'Project Kickstart Analyzer', type: 'Analysis Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { scope: 'initial_setup', autoRun: false } },
@@ -92,7 +78,7 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
   Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
 };
 
-const predefinedWorkflows: Omit<ProjectWorkflow, 'id'>[] = [
+const predefinedWorkflows: Omit<ProjectWorkflow, 'id' | 'nodes'>[] = [
   {
     name: "Software Development Lifecycle",
     description: "A standard workflow for planning, developing, testing, and deploying software features.",
@@ -121,6 +107,8 @@ export default function ProjectDetailPage() {
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
+  const [isEditTaskPlaceholderDialogOpen, setIsEditTaskPlaceholderDialogOpen] = useState(false);
+
 
   const { toast } = useToast();
 
@@ -134,13 +122,11 @@ export default function ProjectDetailPage() {
   // State for Project Workflows
   const [projectWorkflows, setProjectWorkflows] = useState<ProjectWorkflow[]>([]);
   const [isAddWorkflowDialogOpen, setIsAddWorkflowDialogOpen] = useState(false);
-  const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null); // New state for active workflow design
+  const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null);
 
 
   const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
   const [isCreateProjectAgentDialogOpen, setIsCreateProjectAgentDialogOpen] = useState(false);
-  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
-  const [selectedWorkflowForDialog, setSelectedWorkflowForDialog] = useState<ProjectWorkflow | null>(null);
 
 
   useEffect(() => {
@@ -189,18 +175,18 @@ export default function ProjectDetailPage() {
           setProjectWorkflows(JSON.parse(storedWorkflows));
         } catch (error) {
           console.error(`Failed to parse workflows for project ${projectId} from localStorage`, error);
-          // Initialize with predefined workflows if parsing fails for some reason
            const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
             ...wf,
             id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
+            nodes: [],
           }));
           setProjectWorkflows(defaultWorkflowsWithIds);
         }
       } else {
-        // No stored workflows, initialize with predefined ones
         const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
             ...wf,
             id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
+            nodes: [],
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
       }
@@ -319,6 +305,10 @@ export default function ProjectDetailPage() {
       lastActivity: new Date().toISOString(),
     };
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
+    toast({
+      title: `Agent "${newAgentData.name}" Added to Project`,
+      description: `The agent has been added to project "${project?.name}".`,
+    });
   };
 
   const handleOpenEditAgentDialog = (agent: Agent) => {
@@ -390,6 +380,7 @@ export default function ProjectDetailPage() {
       description: workflowData.description,
       status: 'Draft',
       lastRun: undefined,
+      nodes: [], // Initialize with empty nodes
     };
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
     setIsAddWorkflowDialogOpen(false);
@@ -401,13 +392,20 @@ export default function ProjectDetailPage() {
   };
 
   const handleCloseWorkflowDesigner = () => {
+    // Nodes are saved via onNodesChange callback from WorkflowCanvas
+    toast({ title: "Workflow Design Closed", description: `Stopped designing workflow: "${designingWorkflow?.name}". Changes are saved automatically.`});
     setDesigningWorkflow(null);
-    toast({ title: "Workflow Designer Closed", description: `Stopped designing workflow: "${designingWorkflow?.name}". Changes are not saved yet.`});
   };
 
-  const handleOpenViewEditWorkflowDialog = (workflow: ProjectWorkflow) => {
-    setSelectedWorkflowForDialog(workflow);
-    setIsViewEditWorkflowDialogOpen(true);
+  const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
+    if (designingWorkflow) {
+      setProjectWorkflows(prevWorkflows =>
+        prevWorkflows.map(wf =>
+          wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
+        )
+      );
+      // The useEffect for projectWorkflows will handle saving to localStorage
+    }
   };
 
 
@@ -514,7 +512,7 @@ export default function ProjectDetailPage() {
                       <CardContent className="p-4 pt-0 text-sm flex-grow"><p className="text-muted-foreground">Assigned to: {task.assignedTo}</p></CardContent>
                       <CardFooter className="p-4 border-t flex gap-2">
                         <Button variant="outline" size="sm" className="text-xs flex-1" disabled><Eye className="mr-1.5 h-3.5 w-3.5" /> View</Button>
-                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
+                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => { setEditingTask(task); setIsEditTaskPlaceholderDialogOpen(true); }}><Edit2 className="mr-1.5 h-3.5 w-3.5" /> Edit</Button>
                         <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1.5 h-3.5 w-3.5" /> Delete</Button>
                       </CardFooter>
                     </Card>
@@ -619,7 +617,7 @@ export default function ProjectDetailPage() {
               </div>
               <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1">
                   <WorkflowPalette />
-                  <WorkflowCanvas />
+                  <WorkflowCanvas initialNodes={designingWorkflow.nodes || []} onNodesChange={handleWorkflowNodesChange} />
               </div>
             </div>
           )}
@@ -639,7 +637,7 @@ export default function ProjectDetailPage() {
 
       </Tabs>
       <AddTaskDialog open={isAddTaskDialogOpen} onOpenChange={setIsAddTaskDialogOpen} onAddTask={handleAddTask} />
-      {editingTask && (
+      {editingTask && !isEditTaskPlaceholderDialogOpen && (
         <EditTaskDialog
           open={isEditTaskDialogOpen}
           onOpenChange={(isOpen) => {
@@ -650,6 +648,19 @@ export default function ProjectDetailPage() {
           onUpdateTask={handleUpdateTask}
         />
       )}
+       <AlertDialog open={isEditTaskPlaceholderDialogOpen} onOpenChange={setIsEditTaskPlaceholderDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Task: {editingTask?.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              This feature will allow you to modify task details. Coming soon!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsEditTaskPlaceholderDialogOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <AddWorkflowDialog open={isAddWorkflowDialogOpen} onOpenChange={setIsAddWorkflowDialogOpen} onAddWorkflow={handleAddProjectWorkflow} />
 
       {editingAgent && (
@@ -658,6 +669,7 @@ export default function ProjectDetailPage() {
           open={isEditAgentDialogOpen}
           onOpenChange={setIsEditAgentDialogOpen}
           onUpdateAgent={handleUpdateProjectAgent}
+          projectId={projectId}
         />
       )}
 
@@ -723,21 +735,6 @@ export default function ProjectDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <AlertDialog open={isViewEditWorkflowDialogOpen} onOpenChange={setIsViewEditWorkflowDialogOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>View/Edit Workflow: {selectedWorkflowForDialog?.name}</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Clicking this would normally open the workflow designer (palette and canvas) pre-loaded with the nodes and connections for "{selectedWorkflowForDialog?.name}".
-                    Currently, this step is a placeholder. The full implementation for saving and loading individual workflow designs is pending.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogAction onClick={() => setIsViewEditWorkflowDialogOpen(false)}>OK</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
 
     </div>
   );
