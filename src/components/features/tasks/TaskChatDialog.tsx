@@ -9,14 +9,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
+  // DialogFooter, // Removed as per previous change
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { taskChatFlow, type TaskChatInput, type TaskChatOutput } from '@/ai/flows/task-chat-flow';
+import { useToast } from '@/hooks/use-toast';
 
 interface TaskChatDialogProps {
   open: boolean;
@@ -31,40 +33,31 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-const agentResponses = [
-  "I'm on it! Will update you shortly.",
-  "Noted. I'll incorporate this into the current plan.",
-  "Understood. Processing this request.",
-  "Thanks for the input. I'm adjusting the parameters now.",
-  "Acknowledged. I'll get back to you with the results.",
-  "Working on that right now. Expect an update soon.",
-  "That's a good point. Let me analyze that further.",
-];
-
 export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDialogProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [isAgentReplying, setIsAgentReplying] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
-    // Initialize with a welcome message from the agent if the dialog is opened for a task
     if (open && task) {
       setMessages([
         {
           id: `agent-welcome-${Date.now()}`,
           sender: 'agent',
-          text: `Hello! I'm the agent assigned to "${task.title}". How can I assist you today?`,
+          text: `Hello! I'm the AI assistant for task "${task.title}". How can I help you today?`,
           timestamp: new Date(),
         },
       ]);
-      setNewMessage(''); // Clear input field when dialog opens
+      setNewMessage('');
+      setIsAgentReplying(false);
     } else if (!open) {
-      setMessages([]); // Clear messages when dialog closes
+      setMessages([]);
     }
   }, [open, task]);
 
   useEffect(() => {
-    // Scroll to bottom when new messages are added
     if (scrollAreaRef.current) {
       const scrollViewport = scrollAreaRef.current.querySelector('div[data-radix-scroll-area-viewport]');
       if (scrollViewport) {
@@ -73,31 +66,57 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
     }
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !task) return;
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !task || isAgentReplying) return;
 
+    const userMessageText = newMessage.trim();
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text: newMessage.trim(),
+      text: userMessageText,
       timestamp: new Date(),
     };
 
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
     setNewMessage('');
+    setIsAgentReplying(true);
 
-    // Simulate agent reply
-    setTimeout(() => {
-      const randomResponse = agentResponses[Math.floor(Math.random() * agentResponses.length)];
+    try {
+      const flowInput: TaskChatInput = {
+        taskId: task.id,
+        taskTitle: task.title,
+        taskDescription: task.description || "No description provided.",
+        taskStatus: task.status,
+        userMessage: userMessageText,
+      };
+      
+      const result: TaskChatOutput = await taskChatFlow(flowInput);
+      
       const agentReply: ChatMessage = {
         id: `agent-${Date.now()}`,
         sender: 'agent',
-        text: randomResponse,
+        text: result.agentResponse,
         timestamp: new Date(),
       };
       setMessages((prevMessages) => [...prevMessages, agentReply]);
-    }, 1000 + Math.random() * 1000); // Random delay for reply
+
+    } catch (error) {
+      console.error("Error calling taskChatFlow:", error);
+      const errorReply: ChatMessage = {
+        id: `agent-error-${Date.now()}`,
+        sender: 'agent',
+        text: "I'm sorry, I encountered an issue trying to respond. Please try again later.",
+        timestamp: new Date(),
+      };
+      setMessages((prevMessages) => [...prevMessages, errorReply]);
+      toast({
+        title: "Chat Error",
+        description: "Could not get a response from the AI assistant.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAgentReplying(false);
+    }
   };
 
   if (!task) return null;
@@ -108,7 +127,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
         <DialogHeader>
           <DialogTitle>Chat for: {task.title}</DialogTitle>
           <DialogDescription>
-            Interact with the agent team working on this task. Assigned to: {task.assignedTo}.
+            Interact with the AI assistant for this task. Assigned to: {task.assignedTo}.
           </DialogDescription>
         </DialogHeader>
 
@@ -135,7 +154,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
                       : 'bg-muted text-muted-foreground'
                   )}
                 >
-                  <p className="break-words">{msg.text}</p>
+                  <p className="break-words whitespace-pre-wrap">{msg.text}</p>
                   <p className={cn(
                       "text-xs opacity-70 mt-1",
                       msg.sender === 'user' ? 'text-right text-primary-foreground/80' : 'text-left text-muted-foreground/80'
@@ -151,6 +170,19 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
                 )}
               </div>
             ))}
+             {isAgentReplying && (
+              <div className="flex items-start gap-3 justify-start">
+                <Avatar className="h-8 w-8 border border-primary/50">
+                  <AvatarFallback><Bot className="h-4 w-4 text-primary" /></AvatarFallback>
+                </Avatar>
+                <div className="max-w-[70%] rounded-lg px-3 py-2 text-sm shadow-sm bg-muted text-muted-foreground">
+                  <div className="flex items-center">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    <span>Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </ScrollArea>
 
@@ -160,23 +192,19 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyPress={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !isAgentReplying) {
                 e.preventDefault();
                 handleSendMessage();
               }
             }}
             rows={1}
             className="min-h-[40px] resize-none flex-grow"
+            disabled={isAgentReplying}
           />
-          <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
-            Send
+          <Button onClick={handleSendMessage} disabled={!newMessage.trim() || isAgentReplying}>
+            {isAgentReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
           </Button>
         </div>
-        
-        {/* Footer is removed to maximize chat area within fixed dialog height */}
-        {/* <DialogFooter className="mt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
-        </DialogFooter> */}
       </DialogContent>
     </Dialog>
   );
