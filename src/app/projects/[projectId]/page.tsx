@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2 } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project, Agent } from '@/types'; 
@@ -104,7 +104,7 @@ export default function ProjectDetailPage() {
   
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
-  const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false); // For placeholder edit dialog
+  const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false); 
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
   
@@ -198,7 +198,6 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenEditTaskDialog = (task: Task) => {
-    // For now, this just opens a placeholder "coming soon" dialog
     setIsEditTaskDialogOpen(true);
   };
 
@@ -446,7 +445,7 @@ export default function ProjectDetailPage() {
                 <div className="lg:w-1/4 min-w-[280px] max-w-full lg:max-w-[320px]">
                     <WorkflowPalette />
                 </div>
-                <div className="flex-grow h-[600px] lg:h-auto min-h-[400px] border rounded-lg p-1"> {/* Added p-1 to canvas parent */}
+                <div className="flex-grow h-[600px] lg:h-auto min-h-[400px] border rounded-lg p-1"> 
                     <WorkflowCanvas />
                 </div>
             </div>
