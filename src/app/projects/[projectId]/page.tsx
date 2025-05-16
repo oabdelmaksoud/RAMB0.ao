@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare } from 'lucide-react'; // Added MessageSquare
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, DragEvent as ReactDragEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -45,7 +45,7 @@ import AddWorkflowDialog from '@/components/features/projects/AddWorkflowDialog'
 import AgentConfigForm from '@/components/features/ai-suggestions/AgentConfigForm';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import ProjectGanttChartView from '@/components/features/projects/ProjectGanttChartView';
-import TaskChatDialog from '@/components/features/tasks/TaskChatDialog'; // New Import
+import TaskChatDialog from '@/components/features/tasks/TaskChatDialog';
 
 
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -241,7 +241,6 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (isClient && projectId && (tasks.length > 0 || localStorage.getItem(getTasksStorageKey(projectId)) !== null )) {
-      console.log(`PROJECT_DETAIL_PAGE: Saving tasks to localStorage for project ${projectId}`, tasks);
       localStorage.setItem(getTasksStorageKey(projectId), JSON.stringify(tasks));
     }
   }, [tasks, projectId, isClient]);
@@ -251,7 +250,6 @@ export default function ProjectDetailPage() {
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
-                console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] })));
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
@@ -267,21 +265,17 @@ export default function ProjectDetailPage() {
 
  useEffect(() => {
     if (designingWorkflow && projectWorkflows) {
-      console.log("PROJECT_DETAIL_PAGE: projectWorkflows changed. Current designingWorkflow ID:", designingWorkflow.id);
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        console.log("PROJECT_DETAIL_PAGE: Found updated instance of designingWorkflow. Old nodes:", designingWorkflow.nodes, "New nodes:", updatedDesigningWorkflowInstance.nodes);
          if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) ||
              JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges)) {
-            console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state with new instance from projectWorkflows.");
             setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
-      } else if (designingWorkflow) { // Current designing workflow was deleted
-          console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow was deleted, resetting designingWorkflow state.");
+      } else if (designingWorkflow) { 
           setDesigningWorkflow(null); 
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]); // Only re-run if designingWorkflow.id changes or projectWorkflows changes.
+  }, [projectWorkflows, designingWorkflow?.id]); 
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -487,27 +481,18 @@ export default function ProjectDetailPage() {
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) {
-        console.error("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but designingWorkflow is null.");
         return;
     }
-    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n => n.id).join(', ')}`);
-    console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
-
     setProjectWorkflows(prevWorkflows => {
-        console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-            console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id}, Nodes count: ${wf.nodes?.length}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ')}`);
-        });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow, setProjectWorkflows]); // Removed projectWorkflows from dependencies
+  }, [designingWorkflow]); 
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
@@ -518,7 +503,7 @@ export default function ProjectDetailPage() {
             )
         );
     }
-  }, [designingWorkflow, setProjectWorkflows]);
+  }, [designingWorkflow]);
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -569,7 +554,6 @@ export default function ProjectDetailPage() {
         progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : (taskToMove.progress || 0))),
       };
       let updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
-       // Move to end of the new status group
       const taskToReorder = updatedTasks.find(t => t.id === draggedTaskId)!;
       updatedTasks = updatedTasks.filter(t => t.id !== draggedTaskId);
       updatedTasks.push(taskToReorder);
@@ -579,13 +563,13 @@ export default function ProjectDetailPage() {
         title: "Task Status Updated",
         description: `Task "${updatedTask.title}" moved to "${newStatus}".`,
       });
-    } else { // Dropped in the same column's empty space
+    } else { 
          setTasks(prevTasks => {
             const taskToReorder = prevTasks.find(t => t.id === draggedTaskId);
             if (!taskToReorder) return prevTasks;
 
             let newTasksArray = prevTasks.filter(t => t.id !== draggedTaskId);
-            newTasksArray.push(taskToReorder); // Move to end
+            newTasksArray.push(taskToReorder); 
 
             if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(newTasksArray.map(t=>t.id))) {
                  toast({
@@ -1127,7 +1111,5 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
-    
 
     
