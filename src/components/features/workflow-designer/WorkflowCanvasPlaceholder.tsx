@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, DragEvent, useRef, useEffect } from 'react';
+import { DragEvent, useRef } from 'react'; // Removed useState and useEffect as they are no longer needed for internal state
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDashed, Hand } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -16,18 +16,14 @@ const agentIcons: { [key: string]: LucideIcon } = {
 };
 
 interface WorkflowCanvasProps {
-  initialNodes?: WorkflowNode[];
+  nodes?: WorkflowNode[]; // Changed from initialNodes; this is the source of truth
   onNodesChange?: (nodes: WorkflowNode[]) => void;
 }
 
-export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: WorkflowCanvasProps) {
-  const [droppedAgents, setDroppedAgents] = useState<WorkflowNode[]>(initialNodes);
+export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    console.log("CANVAS: Initializing or initialNodes prop changed:", initialNodes);
-    setDroppedAgents(initialNodes);
-  }, [initialNodes]);
+  // Removed internal droppedAgents state: const [droppedAgents, setDroppedAgents] = useState<WorkflowNode[]>(initialNodes);
+  // Removed useEffect syncing initialNodes to droppedAgents
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault(); 
@@ -35,6 +31,7 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    console.count('CANVAS: handleDrop invoked');
     event.preventDefault(); 
     console.log('CANVAS: Drop event triggered.');
 
@@ -82,19 +79,15 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
     };
     console.log('CANVAS: New agent node to add:', newAgentNode);
 
-    setDroppedAgents((prevNodes) => {
-      const newNodes = [...prevNodes, newAgentNode];
-      console.log('CANVAS: Successfully updated droppedAgents state. New count:', newNodes.length, newNodes);
-      if (onNodesChange) {
-        console.log('CANVAS: Scheduling onNodesChange callback via setTimeout.');
-        // Defer the call to onNodesChange to prevent updating parent during child's render cycle
-        setTimeout(() => {
-            console.log('CANVAS: Executing onNodesChange callback via setTimeout.');
-            onNodesChange(newNodes);
-        }, 0);
-      }
-      return newNodes;
-    });
+    if (onNodesChange) {
+      const newNodesArray = [...nodes, newAgentNode]; // Create new array based on 'nodes' prop
+      console.log('CANVAS: Scheduling onNodesChange with newNodesArray:', newNodesArray);
+      // Defer the call to onNodesChange to prevent updating parent during child's render cycle
+      setTimeout(() => {
+          console.log('CANVAS: Executing onNodesChange callback via setTimeout.');
+          onNodesChange(newNodesArray);
+      }, 0);
+    }
   };
 
   const AgentIcon = ({ type }: { type: string }) => {
@@ -109,7 +102,7 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {droppedAgents.length === 0 && (
+      {nodes.length === 0 && ( // Use 'nodes' prop here
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none">
             <div className="flex items-center justify-center gap-4 mb-6">
               <MousePointerSquareDashed className="h-12 w-12 text-muted-foreground/70" />
@@ -121,7 +114,7 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
             </p>
         </div>
       )}
-      {droppedAgents.map((agentNode) => (
+      {nodes.map((agentNode) => ( // Use 'nodes' prop here
         <Card
           key={agentNode.id}
           className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center"
@@ -136,3 +129,4 @@ export default function WorkflowCanvas({ initialNodes = [], onNodesChange }: Wor
     </div>
   );
 }
+

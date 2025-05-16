@@ -5,8 +5,8 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types'; // Added WorkflowNode
-import { initialMockProjects } from '@/app/projects/page'; // Use initialMockProjects as ultimate fallback
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types';
+import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -106,7 +106,6 @@ export default function ProjectDetailPage() {
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
-  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
 
 
   const { toast } = useToast();
@@ -130,7 +129,10 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     setIsClient(true);
-    if (!projectId || !isClient) return; // Ensure projectId and client status are ready
+  }, []);
+
+  useEffect(() => {
+    if (!projectId || !isClient) return;
 
     const storedProjectsJSON = localStorage.getItem(PROJECTS_STORAGE_KEY);
     const allProjects: Project[] = storedProjectsJSON ? JSON.parse(storedProjectsJSON) : initialMockProjects;
@@ -313,10 +315,7 @@ export default function ProjectDetailPage() {
       lastActivity: new Date().toISOString(),
     };
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
-    toast({
-      title: `Agent "${newAgentData.name}" Added to Project`,
-      description: `The agent has been added to project "${project?.name}".`,
-    });
+    // Toast is handled by AddAgentDialog now for better context
   };
 
   const handleOpenEditAgentDialog = (agent: Agent) => {
@@ -332,7 +331,7 @@ export default function ProjectDetailPage() {
     );
     setIsEditAgentDialogOpen(false);
     setEditingAgent(null);
-    toast({ title: "Project Agent Updated", description: `Agent "${updatedAgent.name}" configuration saved for project "${project?.name}".` });
+    // Toast is handled by EditAgentDialog
   };
 
   const handleRunProjectAgent = (agentId: string) => {
@@ -412,7 +411,6 @@ export default function ProjectDetailPage() {
           wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
         )
       );
-      // The useEffect for projectWorkflows will handle saving to localStorage
     }
   };
 
@@ -438,7 +436,14 @@ export default function ProjectDetailPage() {
         <div className="flex items-start sm:items-center space-x-4">
            {project.thumbnailUrl && (
             <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border shadow-md hidden sm:block">
-              <Image src={project.thumbnailUrl} alt={`${project.name} thumbnail`} fill style={{ objectFit: 'cover' }} data-ai-hint="project abstract" />
+              <Image 
+                src={project.thumbnailUrl} 
+                alt={`${project.name} thumbnail`} 
+                fill 
+                sizes="(min-width: 640px) 96px, 80px"
+                style={{ objectFit: 'cover' }} 
+                data-ai-hint="project abstract" 
+              />
             </div>
           )}
           <div>
@@ -593,6 +598,9 @@ export default function ProjectDetailPage() {
                                           <p className="text-muted-foreground text-xs">
                                               Last Run: {workflow.lastRun ? formatDate(workflow.lastRun, { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' }) : 'Never'}
                                           </p>
+                                          <p className="text-muted-foreground text-xs mt-1">
+                                              Nodes: {workflow.nodes ? workflow.nodes.length : 0}
+                                          </p>
                                       </CardContent>
                                       <CardFooter className="p-4 border-t flex gap-2">
                                           <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenWorkflowDesigner(workflow)}><Eye className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
@@ -625,7 +633,7 @@ export default function ProjectDetailPage() {
               </div>
               <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1">
                   <WorkflowPalette />
-                  <WorkflowCanvas initialNodes={designingWorkflow.nodes || []} onNodesChange={handleWorkflowNodesChange} />
+                  <WorkflowCanvas nodes={designingWorkflow.nodes || []} onNodesChange={handleWorkflowNodesChange} />
               </div>
             </div>
           )}
@@ -735,3 +743,4 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
