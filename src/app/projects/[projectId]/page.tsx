@@ -166,28 +166,22 @@ export default function ProjectDetailPage() {
       const storedTasks = localStorage.getItem(tasksStorageKey);
       const today = startOfDay(new Date());
 
+      const initialMockTasksForProject: Task[] = [
+        { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null },
+        { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null, dependencies: [`${projectId}-task-1`] },
+        { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2` },
+        { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null, dependencies: [`${projectId}-task-2`] },
+        { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null },
+      ];
+
       if (storedTasks) {
         try {
           setTasks(JSON.parse(storedTasks));
         } catch (error) {
           console.error(`Failed to parse tasks for project ${projectId} from localStorage`, error);
-          const initialMockTasksForProject: Task[] = [
-            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null },
-            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null },
-            { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2` },
-            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null },
-            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null },
-          ];
           setTasks(initialMockTasksForProject);
         }
       } else {
-        const initialMockTasksForProject: Task[] = [
-            { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null },
-            { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null },
-            { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2` },
-            { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null },
-            { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null },
-        ];
         setTasks(initialMockTasksForProject);
       }
 
@@ -267,12 +261,14 @@ export default function ProjectDetailPage() {
       if (updatedDesigningWorkflowInstance && 
           (updatedDesigningWorkflowInstance.nodes !== designingWorkflow.nodes || 
            updatedDesigningWorkflowInstance.edges !== designingWorkflow.edges)) {
+          // console.log('PROJECT_DETAIL_PAGE: Updating designingWorkflow instance from projectWorkflows change');
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
       } else if (!updatedDesigningWorkflowInstance && designingWorkflow) { 
+        // console.log('PROJECT_DETAIL_PAGE: designingWorkflow instance no longer in projectWorkflows, clearing designingWorkflow');
         setDesigningWorkflow(null);
       }
     }
-  }, [projectWorkflows, designingWorkflow]);
+  }, [projectWorkflows, designingWorkflow?.id]);
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -292,7 +288,7 @@ export default function ProjectDetailPage() {
       progress: taskData.isMilestone ? (taskData.status === 'Done' ? 100 : 0) : (taskData.progress || 0),
       durationDays: taskData.isMilestone ? 0 : (taskData.durationDays || 1),
       status: taskData.isMilestone ? (taskData.status === 'Done' ? 'Done' : 'To Do') : taskData.status,
-      parentId: taskData.parentId || null,
+      parentId: taskData.parentId === "" ? null : taskData.parentId,
     };
 
     let autoStarted = false;
@@ -346,9 +342,9 @@ export default function ProjectDetailPage() {
     const taskToUpdate: Task = {
         ...updatedTaskData,
         durationDays: updatedTaskData.isMilestone ? 0 : (updatedTaskData.durationDays === undefined ? 1 : updatedTaskData.durationDays),
-        progress: updatedTaskData.isMilestone ? (updatedTaskData.status === 'Done' ? 100 : 0) : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress),
-        status: updatedTaskData.isMilestone ? (updatedTaskData.status === 'Done' ? 'Done' : 'To Do') : updatedTaskData.status,
-        parentId: updatedTaskData.parentId || null,
+        progress: updatedTaskData.isMilestone ? (updatedTaskData.status === 'Done' ? 100 : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress)) : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress),
+        status: updatedTaskData.isMilestone ? (updatedTaskData.progress === 100 ? 'Done' : 'To Do') : updatedTaskData.status,
+        parentId: updatedTaskData.parentId === "" ? null : updatedTaskData.parentId,
     }
     
     setTasks(prevTasks => prevTasks.map(task => task.id === taskToUpdate.id ? taskToUpdate : task));
@@ -491,7 +487,7 @@ export default function ProjectDetailPage() {
       // });
       return newWorkflowsArray;
     });
-  }, [designingWorkflow]);
+  }, [designingWorkflow, setProjectWorkflows]);
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
      if (designingWorkflow) {
@@ -502,7 +498,7 @@ export default function ProjectDetailPage() {
             )
         );
     }
-  }, [designingWorkflow]);
+  }, [designingWorkflow, setProjectWorkflows]);
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -515,6 +511,9 @@ export default function ProjectDetailPage() {
       toast({ title: "Workflow Deleted", description: `Workflow "${workflowToDelete.name}" has been deleted from project "${project?.name}".`, variant: 'destructive' });
       setWorkflowToDelete(null);
       setIsDeleteWorkflowDialogOpen(false);
+      if (designingWorkflow && designingWorkflow.id === workflowToDelete.id) {
+        setDesigningWorkflow(null); // Close designer if the deleted workflow was being designed
+      }
     }
   };
 
