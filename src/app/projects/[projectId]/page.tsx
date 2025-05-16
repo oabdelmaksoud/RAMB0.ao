@@ -269,14 +269,14 @@ export default function ProjectDetailPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {tasks.length > 0 ? (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {tasks.map(task => (
-                    <li key={task.id} className="p-3 border rounded-md bg-background hover:bg-accent/50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <h5 className="font-medium text-sm">{task.title}</h5>
-                        <Badge variant="outline" className={cn("text-xs capitalize", taskStatusColors[task.status])}>{task.status}</Badge>
+                    <li key={task.id} className="p-3 border rounded-md bg-background hover:bg-accent/50 transition-colors shadow-sm">
+                      <div className="flex items-start justify-between">
+                        <h5 className="font-medium text-sm mb-1">{task.title}</h5>
+                        <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap", taskStatusColors[task.status])}>{task.status}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">Assigned to: {task.assignedTo}</p>
+                      <p className="text-xs text-muted-foreground">Assigned to: {task.assignedTo}</p>
                     </li>
                   ))}
                 </ul>
@@ -301,10 +301,12 @@ export default function ProjectDetailPage() {
                 create new project-specific agent instances, and manage their configurations within the context of "{project.name}".
                 Think of it as your project's dedicated AI team, ready to automate tasks.
               </p>
-              {/* Placeholder for agent list component filtered by project */}
                <div className="text-center py-6">
                 <Bot className="mx-auto h-12 w-12 text-muted-foreground/50" />
                 <p className="mt-2 text-sm text-muted-foreground">Agent association functionality coming soon.</p>
+                <p className="text-xs text-muted-foreground/80 mt-1">
+                  (e.g., Link agents from Agent Management or view project-specific instances)
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -323,10 +325,12 @@ export default function ProjectDetailPage() {
                 Here, you'll find all automated workflows relevant to this project. You will be able to design new workflows using project-specific agents,
                 trigger existing workflows, and monitor the status and logs of ongoing automated processes. This is where you orchestrate your agents to achieve project goals.
               </p>
-              {/* Placeholder for workflow list/designer component scoped to project */}
                <div className="text-center py-6">
                 <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50" />
                 <p className="mt-2 text-sm text-muted-foreground">Workflow design and management features for projects are under development.</p>
+                <p className="text-xs text-muted-foreground/80 mt-1">
+                  (e.g., View workflows utilizing this project's agents or resources)
+                </p>
               </div>
             </CardContent>
           </Card>
