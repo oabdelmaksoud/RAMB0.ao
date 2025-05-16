@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Project } from '@/types'; 
@@ -119,8 +119,7 @@ export default function ProjectDetailPage() {
   // State for Project Workflows
   const [projectWorkflows, setProjectWorkflows] = useState<ProjectWorkflow[]>([]);
   const [isAddWorkflowDialogOpen, setIsAddWorkflowDialogOpen] = useState(false);
-  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<ProjectWorkflow | null>(null);
+  const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null); // New state for active workflow design
   
 
   const [isLinkGlobalAgentDialogOpen, setIsLinkGlobalAgentDialogOpen] = useState(false);
@@ -370,9 +369,15 @@ export default function ProjectDetailPage() {
     toast({ title: "Project Workflow Added", description: `Workflow "${newWorkflow.name}" created for project "${project?.name}".` });
   };
 
-  const handleOpenViewEditWorkflowDialog = (workflow: ProjectWorkflow) => {
-    setSelectedWorkflow(workflow);
-    setIsViewEditWorkflowDialogOpen(true);
+  const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
+    setDesigningWorkflow(workflow);
+  };
+
+  const handleCloseWorkflowDesigner = () => {
+    setDesigningWorkflow(null);
+    // Here you might want to save the workflow design from the canvas state
+    // For now, it just closes the designer view
+    toast({ title: "Workflow Designer Closed", description: `Stopped designing workflow: "${designingWorkflow?.name}". Changes are not saved yet.`});
   };
 
 
@@ -518,63 +523,76 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="projectWorkflows">
-            <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
-                 <div>
-                    <PageHeaderHeading className="text-2xl">Project Workflow Management & Design</PageHeaderHeading>
-                    <PageHeaderDescription>Define workflows for project "{project.name}". Select a workflow to design its steps.</PageHeaderDescription>
-                </div>
-                 <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
-                    <PlusSquareIcon className="mr-2 h-4 w-4"/>Add New Project Workflow
-                 </Button>
-            </PageHeader>
-           
-            {/* Removed WorkflowPalette and WorkflowCanvas from direct rendering here */}
-            {/* They will be conditionally rendered or part of a separate view when a workflow is selected for editing */}
-            
-            <Separator className="my-6"/>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Existing Workflows for "{project.name}"</CardTitle>
-                    <CardDescription>Manage and monitor workflows associated with this project. Click 'View/Edit' to open the designer for a specific workflow.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {projectWorkflows.length > 0 ? (
-                        <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                            {projectWorkflows.map(workflow => (
-                                <Card key={workflow.id} className="shadow-sm bg-card flex flex-col">
-                                    <CardHeader className="p-4">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <CardTitle className="text-base font-medium leading-tight">{workflow.name}</CardTitle>
-                                            <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap shrink-0", workflowStatusColors[workflow.status])}>
-                                                {workflow.status}
-                                            </Badge>
-                                        </div>
-                                        <CardDescription className="text-xs line-clamp-2 h-[2.2em]">{workflow.description}</CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="p-4 pt-0 text-sm flex-grow">
-                                        <p className="text-muted-foreground text-xs">
-                                            Last Run: {workflow.lastRun ? formatDate(workflow.lastRun, { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' }) : 'Never'}
-                                        </p>
-                                    </CardContent>
-                                    <CardFooter className="p-4 border-t flex gap-2">
-                                        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenViewEditWorkflowDialog(workflow)}><Eye className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
-                                        <Button variant="default" size="sm" className="text-xs flex-1" disabled><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
-                                    </CardFooter>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
-                            <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
-                            <p className="text-lg font-medium text-muted-foreground">No workflows found for this project.</p>
-                            <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a workflow definition to get started!</p>
-                             <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
-                                <PlusSquareIcon className="mr-2 h-4 w-4"/>Add First Workflow Definition
-                             </Button>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+          {!designingWorkflow ? (
+            <>
+              <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
+                  <div>
+                      <PageHeaderHeading className="text-2xl">Project Workflow Management</PageHeaderHeading>
+                      <PageHeaderDescription>Define workflows for project "{project.name}". Select a workflow to design its steps.</PageHeaderDescription>
+                  </div>
+                  <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
+                      <PlusSquareIcon className="mr-2 h-4 w-4"/>Add New Project Workflow
+                  </Button>
+              </PageHeader>
+              <Card>
+                  <CardHeader>
+                      <CardTitle>Existing Workflows for "{project.name}"</CardTitle>
+                      <CardDescription>Manage and monitor workflows associated with this project. Click 'View/Edit' to open the designer for a specific workflow.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {projectWorkflows.length > 0 ? (
+                          <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                              {projectWorkflows.map(workflow => (
+                                  <Card key={workflow.id} className="shadow-sm bg-card flex flex-col">
+                                      <CardHeader className="p-4">
+                                          <div className="flex items-center justify-between gap-2">
+                                              <CardTitle className="text-base font-medium leading-tight">{workflow.name}</CardTitle>
+                                              <Badge variant="outline" className={cn("text-xs capitalize whitespace-nowrap shrink-0", workflowStatusColors[workflow.status])}>
+                                                  {workflow.status}
+                                              </Badge>
+                                          </div>
+                                          <CardDescription className="text-xs line-clamp-2 h-[2.2em]">{workflow.description}</CardDescription>
+                                      </CardHeader>
+                                      <CardContent className="p-4 pt-0 text-sm flex-grow">
+                                          <p className="text-muted-foreground text-xs">
+                                              Last Run: {workflow.lastRun ? formatDate(workflow.lastRun, { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' }) : 'Never'}
+                                          </p>
+                                      </CardContent>
+                                      <CardFooter className="p-4 border-t flex gap-2">
+                                          <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenWorkflowDesigner(workflow)}><Eye className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
+                                          <Button variant="default" size="sm" className="text-xs flex-1" disabled><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
+                                      </CardFooter>
+                                  </Card>
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
+                              <WorkflowIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                              <p className="text-lg font-medium text-muted-foreground">No workflows found for this project.</p>
+                              <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add a workflow definition to get started!</p>
+                              <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}>
+                                  <PlusSquareIcon className="mr-2 h-4 w-4"/>Add First Workflow Definition
+                              </Button>
+                          </div>
+                      )}
+                  </CardContent>
+              </Card>
+            </>
+          ) : (
+            <div className="h-full flex flex-col">
+              <div className="flex justify-between items-center mb-4 pb-2 border-b">
+                  <div>
+                    <PageHeaderHeading className="text-2xl">Designing Workflow: {designingWorkflow.name}</PageHeaderHeading>
+                    <PageHeaderDescription>{designingWorkflow.description}</PageHeaderDescription>
+                  </div>
+                  <Button variant="outline" onClick={handleCloseWorkflowDesigner}><XSquare className="mr-2 h-4 w-4"/>Close Designer</Button>
+              </div>
+              <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1"> {/* Added p-1 for slight padding */}
+                  <WorkflowPalette />
+                  <WorkflowCanvas />
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="aiSuggestions">
@@ -643,29 +661,6 @@ export default function ProjectDetailPage() {
               <AlertDialogAction onClick={confirmDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Delete
               </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-
-      {selectedWorkflow && (
-        <AlertDialog open={isViewEditWorkflowDialogOpen} onOpenChange={(isOpen) => {
-          setIsViewEditWorkflowDialogOpen(isOpen);
-          if (!isOpen) setSelectedWorkflow(null);
-        }}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>View/Edit Workflow: {selectedWorkflow.name}</AlertDialogTitle>
-              <AlertDialogDescription>
-                Clicking this would normally open the workflow designer (palette and canvas) pre-loaded with the nodes and connections for "{selectedWorkflow.name}". 
-                Currently, this step is a placeholder. The full implementation for saving and loading individual workflow designs is pending.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogAction onClick={() => {
-                setIsViewEditWorkflowDialogOpen(false);
-                setSelectedWorkflow(null);
-              }}>OK</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
