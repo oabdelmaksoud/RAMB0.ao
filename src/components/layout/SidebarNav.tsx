@@ -10,20 +10,20 @@ import {
 } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
-  Settings2,
-  Workflow,
-  SlidersHorizontal,
+  // Settings2, // Removed
+  // Workflow, // Removed
+  // SlidersHorizontal, // Removed
   UserCircle,
-  Briefcase, // Added Briefcase
+  Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/projects', label: 'Projects', icon: Briefcase }, // Added Projects link
-  { href: '/ai-suggestions', label: 'AI Suggestions', icon: Settings2 },
-  { href: '/workflow-designer', label: 'Workflow Designer', icon: Workflow },
-  { href: '/agent-management', label: 'Agent Management', icon: SlidersHorizontal },
+  { href: '/projects', label: 'Projects', icon: Briefcase },
+  // { href: '/ai-suggestions', label: 'AI Suggestions', icon: Settings2 }, // Removed
+  // { href: '/workflow-designer', label: 'Workflow Designer', icon: Workflow }, // Removed
+  // { href: '/agent-management', label: 'Agent Management', icon: SlidersHorizontal }, // Removed
   { href: '/profile', label: 'Profile', icon: UserCircle },
 ];
 
