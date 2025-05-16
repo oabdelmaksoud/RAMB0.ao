@@ -1,7 +1,7 @@
 
 'use client';
 
-import { DragEvent, MouseEvent, useRef, useEffect, useState } from 'react';
+import React, { DragEvent, MouseEvent as ReactMouseEvent, useRef, useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDashed, Hand, X as XIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -14,25 +14,32 @@ const agentIcons: { [key: string]: LucideIcon } = {
   'Notification Agent': Bell,
   'Reporting Agent': BarChartBig,
   'Custom Logic Agent': BrainCircuit,
-  // Add other agent types from palette if needed
 };
 
 interface WorkflowCanvasProps {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
   onNodesChange?: (nodes: WorkflowNode[]) => void;
-  onEdgesChange?: (edges: WorkflowEdge[]) => void; // New prop
+  onEdgesChange?: (edges: WorkflowEdge[]) => void;
 }
 
-export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, onEdgesChange }: WorkflowCanvasProps) {
+export default function WorkflowCanvas({
+  nodes = [],
+  edges = [],
+  onNodesChange,
+  onEdgesChange,
+}: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [renderCount, setRenderCount] = useState(0);
-  const [sourceNodeForEdge, setSourceNodeForEdge] = useState<WorkflowNode | null>(null);
+  const [renderCount, setRenderCount] = useState(0); // For debugging renders
+  
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [dragStartOffset, setDragStartOffset] = useState<{ x: number; y: number } | null>(null);
+  const [wasDragging, setWasDragging] = useState(false); // To differentiate click from drag end
 
   useEffect(() => {
     setRenderCount(prev => prev + 1);
-    // console.log(`CANVAS: component rendered/re-rendered: ${renderCount + 1}. Nodes:`, nodes, "Edges:", edges);
+    // console.log(`CANVAS: component rendered/re-rendered: ${renderCount + 1}. Nodes:`, nodes.map(n=>({id:n.id, x:n.x, y:n.y})), "Edges:", edges);
   }, [nodes, edges]);
 
 
@@ -62,12 +69,12 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
     console.log('CANVAS: Canvas Rect:', canvasRect);
 
     const agentCardWidth = 180;
-    const agentCardHeight = 60; 
+    const agentCardHeight = 60;
 
     let x = event.clientX - canvasRect.left;
     let y = event.clientY - canvasRect.top;
     console.log(`CANVAS: Initial drop coords (relative to canvas): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
-    
+
     x = x - agentCardWidth / 2;
     y = y - agentCardHeight / 2;
     console.log(`CANVAS: Centered drop coords (for top-left of card): x=${x.toFixed(2)}, y=${y.toFixed(2)}`);
@@ -88,7 +95,9 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
 
     if (onNodesChange) {
       const newNodesArray = [...nodes, newAgentNode];
-      console.log('CANVAS: Scheduling onNodesChange with newNodesArray (add):', newNodesArray);
+      console.log('CANVAS: Scheduling onNodesChange with newNodesArray (add):', newNodesArray.map(n=>({id:n.id, x:n.x, y:n.y})));
+      // setTimeout is crucial here if onNodesChange directly causes parent state update
+      // which might lead to "cannot update parent while child is rendering"
       setTimeout(() => {
         console.log('CANVAS: Executing onNodesChange callback (add) via setTimeout.');
         onNodesChange(newNodesArray);
@@ -98,15 +107,84 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
     }
   };
 
+  const handleNodeMouseDown = (event: ReactMouseEvent<HTMLDivElement>, nodeId: string) => {
+    console.log(`CANVAS: MouseDown on node: ${nodeId}`);
+    event.preventDefault(); 
+    event.stopPropagation(); 
+
+    const node = nodes.find(n => n.id === nodeId);
+    if (node && canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      setDraggingNodeId(nodeId);
+      setDragStartOffset({
+        x: event.clientX - canvasRect.left - node.x,
+        y: event.clientY - canvasRect.top - node.y,
+      });
+      setWasDragging(false); // Reset wasDragging flag
+      console.log(`CANVAS: Start dragging node ${nodeId}. Offset:`, {
+        x: event.clientX - canvasRect.left - node.x,
+        y: event.clientY - canvasRect.top - node.y,
+      });
+    }
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!draggingNodeId || !dragStartOffset || !canvasRef.current) return;
+
+      setWasDragging(true); // Indicate that a drag is happening
+
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      let newX = event.clientX - canvasRect.left - dragStartOffset.x;
+      let newY = event.clientY - canvasRect.top - dragStartOffset.y;
+      
+      const agentCardWidth = 180;
+      const agentCardHeight = 60;
+      const padding = 5;
+      newX = Math.min(Math.max(padding, newX), canvasRect.width - agentCardWidth - padding);
+      newY = Math.min(Math.max(padding, newY), canvasRect.height - agentCardHeight - padding);
+
+      if (onNodesChange) {
+        const updatedNodes = nodes.map(node =>
+          node.id === draggingNodeId ? { ...node, x: newX, y: newY } : node
+        );
+        // No setTimeout here as the parent's onNodesChange (handleWorkflowNodesChange)
+        // already uses setTimeout for its own state update (setProjectWorkflows).
+        // Calling it directly makes the component fully controlled during drag.
+        onNodesChange(updatedNodes);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (draggingNodeId) {
+        console.log(`CANVAS: MouseUp - Stopped dragging node ${draggingNodeId}`);
+        setDraggingNodeId(null);
+        setDragStartOffset(null);
+        // wasDragging flag will be checked in onClick
+      }
+    };
+
+    if (draggingNodeId) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp, { once: true }); // { once: true } can be useful
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggingNodeId, dragStartOffset, nodes, onNodesChange]);
+
+
   const handleRemoveNode = (nodeIdToRemove: string) => {
-    console.log(`CANVAS: Attempting to remove node with ID: ${nodeIdToRemove}`);
+    console.log(`CANVAS: Remove button clicked for node ID: ${nodeIdToRemove}`);
     if (!nodeIdToRemove) {
       console.error('CANVAS: handleRemoveNode called with undefined or null nodeIdToRemove.');
       return;
     }
     if (onNodesChange) {
       const newNodesArray = nodes.filter(node => node.id !== nodeIdToRemove);
-      console.log(`CANVAS: Scheduling onNodesChange with newNodesArray (remove):`, newNodesArray);
+      console.log(`CANVAS: Scheduling onNodesChange with newNodesArray (remove):`, newNodesArray.map(n=>n.id));
       setTimeout(() => {
         console.log('CANVAS: Executing onNodesChange callback (remove) via setTimeout.');
         onNodesChange(newNodesArray);
@@ -115,18 +193,24 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
       console.warn('CANVAS: onNodesChange is not defined in props for remove.');
     }
   };
+  
+  const [sourceNodeForEdge, setSourceNodeForEdge] = useState<WorkflowNode | null>(null);
 
   const handleNodeClick = (clickedNode: WorkflowNode) => {
-    console.log('CANVAS: Node clicked:', clickedNode.name, clickedNode.id);
+    if (wasDragging) {
+      setWasDragging(false); // Reset for next click
+      console.log('CANVAS: Node click ignored due to recent drag operation.');
+      return;
+    }
+
+    console.log('CANVAS: Node clicked (for edge):', clickedNode.name, clickedNode.id);
     if (!sourceNodeForEdge) {
       setSourceNodeForEdge(clickedNode);
       console.log('CANVAS: Set source node for edge:', clickedNode.name);
-      // Add visual indication later if needed (e.g., border change)
     } else {
-      // This is the second click, forming the edge
       if (sourceNodeForEdge.id === clickedNode.id) {
         console.log('CANVAS: Clicked same node, deselecting source.');
-        setSourceNodeForEdge(null); // Deselect if clicked on self
+        setSourceNodeForEdge(null); 
         return;
       }
       console.log('CANVAS: Set target node for edge:', clickedNode.name, 'from source:', sourceNodeForEdge.name);
@@ -137,7 +221,7 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
       };
       if (onEdgesChange) {
         const newEdgesArray = [...edges, newEdge];
-        console.log('CANVAS: Scheduling onEdgesChange with newEdgesArray (add):', newEdgesArray);
+        console.log('CANVAS: Scheduling onEdgesChange with newEdgesArray (add edge):', newEdgesArray);
         setTimeout(() => {
             console.log('CANVAS: Executing onEdgesChange callback (add edge) via setTimeout.');
             onEdgesChange(newEdgesArray);
@@ -145,7 +229,7 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
       } else {
         console.warn('CANVAS: onEdgesChange is not defined in props for adding edge.');
       }
-      setSourceNodeForEdge(null); // Reset after creating edge
+      setSourceNodeForEdge(null); 
     }
   };
 
@@ -164,7 +248,7 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
       className="flex-grow flex flex-col relative border-2 border-dashed border-border shadow-inner bg-background/50 rounded-md overflow-hidden min-h-[400px]"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onClick={(e) => { // Click on canvas itself deselects source node
+      onClick={(e) => { 
         if (e.target === canvasRef.current) {
           if (sourceNodeForEdge) {
             console.log('CANVAS: Clicked on canvas background, deselecting source node.');
@@ -197,20 +281,48 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
                 stroke="hsl(var(--foreground))"
                 strokeOpacity={0.7}
                 strokeWidth="2"
-                // markerEnd="url(#arrowhead)" 
               />
             );
           }
           return null;
         })}
-        {/* 
-        <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth">
-            <polygon points="0 0, 10 3.5, 0 7" fill="hsl(var(--foreground))" />
-          </marker>
-        </defs>
-        */}
       </svg>
+
+      {nodes.map((agentNode) => (
+        <Card
+          key={agentNode.id}
+          onMouseDown={(e) => handleNodeMouseDown(e, agentNode.id)}
+          onClick={(e) => {
+            // e.stopPropagation(); // Already done in handleNodeMouseDown if it's a drag start
+            handleNodeClick(agentNode);
+          }}
+          className={`absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node z-10
+                      ${sourceNodeForEdge?.id === agentNode.id ? 'ring-2 ring-primary ring-offset-2' : ''}
+                      ${draggingNodeId === agentNode.id ? 'ring-2 ring-blue-500 opacity-75' : ''} 
+                     `}
+          style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px`, userSelect: 'none' }}
+        >
+          <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full relative">
+            <AgentIcon type={agentNode.type} />
+            <CardTitle className="text-sm font-medium truncate">{agentNode.name}</CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-0 right-0 h-6 w-6 opacity-50 group-hover/node:opacity-100 transition-opacity"
+              onMouseDown={(e) => e.stopPropagation()} // Prevent drag from starting on X button
+              onClick={(e: ReactMouseEvent<HTMLButtonElement>) => {
+                console.log(`CANVAS: Remove button clicked for node ID: ${agentNode.id}`);
+                e.stopPropagation(); 
+                handleRemoveNode(agentNode.id);
+              }}
+              title="Remove agent"
+            >
+              <XIcon className="h-4 w-4" />
+              <span className="sr-only">Remove agent</span>
+            </Button>
+          </CardHeader>
+        </Card>
+      ))}
 
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none z-10">
@@ -224,37 +336,7 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, 
           </p>
         </div>
       )}
-      {nodes.map((agentNode) => (
-        <Card
-          key={agentNode.id}
-          className={`absolute w-[180px] h-[60px] shadow-lg cursor-pointer bg-card border flex items-center group/node z-10
-                      ${sourceNodeForEdge?.id === agentNode.id ? 'ring-2 ring-primary ring-offset-2' : ''}`}
-          style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
-          onClick={(e) => {
-            e.stopPropagation(); // Prevent canvas click from deselecting if clicking on node
-            handleNodeClick(agentNode);
-          }}
-        >
-          <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full relative">
-            <AgentIcon type={agentNode.type} />
-            <CardTitle className="text-sm font-medium truncate">{agentNode.name}</CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute top-0 right-0 h-6 w-6 opacity-50 group-hover/node:opacity-100 transition-opacity"
-              onClick={(e: MouseEvent<HTMLButtonElement>) => {
-                console.log(`CANVAS: Remove button clicked for node ID: ${agentNode.id}`);
-                e.stopPropagation(); 
-                handleRemoveNode(agentNode.id);
-              }}
-              title="Remove agent"
-            >
-              <XIcon className="h-4 w-4" />
-              <span className="sr-only">Remove agent</span>
-            </Button>
-          </CardHeader>
-        </Card>
-      ))}
     </div>
   );
 }
+
