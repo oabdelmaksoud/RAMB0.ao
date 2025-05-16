@@ -19,19 +19,20 @@ const agentIcons: { [key: string]: LucideIcon } = {
 
 interface WorkflowCanvasProps {
   nodes: WorkflowNode[];
-  edges: WorkflowEdge[]; // Added edges prop
+  edges: WorkflowEdge[];
   onNodesChange?: (nodes: WorkflowNode[]) => void;
-  // onEdgesChange?: (edges: WorkflowEdge[]) => void; // For future interactive edge creation
+  onEdgesChange?: (edges: WorkflowEdge[]) => void; // New prop
 }
 
-export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }: WorkflowCanvasProps) {
+export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange, onEdgesChange }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
-  const [renderCount, setRenderCount] = useState(0); // For debugging re-renders
+  const [renderCount, setRenderCount] = useState(0);
+  const [sourceNodeForEdge, setSourceNodeForEdge] = useState<WorkflowNode | null>(null);
 
   useEffect(() => {
     setRenderCount(prev => prev + 1);
-    console.log(`CANVAS: component rendered/re-rendered: ${renderCount + 1}`);
+    // console.log(`CANVAS: component rendered/re-rendered: ${renderCount + 1}. Nodes:`, nodes, "Edges:", edges);
   }, [nodes, edges]);
 
 
@@ -115,6 +116,39 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }
     }
   };
 
+  const handleNodeClick = (clickedNode: WorkflowNode) => {
+    console.log('CANVAS: Node clicked:', clickedNode.name, clickedNode.id);
+    if (!sourceNodeForEdge) {
+      setSourceNodeForEdge(clickedNode);
+      console.log('CANVAS: Set source node for edge:', clickedNode.name);
+      // Add visual indication later if needed (e.g., border change)
+    } else {
+      // This is the second click, forming the edge
+      if (sourceNodeForEdge.id === clickedNode.id) {
+        console.log('CANVAS: Clicked same node, deselecting source.');
+        setSourceNodeForEdge(null); // Deselect if clicked on self
+        return;
+      }
+      console.log('CANVAS: Set target node for edge:', clickedNode.name, 'from source:', sourceNodeForEdge.name);
+      const newEdge: WorkflowEdge = {
+        id: `edge-${sourceNodeForEdge.id}-to-${clickedNode.id}-${Date.now()}`,
+        sourceNodeId: sourceNodeForEdge.id,
+        targetNodeId: clickedNode.id,
+      };
+      if (onEdgesChange) {
+        const newEdgesArray = [...edges, newEdge];
+        console.log('CANVAS: Scheduling onEdgesChange with newEdgesArray (add):', newEdgesArray);
+        setTimeout(() => {
+            console.log('CANVAS: Executing onEdgesChange callback (add edge) via setTimeout.');
+            onEdgesChange(newEdgesArray);
+        }, 0);
+      } else {
+        console.warn('CANVAS: onEdgesChange is not defined in props for adding edge.');
+      }
+      setSourceNodeForEdge(null); // Reset after creating edge
+    }
+  };
+
   const AgentIcon = ({ type }: { type: string }) => {
     const IconComponent = agentIcons[type] || BrainCircuit;
     return <IconComponent className="h-5 w-5 mr-2 text-primary" />;
@@ -130,6 +164,14 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }
       className="flex-grow flex flex-col relative border-2 border-dashed border-border shadow-inner bg-background/50 rounded-md overflow-hidden min-h-[400px]"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onClick={(e) => { // Click on canvas itself deselects source node
+        if (e.target === canvasRef.current) {
+          if (sourceNodeForEdge) {
+            console.log('CANVAS: Clicked on canvas background, deselecting source node.');
+            setSourceNodeForEdge(null);
+          }
+        }
+      }}
     >
       <svg
         ref={svgRef}
@@ -140,9 +182,8 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }
           const targetNode = getNodeById(edge.targetNodeId);
 
           if (sourceNode && targetNode) {
-            // Simple center-to-center lines for now
-            const x1 = sourceNode.x + 180 / 2; // 180 is agentCardWidth
-            const y1 = sourceNode.y + 60 / 2;  // 60 is agentCardHeight
+            const x1 = sourceNode.x + 180 / 2; 
+            const y1 = sourceNode.y + 60 / 2;  
             const x2 = targetNode.x + 180 / 2;
             const y2 = targetNode.y + 60 / 2;
 
@@ -154,16 +195,17 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }
                 x2={x2}
                 y2={y2}
                 stroke="hsl(var(--foreground))"
+                strokeOpacity={0.7}
                 strokeWidth="2"
-                markerEnd="url(#arrowhead)" // For future arrowhead
+                // markerEnd="url(#arrowhead)" 
               />
             );
           }
           return null;
         })}
-        {/* Definition for arrowhead marker - for future use
+        {/* 
         <defs>
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="8" refY="3.5" orient="auto" markerUnits="strokeWidth">
             <polygon points="0 0, 10 3.5, 0 7" fill="hsl(var(--foreground))" />
           </marker>
         </defs>
@@ -178,16 +220,20 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }
           </div>
           <h3 className="text-xl font-semibold text-foreground mb-2">Design Your Workflow</h3>
           <p className="text-muted-foreground max-w-xs sm:max-w-md mx-auto">
-            Drag agents from the palette on the left and drop them here. Connect agents to define the execution flow.
+            Drag agents from the palette. Click one agent then another to connect them.
           </p>
         </div>
       )}
       {nodes.map((agentNode) => (
         <Card
           key={agentNode.id}
-          className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node z-10" // Ensure nodes are above SVG
+          className={`absolute w-[180px] h-[60px] shadow-lg cursor-pointer bg-card border flex items-center group/node z-10
+                      ${sourceNodeForEdge?.id === agentNode.id ? 'ring-2 ring-primary ring-offset-2' : ''}`}
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
-          // Add draggable properties if you want to make nodes draggable on canvas later
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent canvas click from deselecting if clicking on node
+            handleNodeClick(agentNode);
+          }}
         >
           <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full relative">
             <AgentIcon type={agentNode.type} />
@@ -212,4 +258,3 @@ export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }
     </div>
   );
 }
-

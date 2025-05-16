@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types'; // Added WorkflowEdge
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -246,22 +246,18 @@ export default function ProjectDetailPage() {
     }
   }, [projectWorkflows, projectId, isClient]);
 
-  // Effect to synchronize designingWorkflow with the latest version from projectWorkflows
   useEffect(() => {
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow. Old:", designingWorkflow, "New instance from array:", updatedDesigningWorkflowInstance);
-        // Check if the relevant parts (nodes, edges) are different before setting state to prevent loops
         const nodesChanged = JSON.stringify(updatedDesigningWorkflowInstance.nodes || []) !== JSON.stringify(designingWorkflow.nodes || []);
         const edgesChanged = JSON.stringify(updatedDesigningWorkflowInstance.edges || []) !== JSON.stringify(designingWorkflow.edges || []);
-        // Also check if the main object reference is different but content (like name/desc) could have changed
         const mainPropsChanged = updatedDesigningWorkflowInstance.name !== designingWorkflow.name ||
                                  updatedDesigningWorkflowInstance.description !== designingWorkflow.description ||
                                  updatedDesigningWorkflowInstance.status !== designingWorkflow.status;
 
         if (nodesChanged || edgesChanged || mainPropsChanged || updatedDesigningWorkflowInstance !== designingWorkflow) {
-          console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state because changes detected (nodes/edges/props/ref).");
+           console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow state because changes detected.");
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else {
@@ -269,7 +265,7 @@ export default function ProjectDetailPage() {
         setDesigningWorkflow(null);
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]); // Rerun if projectWorkflows changes or the user selects a different workflow to design
+  }, [projectWorkflows, designingWorkflow?.id]);
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -458,7 +454,7 @@ export default function ProjectDetailPage() {
       const currentDesigningWorkflowId = designingWorkflow.id;
       console.log('PROJECT_DETAIL_PAGE: Current designingWorkflow ID:', currentDesigningWorkflowId, 'Name:', designingWorkflow.name);
       setProjectWorkflows(prevWorkflows => {
-        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:', prevWorkflows.length);
+        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows (nodes). prevWorkflows length:', prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
           if (wf.id === currentDesigningWorkflowId) {
             console.log('PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:', wf.id, '. New nodes count:', updatedNodes.length);
@@ -467,12 +463,36 @@ export default function ProjectDetailPage() {
           return wf;
         });
         newWorkflowsArray.forEach(wf => {
-             console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:', wf.id, 'Nodes count:', wf.nodes?.length, 'Nodes IDs:', wf.nodes?.map(n=>n.id).join(', '));
+             console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:', wf.id, 'Nodes count:', wf.nodes?.length, 'Nodes IDs:', wf.nodes?.map(n=>n.id).join(', '));
         });
         return newWorkflowsArray;
       });
     } else {
       console.warn('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but designingWorkflow is null.');
+    }
+  };
+
+  const handleWorkflowEdgesChange = (updatedEdges: WorkflowEdge[]) => {
+    console.log('PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Count:', updatedEdges.length);
+    if (designingWorkflow) {
+      const currentDesigningWorkflowId = designingWorkflow.id;
+      console.log('PROJECT_DETAIL_PAGE: Current designingWorkflow ID for edges:', currentDesigningWorkflowId, 'Name:', designingWorkflow.name);
+      setProjectWorkflows(prevWorkflows => {
+        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows (edges). prevWorkflows length:', prevWorkflows.length);
+        const newWorkflowsArray = prevWorkflows.map(wf => {
+          if (wf.id === currentDesigningWorkflowId) {
+            console.log('PROJECT_DETAIL_PAGE: Updating edges for workflow ID:', wf.id, '. New edges count:', updatedEdges.length);
+            return { ...wf, edges: updatedEdges };
+          }
+          return wf;
+        });
+         newWorkflowsArray.forEach(wf => {
+             console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:', wf.id, 'Edges count:', wf.edges?.length);
+        });
+        return newWorkflowsArray;
+      });
+    } else {
+      console.warn('PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called but designingWorkflow is null.');
     }
   };
 
@@ -702,6 +722,7 @@ export default function ProjectDetailPage() {
                     nodes={designingWorkflow.nodes || []} 
                     edges={designingWorkflow.edges || []}
                     onNodesChange={handleWorkflowNodesChange} 
+                    onEdgesChange={handleWorkflowEdgesChange}
                   />
               </div>
             </div>
@@ -826,4 +847,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-
