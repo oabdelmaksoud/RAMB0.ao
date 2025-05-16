@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types';
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -77,18 +77,34 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
   Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
 };
 
-const predefinedWorkflows: Omit<ProjectWorkflow, 'id' | 'nodes'>[] = [
+const predefinedWorkflowsData = (projectId: string): Omit<ProjectWorkflow, 'id'>[] => [
   {
     name: "Software Development Lifecycle",
     description: "A standard workflow for planning, developing, testing, and deploying software features.",
     status: 'Draft',
     lastRun: undefined,
+    nodes: [
+      { id: `sdlc-${projectId}-node-1`, name: 'Planning Phase', type: 'Custom Logic Agent', x: 50, y: 50 },
+      { id: `sdlc-${projectId}-node-2`, name: 'Development Sprint', type: 'Code Review Agent', x: 250, y: 150 },
+      { id: `sdlc-${projectId}-node-3`, name: 'QA Testing', type: 'Testing Agent', x: 50, y: 250 },
+    ],
+    edges: [
+      { id: `sdlc-${projectId}-edge-1`, sourceNodeId: `sdlc-${projectId}-node-1`, targetNodeId: `sdlc-${projectId}-node-2` },
+      { id: `sdlc-${projectId}-edge-2`, sourceNodeId: `sdlc-${projectId}-node-2`, targetNodeId: `sdlc-${projectId}-node-3` },
+    ],
   },
   {
     name: "Software Testing Cycle",
     description: "A comprehensive workflow for various testing phases including unit, integration, and user acceptance testing.",
     status: 'Draft',
     lastRun: undefined,
+    nodes: [
+      { id: `stc-${projectId}-node-1`, name: 'Unit Tests', type: 'Testing Agent', x: 100, y: 80 },
+      { id: `stc-${projectId}-node-2`, name: 'Integration Tests', type: 'Testing Agent', x: 300, y: 180 },
+    ],
+    edges: [
+       { id: `stc-${projectId}-edge-1`, sourceNodeId: `stc-${projectId}-node-1`, targetNodeId: `stc-${projectId}-node-2` },
+    ],
   },
 ];
 
@@ -173,7 +189,7 @@ export default function ProjectDetailPage() {
           setProjectAgents(JSON.parse(storedAgents));
         } catch (error) {
           console.error(`Failed to parse agents for project ${projectId} from localStorage`, error);
-          setProjectAgents(initialProjectScopedMockAgents.map(a => ({...a, id: `${a.id}-${projectId}`}))); // ensure unique ids for default scoped agents
+          setProjectAgents(initialProjectScopedMockAgents.map(a => ({...a, id: `${a.id}-${projectId}`}))); 
         }
       } else {
         setProjectAgents(initialProjectScopedMockAgents.map(a => ({...a, id: `${a.id}-${projectId}`})));
@@ -186,18 +202,20 @@ export default function ProjectDetailPage() {
           setProjectWorkflows(JSON.parse(storedWorkflows));
         } catch (error) {
           console.error(`Failed to parse workflows for project ${projectId} from localStorage`, error);
-           const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
+           const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map((wf, index) => ({
             ...wf,
             id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
-            nodes: [],
+            nodes: wf.nodes || [],
+            edges: wf.edges || [],
           }));
           setProjectWorkflows(defaultWorkflowsWithIds);
         }
       } else { 
-        const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
+        const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map((wf, index) => ({
             ...wf,
             id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
-            nodes: [], 
+            nodes: wf.nodes || [],
+            edges: wf.edges || [],
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
       }
@@ -233,18 +251,21 @@ export default function ProjectDetailPage() {
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        // Only update if the nodes array reference or content has actually changed to prevent infinite loops
-        if (updatedDesigningWorkflowInstance.nodes !== designingWorkflow.nodes || 
-            JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes || [])) {
-          console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated version from projectWorkflows. New nodes count:", updatedDesigningWorkflowInstance.nodes?.length);
-          setDesigningWorkflow(updatedDesigningWorkflowInstance);
-        } else if (updatedDesigningWorkflowInstance !== designingWorkflow) {
-          // If only the workflow object reference changed (e.g., name/description edit in future) but nodes are identical
-          console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow object reference from projectWorkflows.");
+        console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow. Old:", designingWorkflow, "New instance from array:", updatedDesigningWorkflowInstance);
+        // Check if the relevant parts (nodes, edges) are different before setting state to prevent loops
+        const nodesChanged = JSON.stringify(updatedDesigningWorkflowInstance.nodes || []) !== JSON.stringify(designingWorkflow.nodes || []);
+        const edgesChanged = JSON.stringify(updatedDesigningWorkflowInstance.edges || []) !== JSON.stringify(designingWorkflow.edges || []);
+        // Also check if the main object reference is different but content (like name/desc) could have changed
+        const mainPropsChanged = updatedDesigningWorkflowInstance.name !== designingWorkflow.name ||
+                                 updatedDesigningWorkflowInstance.description !== designingWorkflow.description ||
+                                 updatedDesigningWorkflowInstance.status !== designingWorkflow.status;
+
+        if (nodesChanged || edgesChanged || mainPropsChanged || updatedDesigningWorkflowInstance !== designingWorkflow) {
+          console.log("PROJECT_DETAIL_PAGE: Updating designingWorkflow state because changes detected (nodes/edges/props/ref).");
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
         }
       } else {
-        // The designing workflow was deleted, so close the designer
+        console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows, closing designer.");
         setDesigningWorkflow(null);
       }
     }
@@ -414,6 +435,7 @@ export default function ProjectDetailPage() {
       status: 'Draft',
       lastRun: undefined,
       nodes: [], 
+      edges: [],
     };
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
     setIsAddWorkflowDialogOpen(false);
@@ -421,6 +443,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
+    console.log("PROJECT_DETAIL_PAGE: Opening workflow designer for:", workflow);
     setDesigningWorkflow(workflow);
   };
 
@@ -433,14 +456,21 @@ export default function ProjectDetailPage() {
     console.log('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:', updatedNodes.length, 'IDs:', updatedNodes.map(n => n.id).join(', '));
     if (designingWorkflow) {
       const currentDesigningWorkflowId = designingWorkflow.id;
-      console.log('PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:', currentDesigningWorkflowId, 'Name:', designingWorkflow.name);
-      setProjectWorkflows(prevWorkflows =>
-        prevWorkflows.map(wf =>
-          wf.id === currentDesigningWorkflowId
-            ? { ...wf, nodes: updatedNodes }
-            : wf
-        )
-      );
+      console.log('PROJECT_DETAIL_PAGE: Current designingWorkflow ID:', currentDesigningWorkflowId, 'Name:', designingWorkflow.name);
+      setProjectWorkflows(prevWorkflows => {
+        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:', prevWorkflows.length);
+        const newWorkflowsArray = prevWorkflows.map(wf => {
+          if (wf.id === currentDesigningWorkflowId) {
+            console.log('PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:', wf.id, '. New nodes count:', updatedNodes.length);
+            return { ...wf, nodes: updatedNodes };
+          }
+          return wf;
+        });
+        newWorkflowsArray.forEach(wf => {
+             console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:', wf.id, 'Nodes count:', wf.nodes?.length, 'Nodes IDs:', wf.nodes?.map(n=>n.id).join(', '));
+        });
+        return newWorkflowsArray;
+      });
     } else {
       console.warn('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but designingWorkflow is null.');
     }
@@ -633,6 +663,9 @@ export default function ProjectDetailPage() {
                                           <p className="text-muted-foreground text-xs mt-1">
                                               Nodes: {workflow.nodes ? workflow.nodes.length : 0}
                                           </p>
+                                          <p className="text-muted-foreground text-xs mt-1">
+                                              Edges: {workflow.edges ? workflow.edges.length : 0}
+                                          </p>
                                       </CardContent>
                                       <CardFooter className="p-4 border-t flex gap-2">
                                           <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenWorkflowDesigner(workflow)}><Eye className="mr-1.5 h-3.5 w-3.5" /> View/Edit</Button>
@@ -665,7 +698,11 @@ export default function ProjectDetailPage() {
               </div>
               <div className="flex flex-grow gap-6 mt-2 overflow-hidden p-1">
                   <WorkflowPalette />
-                  <WorkflowCanvas nodes={designingWorkflow.nodes || []} onNodesChange={handleWorkflowNodesChange} />
+                  <WorkflowCanvas 
+                    nodes={designingWorkflow.nodes || []} 
+                    edges={designingWorkflow.edges || []}
+                    onNodesChange={handleWorkflowNodesChange} 
+                  />
               </div>
             </div>
           )}

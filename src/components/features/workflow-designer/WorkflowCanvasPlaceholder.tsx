@@ -1,11 +1,11 @@
 
 'use client';
 
-import { DragEvent, useRef } from 'react';
+import { DragEvent, MouseEvent, useRef, useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Code2, FileText, Bell, BarChartBig, BrainCircuit, MousePointerSquareDashed, Hand, X as XIcon } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { WorkflowNode } from '@/types';
+import type { WorkflowNode, WorkflowEdge } from '@/types';
 import { Button } from '@/components/ui/button';
 
 const agentIcons: { [key: string]: LucideIcon } = {
@@ -14,16 +14,26 @@ const agentIcons: { [key: string]: LucideIcon } = {
   'Notification Agent': Bell,
   'Reporting Agent': BarChartBig,
   'Custom Logic Agent': BrainCircuit,
+  // Add other agent types from palette if needed
 };
 
 interface WorkflowCanvasProps {
-  nodes?: WorkflowNode[]; // Changed from initialNodes to nodes
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[]; // Added edges prop
   onNodesChange?: (nodes: WorkflowNode[]) => void;
+  // onEdgesChange?: (edges: WorkflowEdge[]) => void; // For future interactive edge creation
 }
 
-export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCanvasProps) {
+export default function WorkflowCanvas({ nodes = [], edges = [], onNodesChange }: WorkflowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  console.count('CANVAS: component rendered/re-rendered');
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [renderCount, setRenderCount] = useState(0); // For debugging re-renders
+
+  useEffect(() => {
+    setRenderCount(prev => prev + 1);
+    console.log(`CANVAS: component rendered/re-rendered: ${renderCount + 1}`);
+  }, [nodes, edges]);
+
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -38,18 +48,14 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
     const agentType = event.dataTransfer.getData('text/plain');
     console.log(`CANVAS: Agent type received from dataTransfer: '${agentType}'`);
 
-    if (!agentType) {
-      console.error('CANVAS: Drop aborted - no agentType received.');
-      return;
-    }
-    if (!canvasRef.current) {
-      console.error('CANVAS: Drop aborted - canvasRef.current is null.');
+    if (!agentType || !canvasRef.current) {
+      console.error('CANVAS: Drop aborted - no agentType or canvasRef.');
       return;
     }
 
     const canvasRect = canvasRef.current.getBoundingClientRect();
     if (canvasRect.width === 0 || canvasRect.height === 0) {
-      console.error("CANVAS: Drop aborted - Canvas has zero dimensions. Ensure it's visible and has size.");
+      console.error("CANVAS: Drop aborted - Canvas has zero dimensions.");
       return;
     }
     console.log('CANVAS: Canvas Rect:', canvasRect);
@@ -114,6 +120,10 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
     return <IconComponent className="h-5 w-5 mr-2 text-primary" />;
   };
 
+  const getNodeById = (nodeId: string): WorkflowNode | undefined => {
+    return nodes.find(node => node.id === nodeId);
+  };
+
   return (
     <div
       ref={canvasRef}
@@ -121,8 +131,47 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      <svg
+        ref={svgRef}
+        className="absolute top-0 left-0 w-full h-full pointer-events-none z-0"
+      >
+        {edges.map(edge => {
+          const sourceNode = getNodeById(edge.sourceNodeId);
+          const targetNode = getNodeById(edge.targetNodeId);
+
+          if (sourceNode && targetNode) {
+            // Simple center-to-center lines for now
+            const x1 = sourceNode.x + 180 / 2; // 180 is agentCardWidth
+            const y1 = sourceNode.y + 60 / 2;  // 60 is agentCardHeight
+            const x2 = targetNode.x + 180 / 2;
+            const y2 = targetNode.y + 60 / 2;
+
+            return (
+              <line
+                key={edge.id}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke="hsl(var(--foreground))"
+                strokeWidth="2"
+                markerEnd="url(#arrowhead)" // For future arrowhead
+              />
+            );
+          }
+          return null;
+        })}
+        {/* Definition for arrowhead marker - for future use
+        <defs>
+          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+            <polygon points="0 0, 10 3.5, 0 7" fill="hsl(var(--foreground))" />
+          </marker>
+        </defs>
+        */}
+      </svg>
+
       {nodes.length === 0 && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none z-10">
           <div className="flex items-center justify-center gap-4 mb-6">
             <MousePointerSquareDashed className="h-12 w-12 text-muted-foreground/70" />
             <Hand className="h-12 w-12 text-muted-foreground/70" />
@@ -136,8 +185,9 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
       {nodes.map((agentNode) => (
         <Card
           key={agentNode.id}
-          className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node"
+          className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center group/node z-10" // Ensure nodes are above SVG
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
+          // Add draggable properties if you want to make nodes draggable on canvas later
         >
           <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full relative">
             <AgentIcon type={agentNode.type} />
@@ -146,7 +196,7 @@ export default function WorkflowCanvas({ nodes = [], onNodesChange }: WorkflowCa
               variant="ghost"
               size="icon"
               className="absolute top-0 right-0 h-6 w-6 opacity-50 group-hover/node:opacity-100 transition-opacity"
-              onClick={(e) => {
+              onClick={(e: MouseEvent<HTMLButtonElement>) => {
                 console.log(`CANVAS: Remove button clicked for node ID: ${agentNode.id}`);
                 e.stopPropagation(); 
                 handleRemoveNode(agentNode.id);

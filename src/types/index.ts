@@ -1,4 +1,5 @@
 
+
 export interface Agent {
   id: string;
   name: string;
@@ -13,7 +14,7 @@ export interface Agent {
   logs?: string[];
 }
 
-export interface WorkflowNode { // Renamed from WorkflowNodeData and made more specific for canvas
+export interface WorkflowNode {
   id: string;
   name: string; // Typically the agent type or a user-defined name for the node
   type: string; // Agent type from palette
@@ -22,10 +23,11 @@ export interface WorkflowNode { // Renamed from WorkflowNodeData and made more s
   config?: Record<string, any>; // For node-specific configurations later
 }
 
-export interface WorkflowEdgeData { // Kept for potential future use with connections
+export interface WorkflowEdge {
   id: string;
-  source: string;
-  target: string;
+  sourceNodeId: string; // ID of the source WorkflowNode
+  targetNodeId: string; // ID of the target WorkflowNode
+  // Potentially add type, label, etc. for edges later
 }
 
 export interface ProjectWorkflow {
@@ -34,7 +36,8 @@ export interface ProjectWorkflow {
   description: string;
   status: 'Active' | 'Inactive' | 'Draft';
   lastRun?: string; // ISO Date string
-  nodes?: WorkflowNode[]; // Stores the visual design of the workflow
+  nodes?: WorkflowNode[];
+  edges?: WorkflowEdge[]; // Added edges array
 }
 
 export interface Project {
@@ -54,3 +57,4 @@ export interface Task {
   status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
   assignedTo: string;
 }
+
