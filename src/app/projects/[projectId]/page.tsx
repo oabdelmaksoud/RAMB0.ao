@@ -19,6 +19,17 @@ import Image from 'next/image';
 import Link from 'next/link';
 import AddTaskDialog from '@/components/features/projects/AddTaskDialog';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 // Copied from ProjectCard for consistency, ideally this would be a shared utility or part of the type
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -87,6 +98,8 @@ export default function ProjectDetailPage() {
   const [mockProgress, setMockProgress] = useState(0);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAddTaskDialogOpen, setIsAddTaskDialogOpen] = useState(false);
+  const [isLinkAgentDialogOpen, setIsLinkAgentDialogOpen] = useState(false);
+  const [isCreateAgentDialogOpen, setIsCreateAgentDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -324,11 +337,11 @@ export default function ProjectDetailPage() {
                 </CardDescription>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled> 
+                <Button variant="outline" size="sm" onClick={() => setIsLinkAgentDialogOpen(true)}> 
                   <LinkIcon className="mr-2 h-4 w-4" />
                   Link Global Agent
                 </Button>
-                 <Button variant="outline" size="sm" disabled>
+                 <Button variant="outline" size="sm" onClick={() => setIsCreateAgentDialogOpen(true)}>
                   <PlusSquareIcon className="mr-2 h-4 w-4" />
                   Create Project Agent
                 </Button>
@@ -382,10 +395,12 @@ export default function ProjectDetailPage() {
                 </CardDescription>
               </div>
                <div className="flex gap-2">
-                <Link href="/workflow-designer" passHref>
-                  <Button variant="outline" size="sm"> 
-                    <WorkflowIcon className="mr-2 h-4 w-4" />
-                    Design New Workflow
+                <Link href="/workflow-designer" passHref legacyBehavior>
+                  <Button variant="outline" size="sm" asChild>
+                    <a>
+                      <WorkflowIcon className="mr-2 h-4 w-4" />
+                      Design New Workflow
+                    </a>
                   </Button>
                 </Link>
               </div>
@@ -438,6 +453,36 @@ export default function ProjectDetailPage() {
         onOpenChange={setIsAddTaskDialogOpen}
         onAddTask={handleAddTask}
       />
+
+      <AlertDialog open={isLinkAgentDialogOpen} onOpenChange={setIsLinkAgentDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Link Global Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              This feature will allow you to associate existing global agents with this project. This functionality is coming soon!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsLinkAgentDialogOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isCreateAgentDialogOpen} onOpenChange={setIsCreateAgentDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Create Project Agent</AlertDialogTitle>
+            <AlertDialogDescription>
+              This feature will allow you to define a new agent configuration specifically for this project. 
+              For now, please use the main Agent Management page to create agents. This functionality is coming soon!
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsCreateAgentDialogOpen(false)}>OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
     </div>
   );
 }
