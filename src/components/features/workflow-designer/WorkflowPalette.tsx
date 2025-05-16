@@ -24,6 +24,7 @@ export default function WorkflowPalette() {
   const handleDragStart = (e: React.DragEvent<HTMLDivElement>, agentName: string) => {
     e.dataTransfer.setData('text/plain', agentName);
     e.dataTransfer.effectAllowed = 'move';
+    console.log('Drag started from palette for:', agentName);
   };
 
   return (
@@ -36,7 +37,7 @@ export default function WorkflowPalette() {
           {agentTypes.map((agent) => (
             <div
               key={agent.name}
-              draggable={true} // Explicitly true
+              draggable={true}
               onDragStart={(e) => handleDragStart(e, agent.name)}
               className="p-3 border rounded-lg bg-card hover:shadow-lg hover:border-primary cursor-grab transition-all duration-150 ease-in-out flex items-start gap-3 text-left group"
               title={`Drag to add ${agent.name}`}

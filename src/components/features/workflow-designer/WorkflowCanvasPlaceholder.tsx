@@ -30,31 +30,45 @@ export default function WorkflowCanvas() {
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault(); 
     event.dataTransfer.dropEffect = 'move';
+    // console.log('Drag over canvas'); // Can be noisy, uncomment if needed
   };
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    console.log('Drop event triggered on canvas.');
     const agentType = event.dataTransfer.getData('text/plain');
+    console.log('Agent type received from dataTransfer:', agentType);
     
     if (!agentType || !canvasRef.current) {
-      return; // Exit if no agentType or canvasRef is not available
+      console.error('Drop aborted: agentType or canvasRef missing.', { agentType, canvasRefExists: !!canvasRef.current });
+      return; 
     }
 
     const canvasRect = canvasRef.current.getBoundingClientRect();
+    console.log('Canvas Rect:', canvasRect);
+
+    if (canvasRect.width === 0 || canvasRect.height === 0) {
+      console.error("Drop aborted: Canvas has zero dimensions. Ensure it's visible and has space.");
+      return;
+    }
     
     const agentCardWidth = 180; 
-    const agentCardHeight = 60; 
+    const agentCardHeight = 60; // Consistent height for calculation and rendering
     
     let x = event.clientX - canvasRect.left;
     let y = event.clientY - canvasRect.top;
+    console.log('Initial x, y relative to canvas origin:', x, y);
 
     // Center the card on the drop point
     x = x - agentCardWidth / 2;
     y = y - agentCardHeight / 2;
+    console.log('Centered x, y:', x, y);
     
     // Keep within canvas bounds with a small padding
-    const adjustedX = Math.min(Math.max(10, x), canvasRect.width - agentCardWidth - 10);
-    const adjustedY = Math.min(Math.max(10, y), canvasRect.height - agentCardHeight - 10);
+    const padding = 5; // Reduced padding slightly
+    const adjustedX = Math.min(Math.max(padding, x), canvasRect.width - agentCardWidth - padding);
+    const adjustedY = Math.min(Math.max(padding, y), canvasRect.height - agentCardHeight - padding);
+    console.log('Adjusted bounded x, y:', adjustedX, adjustedY);
 
     const newAgent: DroppedAgent = {
       id: `agent-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
@@ -63,7 +77,13 @@ export default function WorkflowCanvas() {
       x: adjustedX,
       y: adjustedY,
     };
-    setDroppedAgents((prevAgents) => [...prevAgents, newAgent]);
+    console.log('New agent to add:', newAgent);
+
+    setDroppedAgents((prevAgents) => {
+      const updatedAgents = [...prevAgents, newAgent];
+      console.log('Updated droppedAgents state:', updatedAgents);
+      return updatedAgents;
+    });
   };
 
   const AgentIcon = ({ type }: { type: string }) => {
@@ -74,7 +94,7 @@ export default function WorkflowCanvas() {
   return (
     <div
       ref={canvasRef}
-      className="flex-grow flex flex-col relative border-2 border-dashed border-border shadow-inner bg-background/50 rounded-md overflow-hidden"
+      className="flex-grow flex flex-col relative border-2 border-dashed border-border shadow-inner bg-background/50 rounded-md overflow-hidden min-h-[400px]" // Added min-h-[400px]
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
@@ -93,10 +113,10 @@ export default function WorkflowCanvas() {
       {droppedAgents.map((agent) => (
         <Card 
           key={agent.id} 
-          className="absolute w-[180px] shadow-lg cursor-grab bg-card border"
+          className="absolute w-[180px] h-[60px] shadow-lg cursor-grab bg-card border flex items-center" // Explicit height and flex for centering content
           style={{ left: `${agent.x}px`, top: `${agent.y}px` }}
         >
-          <CardHeader className="p-3 flex flex-row items-center space-x-0">
+          <CardHeader className="p-3 flex flex-row items-center space-x-0 w-full">
             <AgentIcon type={agent.type} />
             <CardTitle className="text-sm font-medium truncate">{agent.name}</CardTitle>
           </CardHeader>
