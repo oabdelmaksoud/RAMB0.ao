@@ -4,7 +4,7 @@ import ProjectCard from '@/components/features/projects/ProjectCard';
 import type { Project } from '@/types';
 import { Briefcase } from 'lucide-react';
 
-const mockProjects: Project[] = [
+export const mockProjects: Project[] = [
   {
     id: 'proj-001',
     name: 'AI Powered Marketing Suite',
