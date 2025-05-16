@@ -3,6 +3,7 @@
 
 import type { Project } from '@/types';
 import Image from 'next/image';
+import Link from 'next/link'; // Import Link
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,16 +32,15 @@ export default function ProjectCard({ project }: ProjectCardProps) {
 
   const formatDate = (dateString: string) => {
     if (!isClient) {
-      return 'Loading date...'; // Or some placeholder
+      return 'Loading date...'; 
     }
     try {
-      // Check if it's already human-readable (e.g., "3 days ago")
       if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(dateString)) {
         return dateString;
       }
       return format(parseISO(dateString), "MMM d, yyyy");
     } catch (error) {
-      return dateString; // Fallback
+      return dateString; 
     }
   };
 
@@ -54,7 +54,7 @@ export default function ProjectCard({ project }: ProjectCardProps) {
               alt={`${project.name} thumbnail`}
               fill
               style={{ objectFit: 'cover' }}
-              data-ai-hint="project abstract" // Added AI hint
+              data-ai-hint="project abstract" 
             />
           </div>
         )}
@@ -90,10 +90,10 @@ export default function ProjectCard({ project }: ProjectCardProps) {
       </CardContent>
       <CardFooter>
         <Button variant="outline" size="sm" className="w-full" asChild>
-          <a href="#"> {/* Placeholder link for now */}
+          <Link href={`/projects/${project.id}`}> {/* Updated Link */}
             View Project
             <ArrowRight className="ml-2 h-4 w-4" />
-          </a>
+          </Link>
         </Button>
       </CardFooter>
     </Card>
