@@ -5,7 +5,7 @@ import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/componen
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types'; // Added WorkflowNode
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode } from '@/types';
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -173,10 +173,10 @@ export default function ProjectDetailPage() {
           setProjectAgents(JSON.parse(storedAgents));
         } catch (error) {
           console.error(`Failed to parse agents for project ${projectId} from localStorage`, error);
-          setProjectAgents(initialProjectScopedMockAgents);
+          setProjectAgents(initialProjectScopedMockAgents.map(a => ({...a, id: `${a.id}-${projectId}`}))); // ensure unique ids for default scoped agents
         }
       } else {
-        setProjectAgents(initialProjectScopedMockAgents);
+        setProjectAgents(initialProjectScopedMockAgents.map(a => ({...a, id: `${a.id}-${projectId}`})));
       }
 
       const workflowsStorageKey = getWorkflowsStorageKey(projectId);
@@ -193,11 +193,11 @@ export default function ProjectDetailPage() {
           }));
           setProjectWorkflows(defaultWorkflowsWithIds);
         }
-      } else { // Initialize with predefined workflows if none are in localStorage
+      } else { 
         const defaultWorkflowsWithIds = predefinedWorkflows.map((wf, index) => ({
             ...wf,
-            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`, // ensure unique ID
-            nodes: [], // Initialize with empty nodes array
+            id: `pd-wf-${projectId}-${index + 1}-${Date.now().toString().slice(-3)}`,
+            nodes: [], 
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
       }
@@ -219,10 +219,36 @@ export default function ProjectDetailPage() {
 
   useEffect(() => {
     if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(getWorkflowsStorageKey(projectId)) !== null)) {
-      console.log('PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project', projectId, projectWorkflows);
+      console.log(
+        'PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project',
+        projectId,
+        `Raw length: ${projectWorkflows.length}, Content: ${JSON.stringify(projectWorkflows, null, 2)}`
+      );
       localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
     }
   }, [projectWorkflows, projectId, isClient]);
+
+  // Effect to synchronize designingWorkflow with the latest version from projectWorkflows
+  useEffect(() => {
+    if (designingWorkflow && projectWorkflows) {
+      const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
+      if (updatedDesigningWorkflowInstance) {
+        // Only update if the nodes array reference or content has actually changed to prevent infinite loops
+        if (updatedDesigningWorkflowInstance.nodes !== designingWorkflow.nodes || 
+            JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes || [])) {
+          console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated version from projectWorkflows. New nodes count:", updatedDesigningWorkflowInstance.nodes?.length);
+          setDesigningWorkflow(updatedDesigningWorkflowInstance);
+        } else if (updatedDesigningWorkflowInstance !== designingWorkflow) {
+          // If only the workflow object reference changed (e.g., name/description edit in future) but nodes are identical
+          console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow object reference from projectWorkflows.");
+          setDesigningWorkflow(updatedDesigningWorkflowInstance);
+        }
+      } else {
+        // The designing workflow was deleted, so close the designer
+        setDesigningWorkflow(null);
+      }
+    }
+  }, [projectWorkflows, designingWorkflow?.id]); // Rerun if projectWorkflows changes or the user selects a different workflow to design
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -317,7 +343,6 @@ export default function ProjectDetailPage() {
       lastActivity: new Date().toISOString(),
     };
     setProjectAgents(prevAgents => [newAgent, ...prevAgents]);
-    // Toast is handled by AddAgentDialog now for better context
   };
 
   const handleOpenEditAgentDialog = (agent: Agent) => {
@@ -333,7 +358,6 @@ export default function ProjectDetailPage() {
     );
     setIsEditAgentDialogOpen(false);
     setEditingAgent(null);
-    // Toast is handled by EditAgentDialog
   };
 
   const handleRunProjectAgent = (agentId: string) => {
@@ -389,7 +413,7 @@ export default function ProjectDetailPage() {
       description: workflowData.description,
       status: 'Draft',
       lastRun: undefined,
-      nodes: [], // Initialize with empty nodes
+      nodes: [], 
     };
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
     setIsAddWorkflowDialogOpen(false);
@@ -408,21 +432,15 @@ export default function ProjectDetailPage() {
   const handleWorkflowNodesChange = (updatedNodes: WorkflowNode[]) => {
     console.log('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:', updatedNodes.length, 'IDs:', updatedNodes.map(n => n.id).join(', '));
     if (designingWorkflow) {
-      console.log('PROJECT_DETAIL_PAGE: Current designingWorkflow ID:', designingWorkflow.id, 'Name:', designingWorkflow.name);
-      setProjectWorkflows(prevWorkflows => {
-        console.log('PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length:', prevWorkflows.length);
-        const newWorkflows = prevWorkflows.map(wf => {
-          if (wf.id === designingWorkflow.id) {
-            console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
-            return { ...wf, nodes: updatedNodes };
-          }
-          return wf;
-        });
-        // Log to see the updated workflow's nodes in the new array
-        const updatedWfInNewArray = newWorkflows.find(wf => wf.id === designingWorkflow.id);
-        console.log('PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID:', updatedWfInNewArray?.id, 'Nodes count:', updatedWfInNewArray?.nodes?.length, 'Nodes IDs:', updatedWfInNewArray?.nodes?.map(n => n.id).join(', '));
-        return newWorkflows;
-      });
+      const currentDesigningWorkflowId = designingWorkflow.id;
+      console.log('PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:', currentDesigningWorkflowId, 'Name:', designingWorkflow.name);
+      setProjectWorkflows(prevWorkflows =>
+        prevWorkflows.map(wf =>
+          wf.id === currentDesigningWorkflowId
+            ? { ...wf, nodes: updatedNodes }
+            : wf
+        )
+      );
     } else {
       console.warn('PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called but designingWorkflow is null.');
     }
