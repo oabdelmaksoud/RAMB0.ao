@@ -4,7 +4,7 @@
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2 } from 'lucide-react';
 import { useParams } from 'next/navigation';
-import { useEffect, useState, useCallback, MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useState, useCallback, DragEvent as ReactDragEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -129,6 +129,8 @@ export default function ProjectDetailPage() {
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
   const [isDeleteTaskDialogOpen, setIsDeleteTaskDialogOpen] = useState(false);
 
+  const [draggingOverStatus, setDraggingOverStatus] = useState<Task['status'] | null>(null);
+
 
   const { toast } = useToast();
 
@@ -160,18 +162,18 @@ export default function ProjectDetailPage() {
     
     if (foundProject) {
       setProject(foundProject);
-      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); // Mock progress based on ID
+      setMockProgress((foundProject.id.charCodeAt(foundProject.id.length - 1) % 60) + 30); 
 
       const tasksStorageKey = getTasksStorageKey(projectId);
       const storedTasks = localStorage.getItem(tasksStorageKey);
       const today = startOfDay(new Date());
 
       const initialMockTasksForProject: Task[] = [
-        { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null },
+        { id: `${projectId}-task-1`, title: `Define ${foundProject.name} scope`, status: 'Done', assignedTo: 'AI Agent Alpha', startDate: format(addDays(today, -5), 'yyyy-MM-dd'), durationDays: 2, progress: 100, parentId: null, dependencies: [] },
         { id: `${projectId}-task-2`, title: `Develop core logic for ${foundProject.name}`, status: 'In Progress', assignedTo: 'AI Agent Beta', startDate: format(today, 'yyyy-MM-dd'), durationDays: 5, progress: 40, parentId: null, dependencies: [`${projectId}-task-1`] },
-        { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2` },
+        { id: `${projectId}-task-sub-1`, title: `Sub-task for core logic`, status: 'To Do', assignedTo: 'AI Agent Beta', startDate: format(addDays(today,1), 'yyyy-MM-dd'), durationDays: 2, progress: 0, parentId: `${projectId}-task-2`, dependencies: [] },
         { id: `${projectId}-task-3`, title: `Test ${foundProject.name} integration`, status: 'To Do', assignedTo: 'AI Agent Gamma', startDate: format(addDays(today, 3), 'yyyy-MM-dd'), durationDays: 3, progress: 0, parentId: null, dependencies: [`${projectId}-task-2`] },
-        { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null },
+        { id: `${projectId}-milestone-1`, title: `Project Kick-off Meeting`, status: 'Done', assignedTo: 'Project Lead', startDate: format(addDays(today, -10), 'yyyy-MM-dd'), durationDays: 0, progress: 100, isMilestone: true, parentId: null, dependencies: [] },
       ];
 
       if (storedTasks) {
@@ -241,7 +243,6 @@ export default function ProjectDetailPage() {
         const currentWorkflows = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflows !== null) {
              try {
-                // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, JSON.stringify(projectWorkflows, null, 2));
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
@@ -259,12 +260,10 @@ export default function ProjectDetailPage() {
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance && 
-          (updatedDesigningWorkflowInstance.nodes !== designingWorkflow.nodes || 
-           updatedDesigningWorkflowInstance.edges !== designingWorkflow.edges)) {
-          // console.log('PROJECT_DETAIL_PAGE: Updating designingWorkflow instance from projectWorkflows change');
+          (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) || 
+           JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges))) {
           setDesigningWorkflow(updatedDesigningWorkflowInstance);
       } else if (!updatedDesigningWorkflowInstance && designingWorkflow) { 
-        // console.log('PROJECT_DETAIL_PAGE: designingWorkflow instance no longer in projectWorkflows, clearing designingWorkflow');
         setDesigningWorkflow(null);
       }
     }
@@ -289,6 +288,7 @@ export default function ProjectDetailPage() {
       durationDays: taskData.isMilestone ? 0 : (taskData.durationDays || 1),
       status: taskData.isMilestone ? (taskData.status === 'Done' ? 'Done' : 'To Do') : taskData.status,
       parentId: taskData.parentId === "" ? null : taskData.parentId,
+      dependencies: taskData.dependencies || [],
     };
 
     let autoStarted = false;
@@ -345,6 +345,7 @@ export default function ProjectDetailPage() {
         progress: updatedTaskData.isMilestone ? (updatedTaskData.status === 'Done' ? 100 : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress)) : (updatedTaskData.progress === undefined ? 0 : updatedTaskData.progress),
         status: updatedTaskData.isMilestone ? (updatedTaskData.progress === 100 ? 'Done' : 'To Do') : updatedTaskData.status,
         parentId: updatedTaskData.parentId === "" ? null : updatedTaskData.parentId,
+        dependencies: updatedTaskData.dependencies || [],
     }
     
     setTasks(prevTasks => prevTasks.map(task => task.id === taskToUpdate.id ? taskToUpdate : task));
@@ -468,30 +469,17 @@ export default function ProjectDetailPage() {
     setDesigningWorkflow(null);
   };
 
- const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
+  const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     if (!designingWorkflow) return;
-    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length} IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
-    // console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id} Name: ${designingWorkflow.name}`);
-
-    setProjectWorkflows(prevWorkflows => {
-      // console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows. prevWorkflows length: ${prevWorkflows.length}`);
-      const newWorkflowsArray = prevWorkflows.map(wf => {
-        if (wf.id === designingWorkflow.id) {
-          // console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. New nodes count: ${updatedNodes.length}`);
-          return { ...wf, nodes: updatedNodes };
-        }
-        return wf;
-      });
-      // newWorkflowsArray.forEach(wf => {
-      //    console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map). ID: ${wf.id} Nodes count: ${wf.nodes?.length || 0} Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ') || 'N/A'}`);
-      // });
-      return newWorkflowsArray;
-    });
+    setProjectWorkflows(prevWorkflows => 
+      prevWorkflows.map(wf => 
+        wf.id === designingWorkflow.id ? { ...wf, nodes: updatedNodes } : wf
+      )
+    );
   }, [designingWorkflow, setProjectWorkflows]);
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
      if (designingWorkflow) {
-        // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange for workflow ${designingWorkflow.name}. New edges count: ${updatedEdges.length}`);
         setProjectWorkflows(prevWorkflows => 
             prevWorkflows.map(wf => 
                 wf.id === designingWorkflow.id ? { ...wf, edges: updatedEdges } : wf
@@ -512,9 +500,46 @@ export default function ProjectDetailPage() {
       setWorkflowToDelete(null);
       setIsDeleteWorkflowDialogOpen(false);
       if (designingWorkflow && designingWorkflow.id === workflowToDelete.id) {
-        setDesigningWorkflow(null); // Close designer if the deleted workflow was being designed
+        setDesigningWorkflow(null); 
       }
     }
+  };
+
+  // Kanban Drag and Drop Handlers
+  const handleDragStart = (event: ReactDragEvent<HTMLDivElement>, taskId: string) => {
+    event.dataTransfer.setData('taskId', taskId);
+  };
+
+  const handleDragOver = (event: ReactDragEvent<HTMLDivElement>, status: Task['status']) => {
+    event.preventDefault();
+    setDraggingOverStatus(status);
+  };
+
+  const handleDragLeave = () => {
+    setDraggingOverStatus(null);
+  };
+
+  const handleDrop = (event: ReactDragEvent<HTMLDivElement>, newStatus: Task['status']) => {
+    event.preventDefault();
+    const taskId = event.dataTransfer.getData('taskId');
+    setDraggingOverStatus(null);
+
+    setTasks(prevTasks => {
+      const taskToMove = prevTasks.find(task => task.id === taskId);
+      if (taskToMove && taskToMove.status !== newStatus) {
+        const updatedTask = { 
+          ...taskToMove, 
+          status: newStatus,
+          progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : taskToMove.progress))
+        };
+        toast({
+          title: "Task Status Updated",
+          description: `Task "${updatedTask.title}" moved to "${newStatus}".`
+        });
+        return prevTasks.map(task => task.id === taskId ? updatedTask : task);
+      }
+      return prevTasks;
+    });
   };
 
 
@@ -646,7 +671,16 @@ export default function ProjectDetailPage() {
                 <ScrollArea className="w-full whitespace-nowrap pb-4">
                   <div className="flex gap-4">
                     {taskStatuses.map(status => (
-                      <div key={status} className="min-w-[300px] w-[300px] rounded-lg">
+                      <div 
+                        key={status} 
+                        className={cn(
+                          "min-w-[300px] w-[300px] rounded-lg border border-transparent transition-colors",
+                          draggingOverStatus === status && "border-primary ring-2 ring-primary bg-primary/10"
+                        )}
+                        onDragOver={(e) => handleDragOver(e, status)}
+                        onDrop={(e) => handleDrop(e, status)}
+                        onDragLeave={handleDragLeave}
+                      >
                         <div className={cn("p-2 rounded-t-lg font-semibold flex items-center justify-between", taskStatusColors[status])}>
                           {status}
                           <span className="text-xs font-normal opacity-75">
@@ -655,7 +689,12 @@ export default function ProjectDetailPage() {
                         </div>
                         <div className="p-2 space-y-3 bg-muted/30 rounded-b-lg border border-t-0 min-h-[200px]">
                           {tasks.filter(task => task.status === status).map(task => (
-                            <Card key={task.id} className="shadow-sm bg-card flex flex-col hover:shadow-md transition-shadow">
+                            <Card 
+                              key={task.id} 
+                              className="shadow-sm bg-card flex flex-col hover:shadow-md transition-shadow cursor-grab"
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, task.id)}
+                            >
                               <CardHeader className="p-3">
                                 <div className="flex items-start justify-between gap-2">
                                   <CardTitle className="text-sm font-medium leading-tight flex items-center" style={{ paddingLeft: `${(task.parentId ? 1 : 0) * 1.25}rem` }}>
@@ -921,3 +960,6 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
+
+
+    
