@@ -46,6 +46,8 @@ interface AITaskPlannerDialogProps {
   ) => void;
 }
 
+const AI_SUGGESTION_OPTION_VALUE = "__AI_SUGGESTION_AS_IS__";
+
 export default function AITaskPlannerDialog({
   open,
   onOpenChange,
@@ -95,7 +97,7 @@ export default function AITaskPlannerDialog({
 
   const handleAcceptAndAddTask = () => {
     if (aiSuggestion?.plannedTask) {
-      const finalAssignedTo = selectedWorkflowOverride !== undefined && selectedWorkflowOverride !== ""
+      const finalAssignedTo = selectedWorkflowOverride !== undefined
         ? selectedWorkflowOverride
         : aiSuggestion.plannedTask.assignedTo;
 
@@ -109,9 +111,14 @@ export default function AITaskPlannerDialog({
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
         parentId: aiSuggestion.plannedTask.parentId || null,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
+        // Description is handled by the parent component when constructing the task
       };
-      onTaskPlannedAndAccepted(taskData, aiSuggestion.reasoning, aiSuggestion.plannedTask.suggestedSubTasks);
-      onOpenChange(false);
+      onTaskPlannedAndAccepted(
+        taskData, 
+        aiSuggestion.reasoning, 
+        aiSuggestion.plannedTask.suggestedSubTasks
+      );
+      onOpenChange(false); // Close dialog after accepting
     }
   };
 
@@ -219,12 +226,15 @@ export default function AITaskPlannerDialog({
 
                 <div className="space-y-1 pt-2">
                   <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Optionally, assign to specific existing workflow:</Label>
-                  <Select onValueChange={setSelectedWorkflowOverride} value={selectedWorkflowOverride || ""}>
+                  <Select 
+                    onValueChange={(value) => setSelectedWorkflowOverride(value === AI_SUGGESTION_OPTION_VALUE ? undefined : value)} 
+                    value={selectedWorkflowOverride === undefined ? AI_SUGGESTION_OPTION_VALUE : selectedWorkflowOverride}
+                  >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Keep AI suggestion or select a workflow..." />
+                      <SelectValue placeholder="Select a workflow..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Keep AI suggestion ({aiSuggestion.plannedTask.assignedTo})</SelectItem>
+                      <SelectItem value={AI_SUGGESTION_OPTION_VALUE}>Use AI Suggestion: ({aiSuggestion.plannedTask.assignedTo || "AI to determine"})</SelectItem>
                       {projectWorkflows.map(wf => (
                         <SelectItem key={wf.name} value={wf.name}>{wf.name}</SelectItem>
                       ))}
@@ -275,7 +285,7 @@ export default function AITaskPlannerDialog({
         )}
 
         {aiSuggestion && (
-          <DialogFooter className="mt-auto pt-4 border-t"> {/* Ensure footer is not part of scroll area */}
+          <DialogFooter className="mt-auto pt-4 border-t">
             <Button variant="outline" onClick={() => { form.reset(); setAiSuggestion(null); setSelectedWorkflowOverride(undefined); }}>
               Clear & Plan New
             </Button>
@@ -289,3 +299,4 @@ export default function AITaskPlannerDialog({
     </Dialog>
   );
 }
+
