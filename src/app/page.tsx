@@ -1,12 +1,11 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import ProjectCard from '@/components/features/projects/ProjectCard';
 import type { Project } from '@/types';
-import { initialMockProjects, PROJECTS_STORAGE_KEY } from '@/app/projects/page';
-import { LayoutDashboard, PlusCircle } from 'lucide-react';
+import { initialMockProjects, PROJECTS_STORAGE_KEY } from '@/app/projects/page'; // Ensure these are exported
+import { LayoutDashboard, PlusCircle, Briefcase } from 'lucide-react'; // Added Briefcase
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -24,21 +23,28 @@ export default function DashboardPage() {
           if (Array.isArray(storedProjects)) {
             setProjects(storedProjects);
           } else {
-            setProjects(initialMockProjects); // Fallback if stored data is invalid
+            // Fallback if stored data is invalid, but only if initialMockProjects has items
+            // This prevents initializing with mocks if the user intentionally cleared all projects.
+            if (initialMockProjects.length > 0 && projects.length === 0) {
+              setProjects(initialMockProjects);
+            }
           }
         } catch (e) {
           console.error("Dashboard: Error parsing projects from localStorage.", e);
-          setProjects(initialMockProjects); // Fallback on parsing error
+          if (initialMockProjects.length > 0 && projects.length === 0) {
+             setProjects(initialMockProjects); // Fallback on parsing error only if state is empty
+          }
         }
       } else {
-        // If nothing in localStorage, use initial mocks (consistent with projects page)
-        setProjects(initialMockProjects);
+        // If nothing in localStorage, use initial mocks if they exist and current state is empty
+        if (initialMockProjects.length > 0 && projects.length === 0) {
+            setProjects(initialMockProjects);
+        }
       }
     }
   }, []); // Run once on mount
 
   if (!isClient) {
-    // Optional: Render a loading state or null during SSR to avoid hydration mismatch for localStorage dependent content
     return (
        <div className="container mx-auto">
         <PageHeader>

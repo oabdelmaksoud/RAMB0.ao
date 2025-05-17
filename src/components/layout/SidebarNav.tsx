@@ -5,6 +5,11 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Briefcase,
+  Activity, // Added Activity icon
+  UserCircle,
+  SlidersHorizontal,
+  Lightbulb,
+  Workflow as WorkflowIconLucide, // aliased to avoid conflict
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -13,6 +18,11 @@ import { Button } from '@/components/ui/button';
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/projects', label: 'Projects', icon: Briefcase },
+  { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
+  { href: '/agent-management', label: 'Agents', icon: SlidersHorizontal },
+  { href: '/ai-suggestions', label: 'AI Suggestions', icon: Lightbulb },
+  // Workflow Designer is now within projects, so removing global link.
+  // { href: '/workflow-designer', label: 'Designer', icon: WorkflowIconLucide },
 ];
 
 export default function SidebarNav() {
@@ -35,12 +45,12 @@ export default function SidebarNav() {
                 >
                   <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2">{item.label}</span> {/* Removed hidden lg:inline */}
+                    <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="center" className="lg:hidden"> {/* Tooltip can remain for consistency or be removed if deemed unnecessary */}
+            <TooltipContent side="bottom" align="center" className="lg:hidden">
               <p>{item.label}</p>
             </TooltipContent>
           </Tooltip>
