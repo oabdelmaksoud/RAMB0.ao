@@ -85,10 +85,9 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
 
 const uniqueIdGen = (base: string) => `${base}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`;
 
+// This function generates predefined workflows.
 const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
-  // Helper to ensure IDs are unique within the context of *this* call, for *this* project's defaults
-  const uid = (base: string) => `${base}-${projectId.slice(-5)}-${uniqueIdGen(base.slice(0,3))}`;
-
+  const uid = (prefix: string) => `${prefix}-${projectId.slice(-5)}-${uniqueIdGen(prefix.substring(0,3))}`;
   const workflows: ProjectWorkflow[] = [];
 
   // 1. Requirements Engineering Workflow
@@ -126,7 +125,7 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
     nodes: [
       { id: devNode1Id, name: 'Software Architecture Design', type: 'Custom Logic Agent', x: 50, y: 50, config: {} },
       { id: devNode2Id, name: 'Detailed Component Design', type: 'Custom Logic Agent', x: 250, y: 120, config: {} },
-      { id: devNode3Id, name: 'Code Implementation', type: 'Code Review Agent', x: 50, y: 190, config: {} }, // Assuming Code Review Agent for generation
+      { id: devNode3Id, name: 'Code Implementation', type: 'Code Review Agent', x: 50, y: 190, config: {} }, 
       { id: devNode4Id, name: 'Unit Testing', type: 'Testing Agent', x: 250, y: 260, config: {} },
     ],
     edges: [
@@ -558,7 +557,7 @@ export default function ProjectDetailPage() {
 
   const handleAddProjectWorkflow = (workflowData: { name: string; description: string }) => {
     const newWorkflow: ProjectWorkflow = {
-      id: uid('wf-proj'), // Using the global uid defined outside ProjectDetailPage for consistency
+      id: uid('wf-proj'), 
       name: workflowData.name,
       description: workflowData.description,
       status: 'Draft',
@@ -569,6 +568,21 @@ export default function ProjectDetailPage() {
     setProjectWorkflows(prevWorkflows => [newWorkflow, ...prevWorkflows]);
     setIsAddWorkflowDialogOpen(false);
     toast({ title: "Project Workflow Added", description: `Workflow "${newWorkflow.name}" created for project "${project?.name}".` });
+  };
+
+  const handleRunWorkflow = (workflowId: string) => {
+    setProjectWorkflows(prevWorkflows =>
+      prevWorkflows.map(wf =>
+        wf.id === workflowId
+          ? { ...wf, status: 'Active', lastRun: new Date().toISOString() }
+          : wf
+      )
+    );
+    const workflowName = projectWorkflows.find(wf => wf.id === workflowId)?.name;
+    toast({
+      title: "Workflow Initiated (Simulation)",
+      description: `Workflow "${workflowName || workflowId}" has been started.`,
+    });
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
@@ -1072,7 +1086,7 @@ export default function ProjectDetailPage() {
                                             <Trash2 className="h-4 w-4" />
                                             <span className="sr-only">Delete Workflow</span>
                                           </Button>
-                                          <Button variant="default" size="sm" className="text-xs flex-1" disabled><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
+                                          <Button variant="default" size="sm" className="text-xs flex-1" onClick={() => handleRunWorkflow(workflow.id)}><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
                                       </CardFooter>
                                   </Card>
                               ))}
@@ -1242,3 +1256,4 @@ export default function ProjectDetailPage() {
   );
 }
 
+    
