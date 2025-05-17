@@ -97,6 +97,7 @@ export default function AITaskPlannerDialog({
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
         parentId: aiSuggestion.plannedTask.parentId || null,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
+        description: aiSuggestion.reasoning, // Using reasoning as description for now
       };
       onTaskPlannedAndAccepted(taskData);
       onOpenChange(false); // Close dialog after adding
@@ -185,7 +186,7 @@ export default function AITaskPlannerDialog({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <strong className="text-muted-foreground">Status:</strong>
-                    <p><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></p>
+                    <div><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
                   </div>
                   <div>
                     <strong className="text-muted-foreground">Assigned To:</strong>
