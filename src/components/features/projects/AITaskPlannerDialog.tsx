@@ -22,7 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, AlertCircle, FolderGit2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// Removed ScrollArea import as we'll use native overflow
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -153,30 +153,27 @@ export default function AITaskPlannerDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-grow min-h-0">
-          <div className="space-y-4 p-1"> 
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm" className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="userGoal"
-                  render={({ field }) => (
-                    <FormItem>
-                      <RHFFormLabel>What do you want to achieve?</RHFFormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup'"
-                          className="min-h-[100px] resize-y"
-                          {...field}
-                          disabled={isLoading || !!aiSuggestion}
-                        />
-                      </FormControl>
-                      <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </form>
+        <div className="flex-grow overflow-y-auto p-4 space-y-4"> {/* Changed: This div handles scrolling */}
+            <Form {...form} onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm" className="space-y-4">
+              <FormField
+                control={form.control}
+                name="userGoal"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>What do you want to achieve?</RHFFormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup'"
+                        className="min-h-[100px] resize-y"
+                        {...field}
+                        disabled={isLoading || !!aiSuggestion}
+                      />
+                    </FormControl>
+                    <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </Form>
 
             {isLoading && !aiSuggestion && (
@@ -187,7 +184,7 @@ export default function AITaskPlannerDialog({
             )}
 
             {aiSuggestion && (
-              <Card className="bg-accent/30 border-accent shadow-md mt-2">
+              <Card className="bg-accent/30 border-accent shadow-md">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center">
                     <Sparkles className="w-5 h-5 mr-2 text-primary" />
@@ -200,37 +197,37 @@ export default function AITaskPlannerDialog({
                     <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title}</div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3"> {/* Increased gap-y */}
                      <div>
                         <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
-                        <div className="mt-0.5"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
+                        <div className="p-1 bg-background/50 border rounded-sm text-xs w-fit"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
-                      <div className="mt-0.5 p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo}</div>
+                      <div className="p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><CalendarDays className="w-3.5 h-3.5 mr-1"/>Start Date:</Label>
-                      <div className="mt-0.5">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'Not set'}</div>
+                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'Not set'}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Clock3 className="w-3.5 h-3.5 mr-1"/>Duration:</Label>
-                      <div className="mt-0.5">{aiSuggestion.plannedTask.durationDays} day(s)</div>
+                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.durationDays} day(s)</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Milestone className="w-3.5 h-3.5 mr-1"/>Milestone:</Label>
-                      <div className="mt-0.5">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</div>
+                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</div>
                     </div>
                   </div>
                   
                   {aiSuggestion.plannedTask.parentId && aiSuggestion.plannedTask.parentId !== "null" && (
-                    <div>
+                    <div className="mt-2"> {/* Added mt-2 for spacing */}
                       <Label className="text-muted-foreground text-xs font-normal block mb-0.5 flex items-center"><FolderGit2 className="w-3.5 h-3.5 mr-1"/>Parent Task ID:</Label>
                       <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</div>
                     </div>
                   )}
                   {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
-                    <div>
+                    <div className="mt-2"> {/* Added mt-2 for spacing */}
                       <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Dependencies:</Label>
                       <ul className="list-disc list-inside pl-1 mt-0.5">
                         {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
@@ -245,7 +242,7 @@ export default function AITaskPlannerDialog({
                       value={selectedWorkflowOverride === undefined ? AI_SUGGESTION_OPTION_VALUE : selectedWorkflowOverride}
                       disabled={isLoading || !aiSuggestion}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className="w-full text-xs">
                         <SelectValue placeholder="Select a workflow..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -264,7 +261,7 @@ export default function AITaskPlannerDialog({
 
                   <div>
                     <Label className="text-muted-foreground text-xs font-normal block mb-1">Detailed AI Reasoning:</Label>
-                    <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap">
+                    <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap max-h-40 overflow-y-auto"> {/* Added max-h and overflow for reasoning */}
                       {aiSuggestion.reasoning}
                     </ShadCnCardDescription>
                   </div>
@@ -272,7 +269,7 @@ export default function AITaskPlannerDialog({
                   {aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0 && (
                     <div className="pt-2">
                       <Label className="text-muted-foreground text-xs font-normal block mb-1">Suggested Sub-Tasks / Steps:</Label>
-                      <div className="space-y-2 mt-1">
+                      <div className="space-y-2 mt-1 max-h-60 overflow-y-auto border rounded-md p-2 bg-background/50"> {/* Added max-h and overflow for sub-tasks list */}
                         {aiSuggestion.plannedTask.suggestedSubTasks.map((subTask, index) => (
                           <div key={index} className="p-2 bg-background/70 rounded-md border border-dashed">
                             <p className="font-medium text-xs">{index + 1}. {subTask.title}</p>
@@ -285,10 +282,9 @@ export default function AITaskPlannerDialog({
                 </CardContent>
               </Card>
             )}
-          </div>
-        </ScrollArea>
+        </div> {/* End of scrollable middle section */}
 
-        <DialogFooter className="mt-auto pt-4 border-t">
+        <DialogFooter className="pt-4 border-t"> {/* Footer is outside scrollable section */}
           {!aiSuggestion && (
             <>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
