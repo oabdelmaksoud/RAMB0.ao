@@ -58,7 +58,8 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
               fill
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" 
               style={{ objectFit: 'cover' }}
-              data-ai-hint="project abstract" 
+              data-ai-hint="project abstract"
+              priority // Added priority prop
             />
           </div>
         )}
