@@ -45,7 +45,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
       <Card className="flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold">{agent.name}</CardTitle>
+            <CardTitle className="text-lg font-semibold truncate">{agent.name}</CardTitle>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -59,7 +59,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
               </Tooltip>
             </TooltipProvider>
           </div>
-          <CardDescription className="text-sm text-muted-foreground">{agent.type}</CardDescription>
+          <CardDescription className="text-sm text-muted-foreground truncate">{agent.type}</CardDescription>
         </CardHeader>
         <CardContent className="flex-grow space-y-3">
           <Badge variant="outline" className={cn("font-mono text-xs", statusColors[agent.status])}>

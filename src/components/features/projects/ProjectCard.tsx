@@ -59,12 +59,12 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" 
               style={{ objectFit: 'cover' }}
               data-ai-hint="project abstract"
-              priority // Added priority prop
+              priority
             />
           </div>
         )}
         <div className="flex justify-between items-start">
-          <CardTitle className="text-xl font-semibold">{project.name}</CardTitle>
+          <CardTitle className="text-xl font-semibold truncate">{project.name}</CardTitle>
           <Badge variant="outline" className={cn("capitalize text-xs", statusColors[project.status])}>
             {project.status}
           </Badge>
