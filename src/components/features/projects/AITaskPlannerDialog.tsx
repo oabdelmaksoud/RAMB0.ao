@@ -19,7 +19,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as R
 import type { Task, ProjectWorkflow } from '@/types';
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone } from "lucide-react";
+import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain } from "lucide-react"; // Added Brain
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -67,6 +67,13 @@ export default function AITaskPlannerDialog({
     },
   });
 
+  // DEBUG: Log aiSuggestion when it changes
+  React.useEffect(() => {
+    if (aiSuggestion) {
+      console.log("AI Suggestion Data in Dialog:", JSON.stringify(aiSuggestion, null, 2));
+    }
+  }, [aiSuggestion]);
+
   const onSubmit: SubmitHandler<PlannerFormData> = async (data) => {
     setIsLoading(true);
     setAiSuggestion(null);
@@ -111,7 +118,7 @@ export default function AITaskPlannerDialog({
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
         parentId: aiSuggestion.plannedTask.parentId || null,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
-        description: `AI Reasoning: ${aiSuggestion.reasoning}`, // Description will be updated later
+        // Description is set in the parent component using reasoning and subtasks
       };
       onTaskPlannedAndAccepted(
         taskData, 
@@ -190,8 +197,8 @@ export default function AITaskPlannerDialog({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
                     <div>
-                      <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
-                      <div className="mt-0.5"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
+                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
+                       <div className="mt-0.5"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
@@ -278,11 +285,11 @@ export default function AITaskPlannerDialog({
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" form="aiPlannerForm" disabled={isLoading}> {/* Use form="aiPlannerForm" to trigger form submission */}
+              <Button type="submit" form="aiPlannerForm" disabled={isLoading}>
                 {isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <Sparkles className="mr-2 h-4 w-4" />
+                  <Brain className="mr-2 h-4 w-4" /> // Using Brain icon
                 )}
                 Plan with AI
               </Button>
