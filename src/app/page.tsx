@@ -1,100 +1,95 @@
 
-import AgentCard from '@/components/features/agent-monitoring/AgentCard';
-import type { Agent } from '@/types';
-import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
+'use client';
 
-const mockAgents: Agent[] = [
-  {
-    id: 'agent-001',
-    name: 'Code Analyzer X',
-    type: 'Analysis Agent',
-    status: 'Running',
-    lastActivity: '2 minutes ago',
-    performance: { cpuUsage: 25, memoryUsage: 128 },
-    logs: [
-      '[INFO] Starting analysis for project "Alpha"...',
-      '[DEBUG] Found 1500 lines of code.',
-      '[WARN] Potential memory leak detected in module "utils.py".',
-      '[INFO] Analysis complete. Issues found: 1 critical, 3 major.',
-    ],
-  },
-  {
-    id: 'agent-002',
-    name: 'Build Master',
-    type: 'CI/CD Agent',
-    status: 'Idle',
-    lastActivity: '1 hour ago',
-    performance: { cpuUsage: 2, memoryUsage: 64 },
-    logs: [
-      '[INFO] Awaiting new commits to branch "main".',
-      '[DEBUG] Last build completed successfully in 5m 32s.',
-    ],
-  },
-  {
-    id: 'agent-003',
-    name: 'DocuBot',
-    type: 'Documentation Agent',
-    status: 'Error',
-    lastActivity: '5 minutes ago',
-    performance: { cpuUsage: 0, memoryUsage: 32 },
-    logs: [
-      '[INFO] Starting documentation generation for API v2.1.',
-      '[ERROR] Failed to parse Swagger definition: Unexpected token "<" at position 0.',
-      '[DEBUG] Retrying with compatibility mode...',
-      '[ERROR] Compatibility mode also failed. Aborting.',
-    ],
-  },
-  {
-    id: 'agent-004',
-    name: 'Deployatron 5000',
-    type: 'Deployment Agent',
-    status: 'Running',
-    lastActivity: '30 seconds ago',
-    performance: { cpuUsage: 60, memoryUsage: 256 },
-    logs: [
-      '[INFO] Starting deployment to "staging" environment.',
-      '[INFO] Pulling latest image: myapp:latest.',
-      '[INFO] Image pulled successfully.',
-      '[INFO] Starting 2 new containers.',
-      '[INFO] Health checks passed. Deployment successful.',
-    ],
-  },
-  {
-    id: 'agent-005',
-    name: 'QA Inspector',
-    type: 'Testing Agent',
-    status: 'Idle',
-    lastActivity: '3 hours ago',
-    logs: [
-      '[INFO] Test suite "E2E-CustomerFlow" completed. All 152 tests passed.',
-      '[INFO] Waiting for next scheduled run.',
-    ],
-  },
-  {
-    id: 'agent-006',
-    name: 'PerfMon',
-    type: 'Monitoring Agent',
-    status: 'Stopped',
-    lastActivity: '1 day ago',
-    // No logs for a stopped agent, or could have "Agent stopped manually"
-  },
-];
+import { useState, useEffect } from 'react';
+import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
+import ProjectCard from '@/components/features/projects/ProjectCard';
+import type { Project } from '@/types';
+import { initialMockProjects, PROJECTS_STORAGE_KEY } from '@/app/projects/page';
+import { LayoutDashboard, PlusCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 export default function DashboardPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    if (typeof window !== 'undefined') {
+      const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
+      if (storedProjectsJson) {
+        try {
+          const storedProjects = JSON.parse(storedProjectsJson);
+          if (Array.isArray(storedProjects)) {
+            setProjects(storedProjects);
+          } else {
+            setProjects(initialMockProjects); // Fallback if stored data is invalid
+          }
+        } catch (e) {
+          console.error("Dashboard: Error parsing projects from localStorage.", e);
+          setProjects(initialMockProjects); // Fallback on parsing error
+        }
+      } else {
+        // If nothing in localStorage, use initial mocks (consistent with projects page)
+        setProjects(initialMockProjects);
+      }
+    }
+  }, []); // Run once on mount
+
+  if (!isClient) {
+    // Optional: Render a loading state or null during SSR to avoid hydration mismatch for localStorage dependent content
+    return (
+       <div className="container mx-auto">
+        <PageHeader>
+          <PageHeaderHeading>
+            <LayoutDashboard className="mr-2 inline-block h-6 w-6" />
+            Dashboard
+          </PageHeaderHeading>
+          <PageHeaderDescription>
+            Loading your projects overview...
+          </PageHeaderDescription>
+        </PageHeader>
+        <div className="text-center py-10">
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto">
       <PageHeader>
-        <PageHeaderHeading>Agent Monitoring Dashboard</PageHeaderHeading>
+        <PageHeaderHeading>
+          <LayoutDashboard className="mr-2 inline-block h-6 w-6" />
+          Dashboard
+        </PageHeaderHeading>
         <PageHeaderDescription>
-          Oversee the status and performance of all active agents in real-time.
+          An overview of your projects. Manage them from the <Link href="/projects" className="text-primary hover:underline">Projects page</Link>.
         </PageHeaderDescription>
       </PageHeader>
 
-      <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {mockAgents.map((agent) => (
-          <AgentCard key={agent.id} agent={agent} />
-        ))}
-      </div>
+      {projects.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {projects.map((project) => (
+            // onDeleteProject is not passed, so delete button won't show on dashboard cards
+            <ProjectCard key={project.id} project={project} /> 
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
+          <Briefcase className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+          <p className="text-lg font-medium text-muted-foreground">No projects found.</p>
+          <p className="text-sm text-muted-foreground/80 mt-1 mb-4">
+            Go to the <Link href="/projects" className="text-primary hover:underline">Projects page</Link> to create your first project.
+          </p>
+          <Button asChild>
+            <Link href="/projects">
+              <PlusCircle className="mr-2 h-4 w-4" /> Go to Projects
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
 
+// Export initialMockProjects and PROJECTS_STORAGE_KEY so they can be used by other pages like the dashboard
 export const initialMockProjects: Project[] = [
   {
     id: 'proj-001',
@@ -53,45 +54,62 @@ export const initialMockProjects: Project[] = [
   },
 ];
 
-const PROJECTS_STORAGE_KEY = 'agentFlowProjects';
+export const PROJECTS_STORAGE_KEY = 'agentFlowProjects';
 const getTasksStorageKey = (projectId: string) => `agentFlowTasks_project_${projectId}`;
 const getAgentsStorageKey = (projectId: string) => `agentFlowAgents_project_${projectId}`;
 const getWorkflowsStorageKey = (projectId: string) => `agentFlowWorkflows_project_${projectId}`;
+const getFilesStorageKey = (projectId: string) => `agentFlowFiles_project_${projectId}`;
+
 
 export default function ProjectsPage() {
-  // Initialize with mock projects. Loading useEffect will override if localStorage has data.
   const [projects, setProjects] = useState<Project[]>(initialMockProjects);
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  // Load projects from localStorage on component mount (client-side only)
   useEffect(() => {
     console.log("PROJECTS_PAGE: Attempting to load projects from localStorage.");
     const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
     if (storedProjectsJson) {
       try {
         const storedProjects = JSON.parse(storedProjectsJson);
-        console.log("PROJECTS_PAGE: Loaded from localStorage:", storedProjects);
-        setProjects(storedProjects);
+        if (Array.isArray(storedProjects) && storedProjects.length > 0) {
+            console.log("PROJECTS_PAGE: Loaded from localStorage:", storedProjects);
+            setProjects(storedProjects);
+        } else if (Array.isArray(storedProjects) && storedProjects.length === 0 && initialMockProjects.length > 0) {
+            // If localStorage has an empty array but we have initial mocks, use mocks (for first-time use after clearing)
+            console.log("PROJECTS_PAGE: localStorage empty, initializing with initialMockProjects and saving.");
+            setProjects(initialMockProjects);
+            localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects));
+        } else {
+             // If stored data is not an array or somehow invalid, use initial mocks
+             console.log("PROJECTS_PAGE: Invalid or empty data in localStorage, using initialMockProjects.");
+             setProjects(initialMockProjects);
+             localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects));
+        }
       } catch (e) {
         console.error("PROJECTS_PAGE: Error parsing projects from localStorage. Initial mocks will be used and saved.", e);
-        // If parsing fails, `projects` state remains `initialMockProjects`.
-        // The save effect below will then save these initial mocks.
+        setProjects(initialMockProjects);
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects));
       }
     } else {
       console.log("PROJECTS_PAGE: No projects found in localStorage. Initial mocks will be used and saved.");
-      // `projects` state is already `initialMockProjects`, so no need to set it again.
-      // The save effect below will save the initialMockProjects.
+      setProjects(initialMockProjects);
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects));
     }
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
-  // Save projects to localStorage whenever the projects state changes
   useEffect(() => {
-    console.log("PROJECTS_PAGE: Attempting to save projects to localStorage. Current projects state:", projects);
-    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-    console.log("PROJECTS_PAGE: Successfully saved projects to localStorage.");
+    // Only save if projects is not the initial reference and not empty, or if it differs from what might be in storage
+    // This aims to prevent overwriting good stored data with initial mocks on mount if localStorage was temporarily unavailable
+    // A more robust check would compare current state with parsed storage before saving, but this is a simplification.
+    // The primary save trigger is now user actions like add/delete.
+    if(projects !== initialMockProjects || !localStorage.getItem(PROJECTS_STORAGE_KEY)) {
+        console.log("PROJECTS_PAGE: Attempting to save projects to localStorage. Current projects state:", projects);
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+        console.log("PROJECTS_PAGE: Successfully saved projects to localStorage.");
+    }
   }, [projects]);
 
   const handleAddProject = (projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'agentCount' | 'workflowCount'>) => {
@@ -100,7 +118,7 @@ export default function ProjectsPage() {
       ...projectData,
       status: 'Active',
       lastUpdated: new Date().toISOString(),
-      thumbnailUrl: projectData.thumbnailUrl || 'https://placehold.co/600x400.png',
+      thumbnailUrl: projectData.thumbnailUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(projectData.name.substring(0,20))}`,
       agentCount: 0,
       workflowCount: 0,
     };
@@ -124,10 +142,10 @@ export default function ProjectsPage() {
   const confirmDeleteProject = () => {
     if (projectToDelete) {
       console.log("PROJECTS_PAGE: confirmDeleteProject - Deleting project:", projectToDelete);
-      // Remove project-specific data
       localStorage.removeItem(getTasksStorageKey(projectToDelete.id));
       localStorage.removeItem(getAgentsStorageKey(projectToDelete.id));
       localStorage.removeItem(getWorkflowsStorageKey(projectToDelete.id));
+      localStorage.removeItem(getFilesStorageKey(projectToDelete.id));
 
       setProjects(prevProjects => {
         const updatedProjects = prevProjects.filter(p => p.id !== projectToDelete.id);
@@ -192,7 +210,7 @@ export default function ProjectsPage() {
               <AlertDialogTitle>Are you sure you want to delete this project?</AlertDialogTitle>
               <AlertDialogDescription>
                 This action cannot be undone. This will permanently delete the project "{projectToDelete.name}" 
-                and all its associated tasks, agents, and workflows.
+                and all its associated tasks, agents, workflows, and files.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -210,4 +228,3 @@ export default function ProjectsPage() {
     </div>
   );
 }
-

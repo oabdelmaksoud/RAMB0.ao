@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Project } from '@/types';
@@ -14,7 +13,7 @@ import { useState, useEffect } from 'react';
 
 interface ProjectCardProps {
   project: Project;
-  onDeleteProject: (project: Project) => void;
+  onDeleteProject?: (project: Project) => void; // Made optional
 }
 
 const statusColors: { [key in Project['status']]: string } = {
@@ -36,14 +35,12 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
       return 'Loading date...'; 
     }
     try {
-      // Check if dateString is already just a relative time string or invalid
       if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString)) {
         return dateString;
       }
       return format(parseISO(dateString), "MMM d, yyyy");
     } catch (error) {
-      // console.error("Error formatting date:", dateString, error);
-      return dateString; // Fallback if date is not ISO or already formatted
+      return dateString;
     }
   };
 
@@ -100,21 +97,22 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
-        <Button 
-            variant="destructive" 
-            size="icon" 
-            className="h-9 w-9 shrink-0" 
-            onClick={(e) => {
-                e.stopPropagation(); // Prevent card click or link navigation
-                onDeleteProject(project);
-            }}
-            title="Delete Project"
-        >
-            <Trash2 className="h-4 w-4" />
-            <span className="sr-only">Delete Project</span>
-        </Button>
+        {onDeleteProject && ( // Conditionally render delete button
+          <Button 
+              variant="destructive" 
+              size="icon" 
+              className="h-9 w-9 shrink-0" 
+              onClick={(e) => {
+                  e.stopPropagation(); 
+                  onDeleteProject(project);
+              }}
+              title="Delete Project"
+          >
+              <Trash2 className="h-4 w-4" />
+              <span className="sr-only">Delete Project</span>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
 }
-    
