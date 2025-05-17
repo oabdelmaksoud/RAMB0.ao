@@ -85,11 +85,11 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
 
 const uniqueIdGen = (base: string): string => `${base}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`;
 
-
 const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
   const uid = (prefix: string) => `pd-wf-${projectId.slice(-5)}-${uniqueIdGen(prefix.substring(0,3))}`;
   const workflows: ProjectWorkflow[] = [];
 
+  // Requirements Engineering Process
   const reqEngId = uid('req-eng');
   const reqNode1 = uid('req-n1');
   const reqNode2 = uid('req-n2');
@@ -97,7 +97,7 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
   workflows.push({
     id: reqEngId,
     name: "Requirements Engineering Process",
-    description: "Handles elicitation, analysis, and specification of project requirements. This workflow uses analysis and documentation agents.",
+    description: "Handles elicitation, analysis, and specification of project requirements. Uses analysis and documentation agents.",
     status: 'Draft',
     nodes: [
       { id: reqNode1, name: 'Elicit Stakeholder Needs', type: 'Analysis Agent', x: 50, y: 50, config: {} },
@@ -110,6 +110,7 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
     ],
   });
 
+  // Software Design & Implementation Cycle
   const swDevId = uid('sw-dev');
   const swDevNode1 = uid('swd-n1');
   const swDevNode2 = uid('swd-n2');
@@ -133,6 +134,7 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
     ],
   });
 
+  // Software Testing & QA Cycle
   const swTestId = uid('sw-test');
   const swTestNode1 = uid('swt-n1');
   const swTestNode2 = uid('swt-n2');
@@ -153,6 +155,7 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
     ],
   });
 
+  // Project Monitoring & Reporting
   const projMonId = uid('proj-mon');
   const projMonNode1 = uid('mon-n1');
   const projMonNode2 = uid('mon-n2');
@@ -292,6 +295,7 @@ export default function ProjectDetailPage() {
       if (storedWorkflows) {
         try {
           const parsedWorkflows = JSON.parse(storedWorkflows);
+          console.log(`PROJECT_DETAIL_PAGE: Loaded ${parsedWorkflows.length} workflows from localStorage for project ${projectId}.`);
           setProjectWorkflows(parsedWorkflows.map((wf: ProjectWorkflow) => ({
             ...wf,
             nodes: wf.nodes || [],
@@ -305,6 +309,7 @@ export default function ProjectDetailPage() {
             edges: wf.edges || [],
           }));
           setProjectWorkflows(defaultWorkflowsWithIds);
+          console.log(`PROJECT_DETAIL_PAGE: Initialized with ${defaultWorkflowsWithIds.length} predefined workflows for project ${projectId}.`);
         }
       } else {
         const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map(wf => ({
@@ -313,6 +318,7 @@ export default function ProjectDetailPage() {
             edges: wf.edges || [],
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
+        console.log(`PROJECT_DETAIL_PAGE: Initialized with ${defaultWorkflowsWithIds.length} predefined workflows for project ${projectId} (no localStorage data).`);
       }
 
       const filesStorageKey = getFilesStorageKey(projectId);
@@ -347,8 +353,10 @@ export default function ProjectDetailPage() {
  useEffect(() => {
     if (isClient && projectId ) {
         const currentWorkflowsInStorage = localStorage.getItem(getWorkflowsStorageKey(projectId));
+        // Always save if projectWorkflows has items or if there was something in storage before (to handle deletions)
         if (projectWorkflows.length > 0 || currentWorkflowsInStorage !== null) {
              try {
+                console.log(`PROJECT_DETAIL_PAGE: Saving ${projectWorkflows.length} workflows to localStorage for project ${projectId}.`, projectWorkflows);
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
@@ -366,13 +374,13 @@ export default function ProjectDetailPage() {
     if (designingWorkflow && projectWorkflows) {
       const updatedDesigningWorkflowInstance = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflowInstance) {
-        if (JSON.stringify(updatedDesigningWorkflowInstance) !== JSON.stringify(designingWorkflow)) {
+        if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) || JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges) ) {
              console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated instance from projectWorkflows list. ID:", updatedDesigningWorkflowInstance.id);
-             setDesigningWorkflow(updatedDesigningWorkflowInstance);
+             setDesigningWorkflow(updatedDesigningWorkflowInstance); // Sync the whole workflow object
         }
       } else {
           console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows list. Clearing designingWorkflow. ID:", designingWorkflow?.id);
-          setDesigningWorkflow(null);
+          setDesigningWorkflow(null); // Workflow was deleted
       }
     }
   }, [projectWorkflows, designingWorkflow?.id]);
@@ -384,15 +392,17 @@ export default function ProjectDetailPage() {
     }
   }, [projectFiles, projectId, isClient]);
 
-  const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
+  const formatDate = (dateString: string | undefined, formatString: string = "MMMM d, yyyy 'at' hh:mm a") => {
     if (!isClient || !dateString) return 'Loading date...';
     try {
+       // Basic check to avoid formatting already formatted strings or non-ISO strings
        if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString) && !/^\d{4}-\d{2}-\d{2}$/.test(dateString) ) {
-          return dateString;
+          return dateString; // Return as is if it doesn't look like a parsable date
        }
-      return format(parseISO(dateString), options.year ? "MMMM d, yyyy 'at' hh:mm a" : "MMMM d, hh:mm a");
+      return format(parseISO(dateString), formatString);
     } catch (error) {
-      return dateString;
+      // console.warn(`Error formatting date: "${dateString}" with format "${formatString}". Error: ${error}`);
+      return dateString; // Fallback to original string if parsing/formatting fails
     }
   };
 
@@ -407,6 +417,10 @@ export default function ProjectDetailPage() {
         if (relevantTasks.length > 0 && relevantTasks.every(task => task.status === 'Done')) {
           if (workflow.status !== 'Inactive') {
             workflowsChanged = true;
+            toast({
+              title: "Workflow Completed",
+              description: `Workflow "${workflow.name}" has completed all its tasks and is now Inactive.`,
+            });
             return { ...workflow, status: 'Inactive', lastRun: new Date().toISOString() };
           }
         }
@@ -414,12 +428,6 @@ export default function ProjectDetailPage() {
       return workflow;
     });
 
-    if (workflowsChanged) {
-      toast({
-        title: "Workflow Status Updated",
-        description: "One or more active workflows have completed all their tasks and are now Inactive.",
-      });
-    }
     return newWorkflows;
   }, [toast]);
 
@@ -429,7 +437,7 @@ export default function ProjectDetailPage() {
   ) => {
     console.log("PROJECT_DETAIL_PAGE: handleTaskPlannedAndAccepted received aiOutput:", JSON.stringify(aiOutput, null, 2));
 
-    const plannedTaskDataFromAI = aiOutput.plannedTask || {}; // Ensure plannedTaskDataFromAI is always an object
+    const plannedTaskDataFromAI = aiOutput.plannedTask || {};
     const aiReasoning = aiOutput.reasoning || "No reasoning provided by AI.";
     
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted taskTitle:", plannedTaskDataFromAI.title);
@@ -437,14 +445,14 @@ export default function ProjectDetailPage() {
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted suggestedSubTasks:", JSON.stringify(plannedTaskDataFromAI.suggestedSubTasks, null, 2));
 
 
-    const subTasksDetailsText = (plannedTaskDataFromAI.suggestedSubTasks && plannedTaskDataFromAI.suggestedSubTasks.length > 0)
+    const subTasksDetails = (plannedTaskDataFromAI.suggestedSubTasks && plannedTaskDataFromAI.suggestedSubTasks.length > 0)
         ? plannedTaskDataFromAI.suggestedSubTasks
             .map(st => `- ${st.title || 'Untitled Sub-task'} (Agent Type: ${st.assignedAgentType || 'N/A'}) - Desc: ${st.description || 'N/A'}`)
             .join('\n')
         : "None specified by AI.";
-    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed subTasksDetailsText:", subTasksDetailsText);
+    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed subTasksDetailsText:", subTasksDetails);
 
-    let combinedDescription = `AI Reasoning: ${aiReasoning}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetailsText}`;
+    let combinedDescription = `AI Reasoning: ${aiReasoning}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetails.trim()}`;
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed combinedDescription:", combinedDescription);
 
 
@@ -490,7 +498,7 @@ export default function ProjectDetailPage() {
         id: `subtask-${mainTask.id}-${index}-${Date.now().toString().slice(-3)}-${Math.random().toString(36).substring(2,5)}`,
         title: st.title || "Untitled Sub-task",
         status: 'To Do', 
-        assignedTo: st.assignedAgentType, 
+        assignedTo: st.assignedAgentType || "General Agent", // Ensure assignedAgentType has a fallback
         startDate: mainTask.startDate, 
         durationDays: 1, 
         progress: 0,
@@ -501,11 +509,11 @@ export default function ProjectDetailPage() {
       }));
       newTasksToAdd = [...newTasksToAdd, ...subTasks];
 
-      // Simulate auto-start for the main task if sub-tasks are created AND it was assigned to an active workflow
-      if (workflowAutoActivated || (projectWorkflows.find(wf => wf.name === mainTask.assignedTo)?.status === 'Active')) {
-        if(mainTask.status !== 'Done'){ // Only start if not already done
-            newTasksToAdd[0] = { ...mainTask, status: 'In Progress', progress: 10 }; // The mainTask is at index 0
-            autoStartedByAgent = true; // Using this to indicate the main task was auto-started due to workflow/subtasks
+      const isAssignedWorkflowActive = projectWorkflows.find(wf => wf.name === mainTask.assignedTo)?.status === 'Active';
+      if (workflowAutoActivated || isAssignedWorkflowActive) {
+        if(mainTask.status !== 'Done'){ 
+            newTasksToAdd[0] = { ...mainTask, status: 'In Progress', progress: 10 }; 
+            autoStartedByAgent = true; 
         }
       }
     }
@@ -540,7 +548,7 @@ export default function ProjectDetailPage() {
 
     toast({ title: toastTitle, description: toastDescriptionText.trim() });
     
-    const taskForChat = newTasksToAdd[0]; // The main task
+    const taskForChat = newTasksToAdd[0]; 
     console.log("PROJECT_DETAIL_PAGE: Attempting to open chat for task:", JSON.stringify(taskForChat, null, 2));
     setChattingTask(taskForChat);
     setIsChatDialogOpen(true);
@@ -722,7 +730,7 @@ export default function ProjectDetailPage() {
         });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow?.id]); // Ensure designingWorkflow.id is stable for the callback
+  }, [designingWorkflow?.id]);
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
@@ -745,7 +753,7 @@ export default function ProjectDetailPage() {
         });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow?.id]); // Ensure designingWorkflow.id is stable for the callback
+  }, [designingWorkflow?.id]);
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -1102,7 +1110,7 @@ export default function ProjectDetailPage() {
       <Separator className="my-6" />
 
       <Tabs defaultValue="gantt" className="w-full">
-         <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mb-4">
+         <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:w-auto xl:inline-grid mb-4">
           <TabsTrigger value="gantt"><GanttChartSquare className="mr-2 h-4 w-4"/>Gantt Chart</TabsTrigger>
           <TabsTrigger value="board"><ListChecks className="mr-2 h-4 w-4"/>Task Board</TabsTrigger>
           <TabsTrigger value="repository"><FolderIcon className="mr-2 h-4 w-4"/>Repository</TabsTrigger>
@@ -1209,10 +1217,10 @@ export default function ProjectDetailPage() {
                                 }
                               </CardContent>
                                <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
-                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
+                                <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
                           )})}
@@ -1325,7 +1333,7 @@ export default function ProjectDetailPage() {
               <Card>
                   <CardHeader>
                       <CardTitle>Existing Workflows for "{project?.name}"</CardTitle>
-                      <CardDescription>Manage and monitor workflows associated with this project. Click 'Design' to open the designer for a specific workflow.</CardDescription>
+                      <CardDescription>Manage and monitor workflows associated with this project. Click a workflow's 'Design' button to open its design canvas.</CardDescription>
                   </CardHeader>
                   <CardContent>
                       {projectWorkflows.length > 0 ? (
@@ -1557,4 +1565,3 @@ export default function ProjectDetailPage() {
   );
 }
 // End of file
-```
