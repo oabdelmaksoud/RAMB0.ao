@@ -23,6 +23,7 @@ import { Users, ShieldCheck, ToyBrick, Settings2, ListChecks, AlertTriangle, Che
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils'; // Added import
 
 // Mock data types
 interface MockUser {
