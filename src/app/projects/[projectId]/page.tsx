@@ -197,7 +197,7 @@ export default function ProjectDetailPage() {
   // State for Agent Management within Project
   const [projectAgents, setProjectAgents] = useState<Agent[]>([]);
   const [isEditAgentDialogOpen, setIsEditAgentDialogOpen] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null); // This is for project-specific agent editing
   const [isDeleteAgentDialogOpen, setIsDeleteAgentDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
 
@@ -336,7 +336,7 @@ export default function ProjectDetailPage() {
           setDesigningWorkflow(null);
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]);
+  }, [projectWorkflows, designingWorkflow]);
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -356,7 +356,7 @@ export default function ProjectDetailPage() {
     let workflowsChanged = false;
     const newWorkflows = currentWorkflows.map(workflow => {
       if (workflow.status === 'Active') {
-        const relevantTasks = currentTasks.filter(task => task.assignedTo === workflow.name);
+        const relevantTasks = currentTasks.filter(task => task.assignedTo === workflow.name && !task.isMilestone); // Milestones don't block workflow completion
         if (relevantTasks.length > 0 && relevantTasks.every(task => task.status === 'Done')) {
           if (workflow.status !== 'Inactive') {
             workflowsChanged = true;
@@ -378,35 +378,26 @@ export default function ProjectDetailPage() {
 
 
   const handleTaskPlannedAndAccepted = (
-    plannedTaskDataFromAI: PlanProjectTaskOutput['plannedTask'],
-    aiReasoning: string
+    plannedTaskDataFromAI: PlanProjectTaskOutput['plannedTask']
   ) => {
     const { suggestedSubTasks, ...mainTaskData } = plannedTaskDataFromAI;
 
-    let combinedDescription = `AI Reasoning: ${aiReasoning || 'N/A'}`;
-
-    if (suggestedSubTasks && suggestedSubTasks.length > 0) {
-      const subTasksDetails = suggestedSubTasks
-        .map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType}) - Desc: ${st.description || 'N/A'}`)
-        .join('\n');
-      combinedDescription += `\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetails}`;
-    } else {
-      combinedDescription += "\n\nAI Suggested Sub-Tasks / Steps: None specified by AI.";
-    }
-
-
+    let combinedDescription = `AI Reasoning: ${mainTaskData.reasoning || 'N/A'}`; // Using the reasoning from mainTaskData as per latest flow schema
+    
     let newTasksToAdd: Task[] = [];
 
     const mainTask: Task = {
-      ...mainTaskData,
       id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
-      progress: mainTaskData.isMilestone ? (mainTaskData.status === 'Done' ? 100 : 0) : (mainTaskData.progress ?? 0),
+      title: mainTaskData.title || "Untitled AI Task",
+      status: mainTaskData.status || (mainTaskData.isMilestone ? 'To Do' : 'To Do'), // Default to 'To Do'
+      assignedTo: mainTaskData.assignedTo || 'AI Assistant to determine',
+      startDate: mainTaskData.startDate || format(new Date(), 'yyyy-MM-dd'),
       durationDays: mainTaskData.isMilestone ? 0 : (mainTaskData.durationDays ?? 1),
-      status: mainTaskData.status || (mainTaskData.isMilestone ? 'To Do' : 'To Do'),
-      description: combinedDescription.trim(),
+      progress: mainTaskData.isMilestone ? (mainTaskData.status === 'Done' ? 100 : 0) : (mainTaskData.progress ?? 0),
+      isMilestone: mainTaskData.isMilestone || false,
       parentId: mainTaskData.parentId === "null" ? null : mainTaskData.parentId,
       dependencies: mainTaskData.dependencies || [],
-      isMilestone: mainTaskData.isMilestone || false,
+      description: combinedDescription.trim(), // Initial description from reasoning
     };
     newTasksToAdd.push(mainTask);
 
@@ -414,6 +405,7 @@ export default function ProjectDetailPage() {
     const assignedWorkflowName = mainTask.assignedTo;
     let autoStartedByAgent = false;
 
+    // Check for workflow activation
     if (assignedWorkflowName && assignedWorkflowName !== "AI Assistant to determine" && !mainTask.isMilestone) {
         const targetWorkflow = projectWorkflows.find(wf => wf.name === assignedWorkflowName);
         if (targetWorkflow) {
@@ -426,9 +418,10 @@ export default function ProjectDetailPage() {
                 workflowAutoActivated = true;
             }
         } else {
+            // If not assigned to a workflow, check if assigned to a running agent (legacy behavior, might be phased out)
             const matchingAgent = projectAgents.find(agent => agent.name === assignedWorkflowName && agent.status === 'Running');
             if (matchingAgent && mainTask.status !== 'Done') {
-                mainTask.status = 'In Progress';
+                mainTask.status = 'In Progress'; // Directly modify the task being added
                 mainTask.progress = mainTask.progress === 0 || mainTask.progress === undefined ? 10 : mainTask.progress;
                 setProjectAgents(prevAgents =>
                     prevAgents.map(agent =>
@@ -440,48 +433,61 @@ export default function ProjectDetailPage() {
         }
     }
 
+    // If AI suggested sub-tasks, create them
     if (suggestedSubTasks && suggestedSubTasks.length > 0) {
       const subTasks: Task[] = suggestedSubTasks.map((st, index) => ({
         id: `subtask-${mainTask.id}-${index}-${Date.now().toString().slice(-3)}`,
-        title: st.title,
-        status: 'To Do',
+        title: st.title || "Untitled Sub-task",
+        status: 'To Do', // Sub-tasks always start as 'To Do'
         assignedTo: st.assignedAgentType,
-        startDate: mainTask.startDate,
-        durationDays: 1,
+        startDate: mainTask.startDate, // Inherit start date, or make it sequential
+        durationDays: 1, // Default, AI might suggest this in future
         progress: 0,
         isMilestone: false,
-        parentId: mainTask.id,
-        dependencies: [],
-        description: st.description,
+        parentId: mainTask.id, // Link to the main AI-planned task
+        dependencies: [], // Could be populated by AI in future
+        description: st.description || "No description provided.",
       }));
       newTasksToAdd = [...newTasksToAdd, ...subTasks];
+
+      // Update main task description to include sub-tasks
+      const subTasksDetails = suggestedSubTasks
+        .map(st => `- ${st.title || 'Sub-task'} (Agent Type: ${st.assignedAgentType || 'N/A'}) - Desc: ${st.description || 'N/A'}`)
+        .join('\n');
+      mainTask.description = `${mainTask.description}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetails}`;
+
+    } else if (mainTask.description?.includes("AI Suggested Sub-Tasks / Steps: None specified by AI.")){
+        // No sub-tasks, remove the default placeholder text if it was added by AI
+        mainTask.description = mainTask.description.replace("\n\nAI Suggested Sub-Tasks / Steps: None specified by AI.", "").trim();
     }
 
+
     setTasks(prevTasks => [...newTasksToAdd, ...prevTasks]);
-    setIsAITaskPlannerDialogOpen(false);
+    setIsAITaskPlannerDialogOpen(false); // Close dialog after processing
 
     let toastTitle = mainTask.isMilestone ? "Milestone Planned (AI)" : "Task Planned (AI)";
-    let toastDescription = `${mainTask.isMilestone ? "Milestone" : "Task"} "${mainTask.title}" has been added to project "${project?.name}".`;
+    let toastDescriptionText = `${mainTask.isMilestone ? "Milestone" : "Task"} "${mainTask.title}" has been added to project "${project?.name}".`;
 
     if (autoStartedByAgent) {
         toastTitle = "Task In Progress (AI)";
-        toastDescription += ` Assigned to agent "${assignedWorkflowName}" and is now being processed.`;
+        toastDescriptionText += ` Assigned to agent "${assignedWorkflowName}" and is now being processed.`;
     } else if (assignedWorkflowName && assignedWorkflowName !== "AI Assistant to determine" && !mainTask.isMilestone) {
-      toastDescription += ` Assigned to workflow/team "${assignedWorkflowName}".`;
+      toastDescriptionText += ` Assigned to workflow/team "${assignedWorkflowName}".`;
       if (workflowAutoActivated) {
-        toastDescription += ` Workflow "${assignedWorkflowName}" is now Active.`;
+        toastDescriptionText += ` Workflow "${assignedWorkflowName}" is now Active.`;
       } else {
         const agentExistsButNotRunning = projectAgents.find(agent => agent.name === assignedWorkflowName && agent.status !== 'Running');
         if (agentExistsButNotRunning) {
-            toastDescription += ` Start agent "${assignedWorkflowName}" to begin processing.`;
+            toastDescriptionText += ` Start agent "${assignedWorkflowName}" to begin processing.`;
         }
       }
     }
 
-    if (newTasksToAdd.length - 1 > 0 && !mainTask.isMilestone) {
-      toastDescription += ` ${newTasksToAdd.length - 1} sub-task(s) also created.`;
+    if (newTasksToAdd.length -1 > 0 && !mainTask.isMilestone) { // -1 because mainTask is already counted
+      toastDescriptionText += ` ${newTasksToAdd.length -1} sub-task(s) also created.`;
     }
-    toast({ title: toastTitle, description: toastDescription.trim() });
+    
+    toast({ title: toastTitle, description: toastDescriptionText.trim() });
 
     // Open chat for the newly created main task
     setChattingTask(mainTask);
@@ -762,9 +768,11 @@ export default function ProjectDetailPage() {
 
         let reorderedTasks = updatedTasksArray.filter(t => t.id !== draggedTaskId);
 
+        // Move to the end of its current status group
         const sameStatusTasks = reorderedTasks.filter(t => t.status === sourceTaskStatus);
         const otherStatusTasks = reorderedTasks.filter(t => t.status !== sourceTaskStatus);
         reorderedTasks = [...otherStatusTasks, ...sameStatusTasks, taskToReorder];
+
 
         if (JSON.stringify(tasks.map(t=>t.id)) !== JSON.stringify(reorderedTasks.map(t=>t.id))) {
              toast({
@@ -1060,10 +1068,10 @@ export default function ProjectDetailPage() {
                                 }
                               </CardContent>
                                <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
-                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
-                                <Button variant="ghost" size="sm" className="text-xs flex-1" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
-                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
+                                <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
                           )})}
@@ -1318,28 +1326,4 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-// This comment is to ensure the file is non-empty for the diff.
-// Main page component for project details
-// Includes state management for tasks, agents, and workflows within the project
-// Integrates dialogs for adding/editing tasks, agents, and workflows
-// Features tabs for Gantt chart, Kanban board, project agents, workflow design, and AI suggestions
-// Implements drag-and-drop for Kanban task status changes and reordering
-// Implements drag-to-move and resize for Gantt chart tasks
-// Uses localStorage for persistence of project-specific data
-// Connects to Genkit AI flows for task planning, agent suggestions, and task chat
-// Pre-defined workflows are added for new projects
-// Tasks can be assigned to workflows, which can activate them
-// Completing all tasks for an active workflow makes it inactive
-// Visual distinction for parent tasks in Gantt and Kanban views
-// Task hierarchy (parentId) can be set in task dialogs
-// Gantt chart displays "Today" marker and allows task reordering via drag-and-drop
-// Workflow canvas allows adding/removing nodes and basic edge creation/removal
-// Project list allows adding/deleting projects, with cleanup of associated data
-// Various UI/UX refinements including toast notifications, responsive design, and icon usage
-// Placeholder AI chat functionality for tasks is connected to a Genkit flow
-// AI task planner output includes detailed reasoning and sub-task breakdown
-// AI task planner duration estimates are based on AI agent execution
-// AI task planner can use a selected project workflow to guide its planning
-// AI task planner flow refined to ensure default values for plannedTask
-
-```
+// End of file
