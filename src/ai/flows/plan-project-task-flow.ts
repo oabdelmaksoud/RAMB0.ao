@@ -90,7 +90,7 @@ Selected Workflow Agent Node Structure (Available Agent Types for sub-tasks):
 - Node Name: "{{name}}", Agent Type: "{{type}}"
 {{/each}}
 Your plan should primarily be assigned to "{{selectedWorkflowDetail.name}}".
-The ` + "`suggestedSubTasks`" + ` MUST primarily use Agent Types from the 'Selected Workflow Agent Node Structure' listed above. Map each sub-task to the most relevant node's agent type from the selected workflow. Their sequence should be logical and reflect the steps in the selected workflow if possible. If a direct mapping is not possible for a sub-task, you may use a general agent type like 'Analysis Agent' or 'Documentation Agent' but clearly state this choice in the reasoning.
+The \`suggestedSubTasks\` MUST primarily use Agent Types from the 'Selected Workflow Agent Node Structure' listed above. Map each sub-task to the most relevant node's agent type from the selected workflow. Their sequence should be logical and reflect the steps in the selected workflow if possible. If a direct mapping is not possible for a sub-task, you may use a general agent type like 'Analysis Agent' or 'Documentation Agent' but clearly state this choice in the reasoning.
 {{else}}
 - The selected workflow does not have a detailed node structure provided. Base your sub-task agent types and plan on its name and description.
 {{/if}}
@@ -140,10 +140,10 @@ Main Task Details to Generate (plannedTask object):
     - description: A brief (1-2 sentences) description explaining the purpose or key activities of this sub-task.
 
 Reasoning (reasoning string):
-Provide a **concise yet detailed (2-5 sentences max) explanation** of your thought process for the ` + "`plannedTask`" + ` object. Focus on these key points:
+Provide a **concise yet detailed (2-5 sentences max) explanation** of your thought process for the \`plannedTask\` object. Focus on these key points:
 1.  Explain your choice for 'assignedTo'.
     {{#if selectedWorkflowDetail}}
-    - **Specifically explain how the user's goal was mapped to the '{{selectedWorkflowDetail.name}}' workflow AND how its nodes (if provided) influenced the ` + "`suggestedSubTasks`" + ` (agent types and sequence).**
+    - **Specifically explain how the user's goal was mapped to the '{{selectedWorkflowDetail.name}}' workflow AND how its nodes (if provided) influenced the \`suggestedSubTasks\` (agent types and sequence).**
     {{else}}
     - If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit.
     - If a new conceptual workflow/team name was suggested, explain the rationale for the name and its suitability for the user's goal.
@@ -173,14 +173,15 @@ const planProjectTaskFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await prompt(input);
-    if (!output || !output.plannedTask) { // Added check for output.plannedTask
+    if (!output || !output.plannedTask) { 
       console.error("AI output was null or plannedTask was missing. Input:", input);
       throw new Error('AI failed to generate a valid task plan. The plannedTask field was missing.');
     }
 
     // Ensure defaults are applied if AI misses them, especially for plannedTask
-    const plannedTask = output.plannedTask; // No longer need || {} due to check above
+    const plannedTask = output.plannedTask; 
 
+    plannedTask.title = plannedTask.title || "Untitled AI Task";
     plannedTask.status = plannedTask.status || 'To Do';
     
     if (!plannedTask.assignedTo) {
@@ -217,10 +218,7 @@ const planProjectTaskFlow = ai.defineFlow(
     }
     
     plannedTask.dependencies = plannedTask.dependencies || [];
-    plannedTask.suggestedSubTasks = plannedTask.suggestedSubTasks || [];
-    
-    // Ensure each subtask has required fields
-    plannedTask.suggestedSubTasks = plannedTask.suggestedSubTasks.map(st => ({
+    plannedTask.suggestedSubTasks = (plannedTask.suggestedSubTasks || []).map(st => ({
         title: st.title || "Untitled Sub-task",
         assignedAgentType: st.assignedAgentType || "General Agent",
         description: st.description || "No description provided."
