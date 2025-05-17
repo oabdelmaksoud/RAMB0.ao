@@ -1,6 +1,8 @@
 
 'use client';
 
+import *dart:core';
+
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,7 +24,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, AlertCircle, FolderGit2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-// Removed ScrollArea import as we'll use native overflow
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -153,7 +154,7 @@ export default function AITaskPlannerDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="flex-grow overflow-y-auto p-4 space-y-4"> {/* Changed: This div handles scrolling */}
+        <div className="flex-grow overflow-y-auto p-4 space-y-4"> {/* Main scrollable content area */}
             <Form {...form} onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm" className="space-y-4">
               <FormField
                 control={form.control}
@@ -197,7 +198,7 @@ export default function AITaskPlannerDialog({
                     <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title}</div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3"> {/* Increased gap-y */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                      <div>
                         <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
                         <div className="p-1 bg-background/50 border rounded-sm text-xs w-fit"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
@@ -221,21 +222,23 @@ export default function AITaskPlannerDialog({
                   </div>
                   
                   {aiSuggestion.plannedTask.parentId && aiSuggestion.plannedTask.parentId !== "null" && (
-                    <div className="mt-2"> {/* Added mt-2 for spacing */}
+                    <div className="mt-2">
                       <Label className="text-muted-foreground text-xs font-normal block mb-0.5 flex items-center"><FolderGit2 className="w-3.5 h-3.5 mr-1"/>Parent Task ID:</Label>
                       <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</div>
                     </div>
                   )}
                   {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
-                    <div className="mt-2"> {/* Added mt-2 for spacing */}
+                    <div className="mt-2"> 
                       <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Dependencies:</Label>
                       <ul className="list-disc list-inside pl-1 mt-0.5">
                         {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
                       </ul>
                     </div>
                   )}
+
+                  <Separator className="my-3"/> {/* Visual separator */}
                   
-                  <div className="space-y-1 pt-2">
+                  <div className="space-y-1">
                     <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Optionally, assign to specific existing workflow:</Label>
                     <Select 
                       onValueChange={(value) => setSelectedWorkflowOverride(value === AI_SUGGESTION_OPTION_VALUE ? undefined : value)} 
@@ -259,9 +262,9 @@ export default function AITaskPlannerDialog({
 
                   <Separator className="my-3"/>
 
-                  <div>
+                  <div className="pt-1"> {/* Added padding-top for spacing */}
                     <Label className="text-muted-foreground text-xs font-normal block mb-1">Detailed AI Reasoning:</Label>
-                    <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap max-h-40 overflow-y-auto"> {/* Added max-h and overflow for reasoning */}
+                    <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
                       {aiSuggestion.reasoning}
                     </ShadCnCardDescription>
                   </div>
@@ -269,7 +272,7 @@ export default function AITaskPlannerDialog({
                   {aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0 && (
                     <div className="pt-2">
                       <Label className="text-muted-foreground text-xs font-normal block mb-1">Suggested Sub-Tasks / Steps:</Label>
-                      <div className="space-y-2 mt-1 max-h-60 overflow-y-auto border rounded-md p-2 bg-background/50"> {/* Added max-h and overflow for sub-tasks list */}
+                      <div className="space-y-2 mt-1 max-h-60 overflow-y-auto border rounded-md p-2 bg-background/50">
                         {aiSuggestion.plannedTask.suggestedSubTasks.map((subTask, index) => (
                           <div key={index} className="p-2 bg-background/70 rounded-md border border-dashed">
                             <p className="font-medium text-xs">{index + 1}. {subTask.title}</p>
@@ -282,9 +285,9 @@ export default function AITaskPlannerDialog({
                 </CardContent>
               </Card>
             )}
-        </div> {/* End of scrollable middle section */}
+        </div> 
 
-        <DialogFooter className="pt-4 border-t"> {/* Footer is outside scrollable section */}
+        <DialogFooter className="pt-4 border-t">
           {!aiSuggestion && (
             <>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
@@ -316,5 +319,3 @@ export default function AITaskPlannerDialog({
     </Dialog>
   );
 }
-
-    
