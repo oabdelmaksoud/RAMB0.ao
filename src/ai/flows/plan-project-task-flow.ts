@@ -27,7 +27,8 @@ export type PlanProjectTaskInput = z.infer<typeof PlanProjectTaskInputSchema>;
 
 const SuggestedSubTaskSchema = z.object({
   title: z.string().describe("A concise title for this sub-task or step."),
-  assignedAgentType: z.string().describe("The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Testing Agent').")
+  assignedAgentType: z.string().describe("The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Testing Agent')."),
+  description: z.string().describe("A brief description (1-2 sentences) explaining the purpose or key activities of this sub-task.")
 });
 
 // Output schema should align with Omit<Task, 'id'> and include reasoning
@@ -94,21 +95,22 @@ Main Task Details to Generate (plannedTask object):
 - suggestedSubTasks: If the main task is complex enough, break it down into a list of actionable sub-tasks or steps that AI agents would perform. For each sub-task:
     - title: A concise title for the sub-task.
     - assignedAgentType: The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Testing Agent', 'Deployment Agent', 'Monitoring Agent').
+    - description: A brief (1-2 sentences) description explaining the purpose or key activities of this sub-task.
 
 Reasoning (reasoning string):
 Provide a **detailed** 'reasoning' string explaining your thought process for the generated task plan.
 - Explain your choice for 'assignedTo' in detail. If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit for the user's goal.
 - If a new conceptual workflow or team name was suggested for 'assignedTo', explain the rationale for this new grouping and why it's suitable for the task.
 - Explain your choices for duration, **specifically referencing that it's based on AI Agent execution speed/capabilities**, and any other fields.
-- If you generated 'suggestedSubTasks', briefly explain why this breakdown is appropriate for AI agent execution.
+- If you generated 'suggestedSubTasks', briefly explain why this breakdown is appropriate for AI agent execution and how the sub-tasks contribute to the main task.
 
-Example Reasoning for existing workflow: "The user's goal to 'design a new logo' strongly aligns with the existing 'Brand Asset Creation' project workflow. Task assigned to 'Brand Asset Creation' to initiate this established process. A 1-day duration is estimated for initial AI-driven concept generation and automated revisions based on standard parameters. The task has been broken down into conceptual design, feedback collection (simulated), and finalization sub-tasks, each handled by appropriate agent types."
-Example Reasoning for conceptual workflow/team: "The user's goal to 'investigate urgent server outage' does not fit existing workflows. This requires immediate, specialized attention, so the task has been assigned to a conceptual 'Urgent Server Response Team'. The estimated duration is 1 day for initial automated log analysis and system diagnostics. Sub-tasks include log analysis, system diagnostics, and reporting findings, handled by Analysis and Monitoring agent types."
+Example Reasoning for existing workflow: "The user's goal to 'design a new logo' strongly aligns with the existing 'Brand Asset Creation' project workflow. Task assigned to 'Brand Asset Creation' to initiate this established process. A 1-day duration is estimated for initial AI-driven concept generation and automated revisions based on standard parameters. The task has been broken down into conceptual design, feedback collection (simulated), and finalization sub-tasks, each handled by appropriate agent types and with clear purposes."
+Example Reasoning for conceptual workflow/team: "The user's goal to 'investigate urgent server outage' does not fit existing workflows. This requires immediate, specialized attention, so the task has been assigned to a conceptual 'Urgent Server Response Team'. The estimated duration is 1 day for initial automated log analysis and system diagnostics. Sub-tasks include log analysis to identify error patterns, system diagnostics to check resource utilization, and reporting findings to summarize the issue, handled by Analysis and Monitoring agent types."
 
 Ensure the 'plannedTask.startDate' is in YYYY-MM-DD format.
 Ensure 'plannedTask.durationDays' is an integer and at least 1.
 Ensure 'plannedTask.progress' is an integer between 0 and 100.
-If 'suggestedSubTasks' are provided, each sub-task must have a 'title' and an 'assignedAgentType'.
+If 'suggestedSubTasks' are provided, each sub-task must have a 'title', an 'assignedAgentType', and a 'description'.
 `,
 });
 

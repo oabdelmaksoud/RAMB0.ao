@@ -38,7 +38,7 @@ interface AITaskPlannerDialogProps {
   projectId: string;
   projectWorkflows: Pick<ProjectWorkflow, 'name' | 'description'>[];
   onTaskPlannedAndAccepted: (
-    taskData: Omit<Task, 'id' | 'description'>, // Description is now part of AI's output
+    taskData: Omit<Task, 'id' | 'description'>, 
     aiReasoning: string,
     aiSuggestedSubTasks?: PlanProjectTaskOutput['plannedTask']['suggestedSubTasks']
   ) => void;
@@ -66,13 +66,12 @@ export default function AITaskPlannerDialog({
   });
 
   React.useEffect(() => {
-    if (aiSuggestion) {
-      console.log("AI Suggestion Data in Dialog:", JSON.stringify(aiSuggestion, null, 2));
+    if (open && aiSuggestion) {
+      // console.log("AI Suggestion Data in Dialog:", JSON.stringify(aiSuggestion, null, 2));
     }
-  }, [aiSuggestion]);
+  }, [aiSuggestion, open]);
 
   const onSubmit: SubmitHandler<PlannerFormData> = async (data) => {
-    console.log("AITaskPlannerDialog: onSubmit triggered. Data:", data);
     setIsLoading(true);
     setAiSuggestion(null);
     setSelectedWorkflowOverride(undefined);
@@ -96,7 +95,6 @@ export default function AITaskPlannerDialog({
         variant: "destructive",
       });
     } finally {
-      console.log("AITaskPlannerDialog: Setting isLoading to false in finally block of onSubmit.");
       setIsLoading(false);
     }
   };
@@ -107,8 +105,6 @@ export default function AITaskPlannerDialog({
         ? selectedWorkflowOverride
         : aiSuggestion.plannedTask.assignedTo;
       
-      // The full description, including reasoning and sub-tasks, will be handled by the parent component.
-      // Here, we only pass the core planned task data.
       const taskData: Omit<Task, 'id' | 'description'> = {
         title: aiSuggestion.plannedTask.title,
         status: aiSuggestion.plannedTask.status || 'To Do',
@@ -117,7 +113,7 @@ export default function AITaskPlannerDialog({
         durationDays: aiSuggestion.plannedTask.isMilestone ? 0 : (aiSuggestion.plannedTask.durationDays || 1),
         progress: aiSuggestion.plannedTask.isMilestone ? (aiSuggestion.plannedTask.status === 'Done' ? 100 : 0) : (aiSuggestion.plannedTask.progress || 0),
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
-        parentId: aiSuggestion.plannedTask.parentId === "null" ? null : aiSuggestion.plannedTask.parentId, // Handle string "null"
+        parentId: aiSuggestion.plannedTask.parentId === "null" ? null : aiSuggestion.plannedTask.parentId,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
       };
       onTaskPlannedAndAccepted(
@@ -149,140 +145,141 @@ export default function AITaskPlannerDialog({
         </DialogHeader>
         
         <div className="flex-grow overflow-y-auto p-4 space-y-4">
-            <Form {...form} > {/* Removed onSubmit from Form, id="aiPlannerForm" */}
-              <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerFormInternal"> {/* Added internal form for RHF */}
-                <FormField
-                  control={form.control}
-                  name="userGoal"
-                  render={({ field }) => (
-                    <FormItem>
-                      <RHFFormLabel>What do you want to achieve?</RHFFormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup'"
-                          className="min-h-[100px] resize-y"
-                          {...field}
-                          disabled={isLoading || !!aiSuggestion}
-                        />
-                      </FormControl>
-                      <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </form> {/* End of internal form */}
-            </Form>
+          <Form {...form}>
+             <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerFormInternal">
+              <FormField
+                control={form.control}
+                name="userGoal"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>What do you want to achieve?</RHFFormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup'"
+                        className="min-h-[100px] resize-y"
+                        {...field}
+                        disabled={isLoading || !!aiSuggestion}
+                      />
+                    </FormControl>
+                    <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </form>
+          </Form>
 
-            {isLoading && !aiSuggestion && (
-              <div className="flex flex-col items-center justify-center space-y-2 py-8">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <p className="text-muted-foreground">AI is planning your task...</p>
-              </div>
-            )}
+          {isLoading && !aiSuggestion && (
+            <div className="flex flex-col items-center justify-center space-y-2 py-8">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              <p className="text-muted-foreground">AI is planning your task...</p>
+            </div>
+          )}
 
-            {aiSuggestion && (
-              <Card className="bg-accent/30 border-accent shadow-md">
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center">
-                    <Sparkles className="w-5 h-5 mr-2 text-primary" />
-                    AI Task Plan Suggestion
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm pt-4">
-                  <div>
-                    <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Task Title:</Label>
-                    <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title || "N/A"}</div>
-                  </div>
+          {aiSuggestion && (
+            <Card className="bg-accent/30 border-accent shadow-md">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <Sparkles className="w-5 h-5 mr-2 text-primary" />
+                  AI Task Plan Suggestion
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm pt-4">
+                <div>
+                  <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Task Title:</Label>
+                  <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title || "N/A"}</div>
+                </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
-                     <div>
-                        <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
-                        <div className="mt-0.5">
-                          <Badge variant="outline">{aiSuggestion.plannedTask.status || "N/A"}</Badge>
-                        </div>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
-                      <div className="p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo || "N/A"}</div>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><CalendarDays className="w-3.5 h-3.5 mr-1"/>Start Date:</Label>
-                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{(aiSuggestion.plannedTask.startDate && aiSuggestion.plannedTask.startDate !== "N/A") ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</div>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Clock3 className="w-3.5 h-3.5 mr-1"/>Duration:</Label>
-                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.durationDays === undefined ? 'N/A' : `${aiSuggestion.plannedTask.durationDays} day(s)`}</div>
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Milestone className="w-3.5 h-3.5 mr-1"/>Milestone:</Label>
-                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</div>
-                    </div>
-                  </div>
-                  
-                  {aiSuggestion.plannedTask.parentId && aiSuggestion.plannedTask.parentId !== "null" && (
-                    <div className="mt-2">
-                      <Label className="text-muted-foreground text-xs font-normal block mb-0.5 flex items-center"><FolderGit2 className="w-3.5 h-3.5 mr-1"/>Parent Task ID:</Label>
-                      <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</div>
-                    </div>
-                  )}
-                  {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
-                    <div className="mt-2"> 
-                      <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Dependencies:</Label>
-                      <ul className="list-disc list-inside pl-1 mt-0.5">
-                        {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
-                      </ul>
-                    </div>
-                  )}
-
-                  <Separator className="my-3"/>
-                  
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Optionally, assign to specific existing workflow:</Label>
-                    <Select 
-                      onValueChange={(value) => setSelectedWorkflowOverride(value === AI_SUGGESTION_OPTION_VALUE ? undefined : value)} 
-                      value={selectedWorkflowOverride === undefined ? AI_SUGGESTION_OPTION_VALUE : selectedWorkflowOverride}
-                      disabled={isLoading || !aiSuggestion}
-                    >
-                      <SelectTrigger className="w-full text-xs">
-                        <SelectValue placeholder="Use AI Suggestion..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={AI_SUGGESTION_OPTION_VALUE}>Use AI Suggestion ({aiSuggestion.plannedTask.assignedTo || "AI to determine"})</SelectItem>
-                        {projectWorkflows.map(wf => (
-                          <SelectItem key={wf.name} value={wf.name}>{wf.name}</SelectItem>
-                        ))}
-                         {projectWorkflows.length === 0 && (
-                            <div className="p-2 text-center text-muted-foreground text-xs">No project workflows defined yet.</div>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Separator className="my-3"/>
-
-                  <div className="pt-1"> 
-                    <Label className="text-muted-foreground text-xs font-normal block mb-1">Detailed AI Reasoning:</Label>
-                    <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
-                      {aiSuggestion.reasoning || "No reasoning provided."}
-                    </ShadCnCardDescription>
-                  </div>
-
-                  {aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0 && (
-                    <div className="pt-2">
-                      <Label className="text-muted-foreground text-xs font-normal block mb-1">Suggested Sub-Tasks / Steps:</Label>
-                      <div className="space-y-2 mt-1 max-h-60 overflow-y-auto border rounded-md p-2 bg-background/50">
-                        {aiSuggestion.plannedTask.suggestedSubTasks.map((subTask, index) => (
-                          <div key={index} className="p-2 bg-background/70 rounded-md border border-dashed">
-                            <p className="font-medium text-xs">{index + 1}. {subTask.title}</p>
-                            <p className="text-muted-foreground text-xs mt-0.5">Suggested Agent Type: <span className="font-semibold">{subTask.assignedAgentType || "N/A"}</span></p>
-                          </div>
-                        ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                   <div>
+                      <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
+                      <div className="mt-0.5">
+                        <Badge variant="outline">{aiSuggestion.plannedTask.status || "N/A"}</Badge>
                       </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
+                    <div className="p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo || "N/A"}</div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><CalendarDays className="w-3.5 h-3.5 mr-1"/>Start Date:</Label>
+                    <div className="p-1 bg-background/50 border rounded-sm text-xs">{(aiSuggestion.plannedTask.startDate && aiSuggestion.plannedTask.startDate !== "N/A") ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Clock3 className="w-3.5 h-3.5 mr-1"/>Duration:</Label>
+                    <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.durationDays === undefined ? 'N/A' : `${aiSuggestion.plannedTask.durationDays} day(s)`}</div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Milestone className="w-3.5 h-3.5 mr-1"/>Milestone:</Label>
+                    <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</div>
+                  </div>
+                </div>
+                
+                {aiSuggestion.plannedTask.parentId && aiSuggestion.plannedTask.parentId !== "null" && (
+                  <div className="mt-2">
+                    <Label className="text-muted-foreground text-xs font-normal block mb-0.5 flex items-center"><FolderGit2 className="w-3.5 h-3.5 mr-1"/>Parent Task ID:</Label>
+                    <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</div>
+                  </div>
+                )}
+                {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
+                  <div className="mt-2"> 
+                    <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Dependencies:</Label>
+                    <ul className="list-disc list-inside pl-1 mt-0.5">
+                      {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
+                    </ul>
+                  </div>
+                )}
+
+                <Separator className="my-3"/>
+                
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Optionally, assign to specific existing workflow:</Label>
+                  <Select 
+                    onValueChange={(value) => setSelectedWorkflowOverride(value === AI_SUGGESTION_OPTION_VALUE ? undefined : value)} 
+                    value={selectedWorkflowOverride === undefined ? AI_SUGGESTION_OPTION_VALUE : selectedWorkflowOverride}
+                    disabled={isLoading || !aiSuggestion}
+                  >
+                    <SelectTrigger className="w-full text-xs">
+                      <SelectValue placeholder="Use AI Suggestion..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={AI_SUGGESTION_OPTION_VALUE}>Use AI Suggestion ({aiSuggestion.plannedTask.assignedTo || "AI to determine"})</SelectItem>
+                      {projectWorkflows.map(wf => (
+                        <SelectItem key={wf.name} value={wf.name}>{wf.name}</SelectItem>
+                      ))}
+                       {projectWorkflows.length === 0 && (
+                          <div className="p-2 text-center text-muted-foreground text-xs">No project workflows defined yet.</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Separator className="my-3"/>
+
+                <div className="pt-1"> 
+                  <Label className="text-muted-foreground text-xs font-normal block mb-1">Detailed AI Reasoning:</Label>
+                  <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
+                    {aiSuggestion.reasoning || "No reasoning provided."}
+                  </ShadCnCardDescription>
+                </div>
+
+                {aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0 && (
+                  <div className="pt-2">
+                    <Label className="text-muted-foreground text-xs font-normal block mb-1">Suggested Sub-Tasks / Steps:</Label>
+                    <div className="space-y-2 mt-1 max-h-60 overflow-y-auto border rounded-md p-2 bg-background/50">
+                      {aiSuggestion.plannedTask.suggestedSubTasks.map((subTask, index) => (
+                        <div key={index} className="p-2 bg-background/70 rounded-md border border-dashed">
+                          <p className="font-medium text-xs">{index + 1}. {subTask.title}</p>
+                          <p className="text-muted-foreground text-xs mt-0.5">Suggested Agent Type: <span className="font-semibold">{subTask.assignedAgentType || "N/A"}</span></p>
+                          <p className="text-muted-foreground text-xs mt-0.5">Description: <span className="italic">{subTask.description || "N/A"}</span></p>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div> 
 
         <DialogFooter className="pt-4 border-t">
@@ -291,7 +288,7 @@ export default function AITaskPlannerDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}> {/* Changed to direct call */}
+              <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading} form="aiPlannerFormInternal">
                 {isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
