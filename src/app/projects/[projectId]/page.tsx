@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare, Settings, Brain } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare, Settings, Brain, AlertTriangle } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -83,38 +83,148 @@ const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
   Draft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700',
 };
 
-const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => [
+const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
+  const uniqueId = (base: string) => `${base}-${projectId}-${Date.now().toString().slice(-3)}-${Math.random().toString(36).substring(2, 5)}`;
+  
+  return [
     {
-        id: `pd-wf-${projectId}-1-${Date.now().toString().slice(-4)}`,
-        name: "Software Development Lifecycle",
-        description: "A standard workflow for planning, developing, testing, and deploying software features.",
-        status: 'Draft',
-        lastRun: undefined,
-        nodes: [
-            { id: `sdlc-${projectId}-node-1`, name: 'Planning Phase', type: 'Custom Logic Agent', x: 50, y: 50, config: {} },
-            { id: `sdlc-${projectId}-node-2`, name: 'Development Sprint', type: 'Code Review Agent', x: 250, y: 150, config: {} },
-            { id: `sdlc-${projectId}-node-3`, name: 'QA Testing', type: 'Testing Agent', x: 50, y: 250, config: {} },
-        ],
-        edges: [
-            { id: `sdlc-${projectId}-edge-1`, sourceNodeId: `sdlc-${projectId}-node-1`, targetNodeId: `sdlc-${projectId}-node-2` },
-            { id: `sdlc-${projectId}-edge-2`, sourceNodeId: `sdlc-${projectId}-node-2`, targetNodeId: `sdlc-${projectId}-node-3` },
-        ],
-    },
+      id: uniqueId('aspice-vmodel'),
+      name: "ASPICE V-Model Project Lifecycle",
+      description: "A comprehensive workflow template based on the ASPICE V-Model, covering system and software engineering processes.",
+      status: 'Draft',
+      lastRun: undefined,
+      nodes: [
+        // Left side of V
+        { id: uniqueId('node-acq'), name: 'Stakeholder Req. Elicitation', type: 'Analysis Agent', x: 350, y: 20, config: {} },
+        { id: uniqueId('node-sys-req'), name: 'System Requirements Analysis', type: 'Analysis Agent', x: 150, y: 100, config: {} },
+        { id: uniqueId('node-sys-arch'), name: 'System Architectural Design', type: 'Custom Logic Agent', x: 50, y: 180, config: {} },
+        { id: uniqueId('node-swe-req'), name: 'Software Requirements Analysis', type: 'Analysis Agent', x: 150, y: 260, config: {} },
+        { id: uniqueId('node-swe-arch'), name: 'Software Architectural Design', type: 'Custom Logic Agent', x: 50, y: 340, config: {} },
+        { id: uniqueId('node-swe-ddi'), name: 'Software Detailed Design & Impl.', type: 'Code Review Agent', x: 350, y: 420, config: {} },
+        // Right side of V
+        { id: uniqueId('node-swe-uv'), name: 'Software Unit Verification', type: 'Testing Agent', x: 650, y: 340, config: {} },
+        { id: uniqueId('node-swe-it'), name: 'Software Integration Testing', type: 'Testing Agent', x: 550, y: 260, config: {} },
+        { id: uniqueId('node-swe-qt'), name: 'Software Qualification Testing', type: 'Testing Agent', x: 650, y: 180, config: {} },
+        { id: uniqueId('node-sys-it'), name: 'System Integration Testing', type: 'Testing Agent', x: 550, y: 100, config: {} },
+        { id: uniqueId('node-sys-qt'), name: 'System Qualification Testing', type: 'Testing Agent', x: 350, y: 20, config: {} }, // This node is actually the acceptance/final system test, placed back at the top right
+        // Supporting Processes (placed below)
+        { id: uniqueId('node-man'), name: 'Project Management', type: 'Reporting Agent', x: 50, y: 500, config: {} },
+        { id: uniqueId('node-qa'), name: 'Quality Assurance', type: 'Monitoring Agent', x: 250, y: 500, config: {} },
+        { id: uniqueId('node-cm'), name: 'Configuration Management', type: 'Custom Logic Agent', x: 450, y: 500, config: {} },
+      ],
+      edges: [
+        // Left arm (downwards)
+        { id: uniqueId('edge-1'), sourceNodeId: uniqueId('node-acq'), targetNodeId: uniqueId('node-sys-req') },
+        { id: uniqueId('edge-2'), sourceNodeId: uniqueId('node-sys-req'), targetNodeId: uniqueId('node-sys-arch') },
+        { id: uniqueId('edge-3'), sourceNodeId: uniqueId('node-sys-arch'), targetNodeId: uniqueId('node-swe-req') },
+        { id: uniqueId('edge-4'), sourceNodeId: uniqueId('node-swe-req'), targetNodeId: uniqueId('node-swe-arch') },
+        { id: uniqueId('edge-5'), sourceNodeId: uniqueId('node-swe-arch'), targetNodeId: uniqueId('node-swe-ddi') },
+        // Bottom "coding/implementation" to "unit verification"
+        { id: uniqueId('edge-6'), sourceNodeId: uniqueId('node-swe-ddi'), targetNodeId: uniqueId('node-swe-uv') },
+        // Right arm (upwards)
+        { id: uniqueId('edge-7'), sourceNodeId: uniqueId('node-swe-uv'), targetNodeId: uniqueId('node-swe-it') },
+        { id: uniqueId('edge-8'), sourceNodeId: uniqueId('node-swe-it'), targetNodeId: uniqueId('node-swe-qt') },
+        { id: uniqueId('edge-9'), sourceNodeId: uniqueId('node-swe-qt'), targetNodeId: uniqueId('node-sys-it') },
+        { id: uniqueId('edge-10'), sourceNodeId: uniqueId('node-sys-it'), targetNodeId: uniqueId('node-sys-qt') },
+        // Test relationships (horizontal across V)
+        { id: uniqueId('edge-t1'), sourceNodeId: uniqueId('node-swe-ddi'), targetNodeId: uniqueId('node-swe-uv') }, // Redundant with edge-6 but conceptually ok
+        { id: uniqueId('edge-t2'), sourceNodeId: uniqueId('node-swe-arch'), targetNodeId: uniqueId('node-swe-it') },
+        { id: uniqueId('edge-t3'), sourceNodeId: uniqueId('node-swe-req'), targetNodeId: uniqueId('node-swe-qt') },
+        { id: uniqueId('edge-t4'), sourceNodeId: uniqueId('node-sys-arch'), targetNodeId: uniqueId('node-sys-it') },
+        { id: uniqueId('edge-t5'), sourceNodeId: uniqueId('node-sys-req'), targetNodeId: uniqueId('node-sys-qt') },
+         // Connect supporting processes to initial elicitation or project management node
+        { id: uniqueId('edge-s1'), sourceNodeId: uniqueId('node-acq'), targetNodeId: uniqueId('node-man') },
+        { id: uniqueId('edge-s2'), sourceNodeId: uniqueId('node-man'), targetNodeId: uniqueId('node-qa') },
+        { id: uniqueId('edge-s3'), sourceNodeId: uniqueId('node-man'), targetNodeId: uniqueId('node-cm') },
+      ].map(edge => ({ // Ensure node IDs in edges match the dynamically generated ones
+        ...edge,
+        sourceNodeId: edge.sourceNodeId.startsWith('node-') ? nodes.find(n => n.id.includes(edge.sourceNodeId.split('-').slice(1,-3).join('-')))!.id : edge.sourceNodeId,
+        targetNodeId: edge.targetNodeId.startsWith('node-') ? nodes.find(n => n.id.includes(edge.targetNodeId.split('-').slice(1,-3).join('-')))!.id : edge.targetNodeId,
+      }))
+    }.nodes // This trick is to use the nodes array defined above to correctly map edge source/target IDs
+  ].map(wf => { // This outer map is for the workflow itself.
+      const nodes = wf.nodes; // Get the nodes array
+      return {
+        ...wf,
+        edges: wf.edges!.map(edge => ({
+          ...edge,
+          // Remap sourceNodeId if it's one of the dynamic ones
+          sourceNodeId: nodes.find(n => n.id.startsWith(edge.sourceNodeId.substring(0, edge.sourceNodeId.lastIndexOf('-proj-'))))?.id || edge.sourceNodeId,
+          // Remap targetNodeId
+          targetNodeId: nodes.find(n => n.id.startsWith(edge.targetNodeId.substring(0, edge.targetNodeId.lastIndexOf('-proj-'))))?.id || edge.targetNodeId,
+        }))
+      };
+  })
+  // This is a bit complex. The issue is that uniqueId() generates a fully unique ID each time.
+  // We need to ensure the edges reference the IDs of the nodes created *in the same scope*.
+  // A better approach might be to define base IDs and then make them unique within the workflow object construction.
+
+  // Let's simplify: define node IDs first, then use them in edges.
+  const nodeIds = {
+    acq: uniqueId('node-acq'),
+    sysReq: uniqueId('node-sys-req'),
+    sysArch: uniqueId('node-sys-arch'),
+    sweReq: uniqueId('node-swe-req'),
+    sweArch: uniqueId('node-swe-arch'),
+    sweDdi: uniqueId('node-swe-ddi'),
+    sweUv: uniqueId('node-swe-uv'),
+    sweIt: uniqueId('node-swe-it'),
+    sweQt: uniqueId('node-swe-qt'),
+    sysIt: uniqueId('node-sys-it'),
+    sysQt: uniqueId('node-sys-qt'),
+    man: uniqueId('node-man'),
+    qa: uniqueId('node-qa'),
+    cm: uniqueId('node-cm'),
+  };
+
+  return [
     {
-        id: `pd-wf-${projectId}-2-${Date.now().toString().slice(-4)}`,
-        name: "Software Testing Cycle",
-        description: "A comprehensive workflow for various testing phases including unit, integration, and user acceptance testing.",
-        status: 'Draft',
-        lastRun: undefined,
-        nodes: [
-            { id: `stc-${projectId}-node-1`, name: 'Unit Tests', type: 'Testing Agent', x: 100, y: 80, config: {} },
-            { id: `stc-${projectId}-node-2`, name: 'Integration Tests', type: 'Testing Agent', x: 300, y: 180, config: {} },
-        ],
-        edges: [
-            { id: `stc-${projectId}-edge-1`, sourceNodeId: `stc-${projectId}-node-1`, targetNodeId: `stc-${projectId}-node-2` },
-        ],
+      id: uniqueId('aspice-vmodel-wf'),
+      name: "ASPICE V-Model Project Lifecycle",
+      description: "A comprehensive workflow template based on the ASPICE V-Model, covering system and software engineering processes.",
+      status: 'Draft',
+      lastRun: undefined,
+      nodes: [
+        { id: nodeIds.acq, name: 'Stakeholder Req. Elicitation', type: 'Analysis Agent', x: 350, y: 20, config: {} },
+        { id: nodeIds.sysReq, name: 'System Requirements Analysis', type: 'Analysis Agent', x: 150, y: 100, config: {} },
+        { id: nodeIds.sysArch, name: 'System Architectural Design', type: 'Custom Logic Agent', x: 50, y: 180, config: {} },
+        { id: nodeIds.sweReq, name: 'Software Requirements Analysis', type: 'Analysis Agent', x: 150, y: 260, config: {} },
+        { id: nodeIds.sweArch, name: 'Software Architectural Design', type: 'Custom Logic Agent', x: 50, y: 340, config: {} },
+        { id: nodeIds.sweDdi, name: 'Software Detailed Design & Impl.', type: 'Code Review Agent', x: 350, y: 420, config: {} },
+        { id: nodeIds.sweUv, name: 'Software Unit Verification', type: 'Testing Agent', x: 650, y: 340, config: {} },
+        { id: nodeIds.sweIt, name: 'Software Integration Testing', type: 'Testing Agent', x: 550, y: 260, config: {} },
+        { id: nodeIds.sweQt, name: 'Software Qualification Testing', type: 'Testing Agent', x: 650, y: 180, config: {} },
+        { id: nodeIds.sysIt, name: 'System Integration Testing', type: 'Testing Agent', x: 550, y: 100, config: {} },
+        { id: nodeIds.sysQt, name: 'System Qualification Testing', type: 'Testing Agent', x: 350, y: 20, config: {} }, // Re-adjusting for V-shape. Top-right.
+        { id: nodeIds.man, name: 'Project Management', type: 'Reporting Agent', x: 50, y: 500, config: {} },
+        { id: nodeIds.qa, name: 'Quality Assurance', type: 'Monitoring Agent', x: 250, y: 500, config: {} },
+        { id: nodeIds.cm, name: 'Configuration Management', type: 'Custom Logic Agent', x: 450, y: 500, config: {} },
+      ],
+      edges: [
+        { id: uniqueId('edge-1'), sourceNodeId: nodeIds.acq, targetNodeId: nodeIds.sysReq },
+        { id: uniqueId('edge-2'), sourceNodeId: nodeIds.sysReq, targetNodeId: nodeIds.sysArch },
+        { id: uniqueId('edge-3'), sourceNodeId: nodeIds.sysArch, targetNodeId: nodeIds.sweReq },
+        { id: uniqueId('edge-4'), sourceNodeId: nodeIds.sweReq, targetNodeId: nodeIds.sweArch },
+        { id: uniqueId('edge-5'), sourceNodeId: nodeIds.sweArch, targetNodeId: nodeIds.sweDdi },
+        { id: uniqueId('edge-6'), sourceNodeId: nodeIds.sweDdi, targetNodeId: nodeIds.sweUv },
+        { id: uniqueId('edge-7'), sourceNodeId: nodeIds.sweUv, targetNodeId: nodeIds.sweIt },
+        { id: uniqueId('edge-8'), sourceNodeId: nodeIds.sweIt, targetNodeId: nodeIds.sweQt },
+        { id: uniqueId('edge-9'), sourceNodeId: nodeIds.sweQt, targetNodeId: nodeIds.sysIt },
+        { id: uniqueId('edge-10'), sourceNodeId: nodeIds.sysIt, targetNodeId: nodeIds.sysQt },
+        // Test relationships (horizontal across V)
+        // { id: uniqueId('edge-t1'), sourceNodeId: nodeIds.sweDdi, targetNodeId: nodeIds.sweUv }, // This is same as edge-6
+        { id: uniqueId('edge-t2'), sourceNodeId: nodeIds.sweArch, targetNodeId: nodeIds.sweIt },
+        { id: uniqueId('edge-t3'), sourceNodeId: nodeIds.sweReq, targetNodeId: nodeIds.sweQt },
+        { id: uniqueId('edge-t4'), sourceNodeId: nodeIds.sysArch, targetNodeId: nodeIds.sysIt },
+        { id: uniqueId('edge-t5'), sourceNodeId: nodeIds.sysReq, targetNodeId: nodeIds.sysQt },
+        // Supporting processes link to Project Management
+        { id: uniqueId('edge-s1'), sourceNodeId: nodeIds.acq, targetNodeId: nodeIds.man }, // PM starts early
+        { id: uniqueId('edge-s2'), sourceNodeId: nodeIds.man, targetNodeId: nodeIds.qa },
+        { id: uniqueId('edge-s3'), sourceNodeId: nodeIds.man, targetNodeId: nodeIds.cm },
+      ],
     },
-];
+  ];
+};
 
 
 export default function ProjectDetailPage() {
@@ -284,7 +394,7 @@ export default function ProjectDetailPage() {
           setDesigningWorkflow(null); 
       }
     }
-  }, [projectWorkflows, designingWorkflow?.id]);
+  }, [projectWorkflows, designingWorkflow?.id]); // Removed designingWorkflow from dependencies, only ID
 
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
@@ -304,9 +414,9 @@ export default function ProjectDetailPage() {
   ) => {
     const subTasksText = aiSuggestedSubTasks && aiSuggestedSubTasks.length > 0
       ? `\n\nSuggested Sub-Tasks / Steps:\n${aiSuggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType})`).join('\n')}`
-      : ""; // No "None specified" to keep description cleaner if no sub-tasks
+      : ""; 
 
-    const taskDescription = `AI Reasoning: ${aiReasoning}${subTasksText}`;
+    const taskDescription = `AI Reasoning: ${aiReasoning}${subTasksText}`.trim();
 
     let newTask: Task = {
       ...plannedTaskData,
@@ -314,14 +424,14 @@ export default function ProjectDetailPage() {
       progress: plannedTaskData.isMilestone ? (plannedTaskData.status === 'Done' ? 100 : 0) : (plannedTaskData.progress ?? 0),
       durationDays: plannedTaskData.isMilestone ? 0 : (plannedTaskData.durationDays ?? 1),
       status: plannedTaskData.status || (plannedTaskData.isMilestone ? 'To Do' : 'To Do'),
-      description: taskDescription.trim(),
+      description: taskDescription,
       parentId: plannedTaskData.parentId || null,
       dependencies: plannedTaskData.dependencies || [],
       isMilestone: plannedTaskData.isMilestone || false,
     };
 
     let autoStarted = false;
-    let targetNameForToast: string | null = null; // Could be agent name or workflow name
+    let targetNameForToast: string | null = null; 
 
     if (!newTask.isMilestone &&
         newTask.assignedTo &&
@@ -329,10 +439,9 @@ export default function ProjectDetailPage() {
         newTask.assignedTo !== "AI Assistant to determine" &&
         newTask.status !== 'Done'
     ) {
-      // Try to find if 'assignedTo' matches a Project Agent first
       const assignedAgent = projectAgents.find(agent => agent.name === newTask.assignedTo);
 
-      if (assignedAgent) { // Assignment is to a specific agent
+      if (assignedAgent) { 
         targetNameForToast = assignedAgent.name;
         if (assignedAgent.status === 'Running') {
           newTask.status = 'In Progress';
@@ -345,9 +454,7 @@ export default function ProjectDetailPage() {
           autoStarted = true;
         }
       } else {
-        // If not a direct agent match, assume 'assignedTo' is a workflow/team name
         targetNameForToast = newTask.assignedTo;
-        // Auto-start logic based on workflow status doesn't exist yet, so task won't auto-start here
       }
     }
 
@@ -359,7 +466,7 @@ export default function ProjectDetailPage() {
         title: "Task In Progress (AI Planned)",
         description: `Task "${newTask.title}" assigned to agent "${targetNameForToast}" and is now being processed.`
       });
-    } else if (targetNameForToast && !newTask.isMilestone) {
+    } else if (targetNameForToast && !newTask.isMilestone && newTask.assignedTo !== "AI Assistant to determine") {
         toast({
             title: "Task Added (AI Planned)",
             description: `Task "${newTask.title}" assigned to workflow/team "${targetNameForToast}". Further agent actions may be required.`,
@@ -598,10 +705,9 @@ export default function ProjectDetailPage() {
       };
       let updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
       
-      // If moving to a different column, typically item goes to end of that column's list
       const taskToReorder = updatedTasks.find(t => t.id === draggedTaskId)!;
       updatedTasks = updatedTasks.filter(t => t.id !== draggedTaskId);
-      updatedTasks.push(taskToReorder); // Add to end of general list; filtering will place it in new column
+      updatedTasks.push(taskToReorder); 
 
       setTasks(updatedTasks);
       toast({
@@ -1123,7 +1229,7 @@ export default function ProjectDetailPage() {
               <AlertDialogDescription>
                 This action cannot be undone. This will permanently delete the {taskToDelete.isMilestone ? 'milestone' : 'task'}
                 "{taskToDelete.title}" from project "{project?.name}".
-              </Description>
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => { setTaskToDelete(null); setIsDeleteTaskDialogOpen(false); }}>Cancel</AlertDialogCancel>
@@ -1143,7 +1249,7 @@ export default function ProjectDetailPage() {
               <AlertDialogDescription>
                 This action cannot be undone. This will permanently delete the workflow
                 "{workflowToDelete.name}" and its design from project "{project?.name}".
-              </Description>
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => { setWorkflowToDelete(null); setIsDeleteWorkflowDialogOpen(false); }}>Cancel</AlertDialogCancel>
