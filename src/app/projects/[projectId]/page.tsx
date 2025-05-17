@@ -291,7 +291,7 @@ export default function ProjectDetailPage() {
       if (storedWorkflows) {
         try {
           const parsedWorkflows = JSON.parse(storedWorkflows);
-          // console.log(`PROJECT_DETAIL_PAGE: Loaded ${parsedWorkflows.length} workflows from localStorage for project ${projectId}.`);
+          console.log(`PROJECT_DETAIL_PAGE: Loaded ${parsedWorkflows.length} workflows from localStorage for project ${projectId}.`);
           setProjectWorkflows(parsedWorkflows.map((wf: ProjectWorkflow) => ({
             ...wf,
             nodes: wf.nodes || [],
@@ -305,7 +305,7 @@ export default function ProjectDetailPage() {
             edges: wf.edges || [],
           }));
           setProjectWorkflows(defaultWorkflowsWithIds);
-          // console.log(`PROJECT_DETAIL_PAGE: Initialized with ${defaultWorkflowsWithIds.length} predefined workflows for project ${projectId}.`);
+          console.log(`PROJECT_DETAIL_PAGE: Initialized with ${defaultWorkflowsWithIds.length} predefined workflows for project ${projectId}.`);
         }
       } else {
         const defaultWorkflowsWithIds = predefinedWorkflowsData(projectId).map(wf => ({
@@ -314,7 +314,7 @@ export default function ProjectDetailPage() {
             edges: wf.edges || [],
           }));
         setProjectWorkflows(defaultWorkflowsWithIds);
-        // console.log(`PROJECT_DETAIL_PAGE: Initialized with ${defaultWorkflowsWithIds.length} predefined workflows for project ${projectId} (no localStorage data).`);
+        console.log(`PROJECT_DETAIL_PAGE: Initialized with ${defaultWorkflowsWithIds.length} predefined workflows for project ${projectId} (no localStorage data).`);
       }
 
       const filesStorageKey = getFilesStorageKey(projectId);
@@ -351,7 +351,7 @@ export default function ProjectDetailPage() {
         const currentWorkflowsInStorage = localStorage.getItem(getWorkflowsStorageKey(projectId));
         if (projectWorkflows.length > 0 || currentWorkflowsInStorage !== null) {
              try {
-                // console.log(`PROJECT_DETAIL_PAGE: Saving ${projectWorkflows.length} workflows to localStorage for project ${projectId}.`);
+                console.log(`PROJECT_DETAIL_PAGE: Saving ${projectWorkflows.length} workflows to localStorage for project ${projectId}.`, projectWorkflows);
                 localStorage.setItem(getWorkflowsStorageKey(projectId), JSON.stringify(projectWorkflows.map(wf => ({...wf, nodes: wf.nodes || [], edges: wf.edges || [] }))));
             } catch (e) {
                 console.error("Error stringifying or saving project workflows:", e);
@@ -372,11 +372,11 @@ export default function ProjectDetailPage() {
         // Only update if there's an actual change to nodes or edges to prevent infinite loops
         if (JSON.stringify(updatedDesigningWorkflowInstance.nodes) !== JSON.stringify(designingWorkflow.nodes) || 
             JSON.stringify(updatedDesigningWorkflowInstance.edges) !== JSON.stringify(designingWorkflow.edges) ) {
-             // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated instance from projectWorkflows list. ID:", updatedDesigningWorkflowInstance.id);
+             console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with updated instance from projectWorkflows list. ID:", updatedDesigningWorkflowInstance.id);
              setDesigningWorkflow(updatedDesigningWorkflowInstance); 
         }
       } else {
-          // console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows list. Clearing designingWorkflow. ID:", designingWorkflow?.id);
+          console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows list. Clearing designingWorkflow. ID:", designingWorkflow?.id);
           setDesigningWorkflow(null); 
       }
     }
@@ -443,14 +443,14 @@ export default function ProjectDetailPage() {
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted suggestedSubTasks:", JSON.stringify(plannedTaskDataFromAI.suggestedSubTasks, null, 2));
 
 
-    const subTasksDetails = (plannedTaskDataFromAI.suggestedSubTasks && plannedTaskDataFromAI.suggestedSubTasks.length > 0)
+    const subTasksDetailsText = (plannedTaskDataFromAI.suggestedSubTasks && plannedTaskDataFromAI.suggestedSubTasks.length > 0)
         ? plannedTaskDataFromAI.suggestedSubTasks
             .map(st => `- ${st.title || 'Untitled Sub-task'} (Agent Type: ${st.assignedAgentType || 'N/A'}) - Desc: ${st.description || 'N/A'}`)
             .join('\n')
         : "None specified by AI.";
-    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed subTasksDetailsText:", subTasksDetails);
+    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed subTasksDetailsText:", subTasksDetailsText);
 
-    let combinedDescription = `AI Reasoning: ${aiReasoning}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetails.trim()}`;
+    let combinedDescription = `AI Reasoning: ${aiReasoning || "No reasoning provided by AI."}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetailsText.trim()}`;
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed combinedDescription:", combinedDescription);
 
 
@@ -696,7 +696,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
-    // console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.id, workflow.name);
+    console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.id, workflow.name);
     setDesigningWorkflow(workflow);
   };
 
@@ -706,49 +706,49 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
-    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called. Designing WF ID: ${designingWorkflow?.id}. Updated nodes length: ${updatedNodes.length}`);
+    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called. Designing WF ID: ${designingWorkflow?.id}. Updated nodes length: ${updatedNodes.length}`);
     if (!designingWorkflow) {
-      // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
+      console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
       return;
     }
-    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
-    // console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
+    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
+    console.log(`PROJECT_DETAIL_PAGE: Current designingWorkflow ID: ${designingWorkflow.id}, Name: ${designingWorkflow.name}`);
 
     setProjectWorkflows(prevWorkflows => {
-        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
+        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                // console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length, "New nodes IDs:", updatedNodes.map(n=>n.id).join(', '));
+                console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length, "New nodes IDs:", updatedNodes.map(n=>n.id).join(', '));
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
-        // newWorkflowsArray.forEach(wf => {
-             // console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflowsArray (after node map). ID:", wf.id, "Nodes count:", (wf.nodes || []).length, "Nodes IDs:", (wf.nodes || []).map(n => n.id).join(', '));
-        // });
+        newWorkflowsArray.forEach(wf => {
+             console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflowsArray (after node map). ID:", wf.id, "Nodes count:", (wf.nodes || []).length, "Nodes IDs:", (wf.nodes || []).map(n => n.id).join(', '));
+        });
         return newWorkflowsArray;
     });
   }, [designingWorkflow?.id]);
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
-    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called. Designing WF ID: ${designingWorkflow?.id}. Updated edges length: ${updatedEdges.length}`);
+    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called. Designing WF ID: ${designingWorkflow?.id}. Updated edges length: ${updatedEdges.length}`);
      if (!designingWorkflow) {
-        // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
+        console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
         return;
     }
     setProjectWorkflows(prevWorkflows => {
-        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
+        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                 // console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
+                 console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
                 return { ...wf, edges: updatedEdges };
             }
             return wf;
         });
-        // newWorkflowsArray.forEach(wf => {
-             // console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflowsArray (after edge map). ID:", wf.id, "Edges count:", (wf.edges || []).length);
-        // });
+        newWorkflowsArray.forEach(wf => {
+             console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflowsArray (after edge map). ID:", wf.id, "Edges count:", (wf.edges || []).length);
+        });
         return newWorkflowsArray;
     });
   }, [designingWorkflow?.id]);
@@ -937,36 +937,28 @@ export default function ProjectDetailPage() {
     }
     // For nested paths, this logic needs to be recursive or iterative through the `projectFiles` structure.
     // This is a simplified version for flat children within a named folder at the root.
-    const folder = projectFiles.find(item => item.type === 'folder' && `/${item.name}/` === path);
-    return folder?.children || [];
+    const findItemsInPath = (items: ProjectFile[], currentPathSegments: string[]): ProjectFile[] => {
+      if (currentPathSegments.length === 0) return items.filter(item => (item.path === '/' || !item.path)); // Root items
+
+      let currentItems = projectFiles;
+      for (const segment of currentPathSegments) {
+          const folder = currentItems.find(item => item.type === 'folder' && item.name === segment);
+          if (folder && folder.children) {
+              currentItems = folder.children;
+          } else {
+              return []; // Path segment not found or no children
+          }
+      }
+      return currentItems;
+    };
+    
+    const segments = path.split('/').filter(Boolean);
+    return findItemsInPath(projectFiles, segments);
   };
 
   const renderProjectFiles = () => {
-    let itemsToRender: ProjectFile[] = [];
-    if (currentFilePath === '/') {
-        itemsToRender = projectFiles.filter(item => (!item.path || item.path === '/' || item.path === ''));
-    } else {
-        // This function needs to recursively search projectFiles for the currentFilePath
-        const findItemsInPath = (items: ProjectFile[], targetPath: string): ProjectFile[] => {
-            const segments = targetPath.split('/').filter(Boolean);
-            let currentLevelItems = items;
-            
-            for (const segment of segments) {
-                const folder = currentLevelItems.find(item => item.type === 'folder' && item.name === segment);
-                if (folder && folder.children) {
-                    currentLevelItems = folder.children;
-                } else {
-                    return []; // Path not found or folder has no children
-                }
-            }
-            // Filter items that are directly in this path
-            // (This might need adjustment based on how child paths are stored)
-            return currentLevelItems.filter(item => item.path === targetPath || `${item.path}${item.name}/` === targetPath || (item.path ==='/' && targetPath === `/${item.name}/`) );
-        };
-        itemsToRender = findItemsInPath(projectFiles, currentFilePath);
-    }
-
-
+    const itemsToRender = getFilesForPath(currentFilePath);
+    
     return itemsToRender.map(file => (
       <TableRow key={file.id} className="hover:bg-muted/50">
         <TableCell>
@@ -975,7 +967,11 @@ export default function ProjectDetailPage() {
             className="p-0 h-auto font-medium text-foreground hover:underline"
             onClick={() => {
               if (file.type === 'folder') {
-                const newPath = `${currentFilePath}${file.name}/`.replace('//', '/');
+                // Ensure paths are built correctly, avoiding double slashes and ensuring leading/trailing slashes
+                let newPath = currentFilePath;
+                if (newPath !== '/') newPath = newPath.endsWith('/') ? newPath : newPath + '/';
+                newPath += file.name;
+                if (!newPath.endsWith('/')) newPath += '/';
                 setCurrentFilePath(newPath);
               } else {
                 toast({ title: "Opening File (Mock)", description: `Simulating opening of "${file.name}".` });
@@ -988,8 +984,8 @@ export default function ProjectDetailPage() {
             </div>
           </Button>
         </TableCell>
-        <TableCell className="text-muted-foreground">{file.size || '-'}</TableCell>
-        <TableCell className="text-muted-foreground">{file.lastModified ? formatDate(file.lastModified, 'MMM d, yyyy') : '-'}</TableCell>
+        <TableCell className="hidden sm:table-cell text-muted-foreground">{file.size || '-'}</TableCell>
+        <TableCell className="hidden md:table-cell text-muted-foreground">{file.lastModified ? formatDate(file.lastModified, 'MMM d, yyyy') : '-'}</TableCell>
         <TableCell className="text-right">
           <Button variant="ghost" size="sm" disabled>Actions</Button> {/* Placeholder */}
         </TableCell>
@@ -1039,7 +1035,9 @@ export default function ProjectDetailPage() {
           )}
           <div className="flex-grow">
             <PageHeaderHeading><Briefcase className="mr-2 inline-block h-7 w-7 sm:mr-3 sm:h-8 sm:w-8" />{project.name}</PageHeaderHeading>
-            <PageHeaderDescription className="mt-1">{project.description}</PageHeaderDescription>
+            <PageHeaderDescription className="mt-1 text-sm sm:text-base">
+              {project.description}
+            </PageHeaderDescription>
           </div>
         </div>
       </PageHeader>
@@ -1092,19 +1090,21 @@ export default function ProjectDetailPage() {
       <Separator className="my-6" />
 
       <Tabs defaultValue="gantt" className="w-full">
-         <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mb-4"> {/* Adjusted for Repository Tab */}
+         <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mb-4">
           <TabsTrigger value="gantt"><GanttChartSquare className="mr-2 h-4 w-4"/>Gantt Chart</TabsTrigger>
           <TabsTrigger value="board"><ListChecks className="mr-2 h-4 w-4"/>Task Board</TabsTrigger>
           <TabsTrigger value="repository"><FolderIcon className="mr-2 h-4 w-4"/>Repository</TabsTrigger>
           <TabsTrigger value="projectAgents"><SlidersHorizontal className="mr-2 h-4 w-4"/>Project Agents</TabsTrigger>
           <TabsTrigger value="projectWorkflows"><WorkflowIcon className="mr-2 h-4 w-4"/>Project Workflows &amp; Design</TabsTrigger>
-          {/* AI Suggestions is now part of the Task Planning Flow, not a general project tab */}
         </TabsList>
 
-        <TabsContent value="gantt">
+        <TabsContent value="gantt" className="mt-4 sm:mt-2">
           <Card>
             <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-              <div><CardTitle>Task Gantt Chart</CardTitle><CardDescription>Timeline view of tasks for project "{project.name}".</CardDescription></div>
+              <div>
+                <CardTitle>Gantt Chart</CardTitle>
+                <CardDescription className="text-xs sm:text-sm text-muted-foreground">Timeline view of tasks for project "{project.name}".</CardDescription>
+              </div>
               <Button variant="outline" size="sm" onClick={() => setIsAITaskPlannerDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><Brain className="mr-2 h-4 w-4" />Plan Task with AI</Button>
             </CardHeader>
             <CardContent>
@@ -1128,10 +1128,13 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="board">
+        <TabsContent value="board" className="mt-4 sm:mt-2">
           <Card>
              <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-              <div><CardTitle>Task Board (Kanban)</CardTitle><CardDescription>Manage tasks by status for project "{project.name}".</CardDescription></div>
+              <div>
+                <CardTitle>Task Board (Kanban)</CardTitle>
+                <CardDescription className="text-xs sm:text-sm text-muted-foreground">Manage tasks by status for project "{project.name}".</CardDescription>
+              </div>
               <Button variant="outline" size="sm" onClick={() => setIsAITaskPlannerDialogOpen(true)} className="w-full mt-2 sm:w-auto sm:mt-0"><Brain className="mr-2 h-4 w-4" />Plan Task with AI</Button>
             </CardHeader>
             <CardContent>
@@ -1176,7 +1179,7 @@ export default function ProjectDetailPage() {
                                     <GripVertical className="h-4 w-4 mr-1.5 text-muted-foreground/50 cursor-grab flex-shrink-0 opacity-50 group-hover:opacity-100" />
                                     <CardTitle
                                         className={cn(
-                                            "text-sm font-medium leading-tight flex items-center truncate", // Added truncate
+                                            "text-sm font-medium leading-tight flex items-center truncate", 
                                             isParent && "font-bold"
                                         )}
                                     >
@@ -1229,12 +1232,12 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="repository">
+        <TabsContent value="repository" className="mt-4 sm:mt-2">
           <Card>
             <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
               <div>
                 <CardTitle>Project Repository</CardTitle>
-                <CardDescription>
+                <CardDescription className="text-xs sm:text-sm text-muted-foreground">
                   Current path: <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{currentFilePath}</span>
                 </CardDescription>
               </div>
@@ -1271,7 +1274,7 @@ export default function ProjectDetailPage() {
                 <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
                   <FolderIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                   <p className="text-lg font-medium text-muted-foreground">
-                    {currentFilePath === '/' ? 'No files or folders in this project repository yet.' : `Folder "${currentFilePath}" is empty.`}
+                    {currentFilePath === '/' ? 'No files or folders in this project repository yet.' : `Folder "${currentFilePath.slice(0,-1).split('/').pop()}" is empty.`}
                   </p>
                   <p className="text-sm text-muted-foreground/80 mt-1 mb-4">
                     {currentFilePath === '/' ? 'Upload files or create folders to get started.' : 'You can upload files or create new folders here.'}
@@ -1282,11 +1285,11 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="projectAgents">
+        <TabsContent value="projectAgents" className="mt-4 sm:mt-2">
             <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
                 <div>
                 <PageHeaderHeading className="text-2xl">Project Agent Management</PageHeaderHeading>
-                <PageHeaderDescription>Manage agent configurations specific to project "{project?.name}".</PageHeaderDescription>
+                <PageHeaderDescription className="text-xs sm:text-sm">Manage agent configurations specific to project "{project?.name}".</PageHeaderDescription>
                 </div>
                 <AddAgentDialog onAddAgent={handleAddProjectAgent} projectId={projectId} />
             </PageHeader>
@@ -1300,13 +1303,13 @@ export default function ProjectDetailPage() {
             />
         </TabsContent>
 
-        <TabsContent value="projectWorkflows">
+        <TabsContent value="projectWorkflows" className="mt-4 sm:mt-2">
           {!designingWorkflow ? (
             <>
               <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
                   <div>
                       <PageHeaderHeading className="text-2xl">Project Workflow Management</PageHeaderHeading>
-                      <PageHeaderDescription>Define workflows for project "{project?.name}". Select a workflow to open its design canvas.</PageHeaderDescription>
+                      <PageHeaderDescription className="text-xs sm:text-sm">Define workflows for project "{project?.name}". Select a workflow to open its design canvas.</PageHeaderDescription>
                   </div>
                   <Button variant="outline" onClick={() => setIsAddWorkflowDialogOpen(true)}  className="w-full mt-4 sm:w-auto sm:mt-0">
                       <PlusSquareIcon className="mr-2 h-4 w-4"/>Add New Project Workflow
@@ -1315,7 +1318,7 @@ export default function ProjectDetailPage() {
               <Card>
                   <CardHeader>
                       <CardTitle>Existing Workflows for "{project?.name}"</CardTitle>
-                      <CardDescription>Manage and monitor workflows associated with this project. Click a workflow's 'Design' button to open its design canvas.</CardDescription>
+                      <CardDescription className="text-xs sm:text-sm">Manage and monitor workflows associated with this project. Click a workflow's 'Design' button to open its design canvas.</CardDescription>
                   </CardHeader>
                   <CardContent>
                       {projectWorkflows.length > 0 ? (
@@ -1370,7 +1373,7 @@ export default function ProjectDetailPage() {
               <div className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-4 pb-2 border-b">
                   <div>
                     <PageHeaderHeading className="text-2xl">Designing Workflow: {designingWorkflow.name}</PageHeaderHeading>
-                    <PageHeaderDescription>{designingWorkflow.description}</PageHeaderDescription>
+                    <PageHeaderDescription className="text-xs sm:text-sm">{designingWorkflow.description}</PageHeaderDescription>
                   </div>
                   <Button variant="outline" onClick={handleCloseWorkflowDesigner} className="w-full mt-2 sm:w-auto sm:mt-0"><XSquare className="mr-2 h-4 w-4"/>Close Designer</Button>
               </div>
@@ -1387,11 +1390,11 @@ export default function ProjectDetailPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="aiSuggestions">
+        <TabsContent value="aiSuggestions" className="mt-4 sm:mt-2">
             <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
                 <div>
                     <PageHeaderHeading className="text-2xl">AI-Powered Agent Configuration</PageHeaderHeading>
-                    <PageHeaderDescription>Get optimal agent configuration suggestions for tasks within project "{project?.name}".</PageHeaderDescription>
+                    <PageHeaderDescription className="text-xs sm:text-sm">Get optimal agent configuration suggestions for tasks within project "{project?.name}".</PageHeaderDescription>
                 </div>
             </PageHeader>
             <div className="max-w-full">
@@ -1508,7 +1511,7 @@ export default function ProjectDetailPage() {
           onOpenChange={(isOpen) => {
             setIsChatDialogOpen(isOpen);
             if (!isOpen) {
-              // console.log("PROJECT_DETAIL_PAGE: Closing chat dialog. Chatting task was:", chattingTask?.id);
+              console.log("PROJECT_DETAIL_PAGE: Closing chat dialog. Chatting task was:", chattingTask?.id);
               setChattingTask(null);
             }
           }}
