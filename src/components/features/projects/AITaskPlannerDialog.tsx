@@ -19,10 +19,11 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import type { Task, ProjectWorkflow } from '@/types';
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, CheckSquare } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, User, Clock3, Milestone } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 
 const plannerSchema = z.object({
   userGoal: z.string().min(10, "Please describe your task goal in at least 10 characters.").max(1000, "Goal description is too long."),
@@ -35,7 +36,7 @@ interface AITaskPlannerDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string;
   projectWorkflows: Pick<ProjectWorkflow, 'name' | 'description'>[];
-  onTaskPlannedAndAccepted: (taskData: Omit<Task, 'id'>) => void;
+  onTaskPlannedAndAccepted: (taskData: Omit<Task, 'id'>, aiReasoning: string, aiSuggestedSubTasks?: PlanProjectTaskOutput['plannedTask']['suggestedSubTasks']) => void;
 }
 
 export default function AITaskPlannerDialog({
@@ -85,22 +86,20 @@ export default function AITaskPlannerDialog({
 
   const handleAcceptAndAddTask = () => {
     if (aiSuggestion?.plannedTask) {
-      // The AI flow already structures plannedTask like Omit<Task, 'id'>
-      // but we need to ensure all fields Task expects are present, even if null/default
       const taskData: Omit<Task, 'id'> = {
         title: aiSuggestion.plannedTask.title,
         status: aiSuggestion.plannedTask.status || 'To Do',
         assignedTo: aiSuggestion.plannedTask.assignedTo || 'AI Assistant to determine',
-        startDate: aiSuggestion.plannedTask.startDate, // AI provides this in YYYY-MM-DD
+        startDate: aiSuggestion.plannedTask.startDate, 
         durationDays: aiSuggestion.plannedTask.durationDays || 1,
         progress: aiSuggestion.plannedTask.progress || 0,
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
         parentId: aiSuggestion.plannedTask.parentId || null,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
-        description: aiSuggestion.reasoning, // Using reasoning as description for now
+        // Description will be handled by the parent using reasoning and sub-tasks
       };
-      onTaskPlannedAndAccepted(taskData);
-      onOpenChange(false); // Close dialog after adding
+      onTaskPlannedAndAccepted(taskData, aiSuggestion.reasoning, aiSuggestion.plannedTask.suggestedSubTasks);
+      onOpenChange(false); 
       form.reset();
       setAiSuggestion(null);
     }
@@ -116,11 +115,11 @@ export default function AITaskPlannerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] md:max-w-[750px]">
+      <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[800px]">
         <DialogHeader>
           <DialogTitle>Plan New Task with AI</DialogTitle>
           <DialogDescription>
-            Describe your goal, and let the AI assistant help plan the task details.
+            Describe your goal, and let the AI assistant help plan the task details and suggest sub-steps.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -139,7 +138,7 @@ export default function AITaskPlannerDialog({
                       disabled={isLoading || !!aiSuggestion}
                     />
                   </FormControl>
-                  <FormDescription>Be as specific or general as you like.</FormDescription>
+                  <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -170,61 +169,80 @@ export default function AITaskPlannerDialog({
         )}
 
         {aiSuggestion && (
-          <ScrollArea className="max-h-[calc(70vh-250px)] pr-3">
-            <Card className="mt-4 bg-accent/30 border-accent shadow-md">
+          <ScrollArea className="max-h-[calc(80vh - 280px)] pr-3 mt-4"> {/* Adjusted max height */}
+            <Card className="bg-accent/30 border-accent shadow-md">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center">
                   <Sparkles className="w-5 h-5 mr-2 text-primary" />
                   AI Task Plan Suggestion
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              <CardContent className="space-y-4 text-sm">
                 <div>
-                  <strong className="text-muted-foreground">Title:</strong>
-                  <p className="p-2 bg-background/70 rounded-md border">{aiSuggestion.plannedTask.title}</p>
+                  <strong className="text-muted-foreground block mb-0.5">Task Title:</strong>
+                  <p className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title}</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
                   <div>
-                    <strong className="text-muted-foreground">Status:</strong>
-                    <div><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
+                    <strong className="text-muted-foreground flex items-center"><ListChecks className="w-4 h-4 mr-1.5"/>Status:</strong>
+                    <div className="mt-0.5"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
                   </div>
                   <div>
-                    <strong className="text-muted-foreground">Assigned To:</strong>
-                    <p>{aiSuggestion.plannedTask.assignedTo}</p>
+                    <strong className="text-muted-foreground flex items-center"><User className="w-4 h-4 mr-1.5"/>Assigned To (Workflow/Team):</strong>
+                    <p className="mt-0.5">{aiSuggestion.plannedTask.assignedTo}</p>
                   </div>
                   <div>
-                    <strong className="text-muted-foreground">Start Date:</strong>
-                    <p>{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'Not set'}</p>
+                    <strong className="text-muted-foreground flex items-center"><CalendarDays className="w-4 h-4 mr-1.5"/>Start Date:</strong>
+                    <p className="mt-0.5">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'Not set'}</p>
                   </div>
                   <div>
-                    <strong className="text-muted-foreground">Duration:</strong>
-                    <p>{aiSuggestion.plannedTask.durationDays} day(s)</p>
+                    <strong className="text-muted-foreground flex items-center"><Clock3 className="w-4 h-4 mr-1.5"/>Duration:</strong>
+                    <p className="mt-0.5">{aiSuggestion.plannedTask.durationDays} day(s)</p>
                   </div>
-                   <div>
-                    <strong className="text-muted-foreground">Milestone:</strong>
-                    <p>{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</p>
+                  <div>
+                    <strong className="text-muted-foreground flex items-center"><Milestone className="w-4 h-4 mr-1.5"/>Milestone:</strong>
+                    <p className="mt-0.5">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</p>
                   </div>
                 </div>
-                 {aiSuggestion.plannedTask.parentId && (
+                
+                {aiSuggestion.plannedTask.parentId && (
                   <div>
                     <strong className="text-muted-foreground">Parent Task ID:</strong>
-                    <p className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit">{aiSuggestion.plannedTask.parentId}</p>
+                    <p className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</p>
                   </div>
                 )}
                  {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
                   <div>
                     <strong className="text-muted-foreground">Dependencies:</strong>
-                    <ul className="list-disc list-inside pl-1">
+                    <ul className="list-disc list-inside pl-1 mt-0.5">
                       {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
                     </ul>
                   </div>
                 )}
-                <div className="pt-2">
-                  <strong className="text-muted-foreground">AI Reasoning:</strong>
-                  <p className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs">
+
+                <Separator className="my-3"/>
+
+                <div>
+                  <strong className="text-muted-foreground block mb-1">Detailed AI Reasoning:</strong>
+                  <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap">
                     {aiSuggestion.reasoning}
-                  </p>
+                  </ShadCnCardDescription>
                 </div>
+
+                {aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0 && (
+                  <div className="pt-2">
+                    <strong className="text-muted-foreground block mb-1">Suggested Sub-Tasks / Steps:</strong>
+                    <div className="space-y-2 mt-1">
+                      {aiSuggestion.plannedTask.suggestedSubTasks.map((subTask, index) => (
+                        <div key={index} className="p-2 bg-background/70 rounded-md border border-dashed">
+                          <p className="font-medium text-xs">{index + 1}. {subTask.title}</p>
+                          <p className="text-muted-foreground text-xs mt-0.5">Suggested Agent Type: <span className="font-semibold">{subTask.assignedAgentType}</span></p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
             <DialogFooter className="mt-6">

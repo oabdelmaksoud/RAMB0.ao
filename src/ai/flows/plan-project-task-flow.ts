@@ -25,6 +25,11 @@ const PlanProjectTaskInputSchema = z.object({
 });
 export type PlanProjectTaskInput = z.infer<typeof PlanProjectTaskInputSchema>;
 
+const SuggestedSubTaskSchema = z.object({
+  title: z.string().describe("A concise title for this sub-task or step."),
+  assignedAgentType: z.string().describe("The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Testing Agent').")
+});
+
 // Output schema should align with Omit<Task, 'id'> and include reasoning
 const PlannedTaskSchema = z.object({
   title: z.string().describe('A concise and descriptive title for the planned task.'),
@@ -36,11 +41,12 @@ const PlannedTaskSchema = z.object({
   isMilestone: z.boolean().default(false).describe('Whether this task should be considered a project milestone. Defaults to false.'),
   parentId: z.string().nullable().default(null).describe('The ID of a parent task, if this is a subtask. Defaults to null.'),
   dependencies: z.array(z.string()).default([]).describe('An array of task IDs that this task depends on. Defaults to an empty array.'),
+  suggestedSubTasks: z.array(SuggestedSubTaskSchema).optional().describe("A list of suggested sub-tasks or steps AI agents would perform to complete the main task. This should be generated if the main task is complex enough to warrant a breakdown.")
 });
 
 const PlanProjectTaskOutputSchema = z.object({
   plannedTask: PlannedTaskSchema.describe('The structured task details planned by the AI.'),
-  reasoning: z.string().describe('A brief explanation from the AI on how it derived the task plan, including its choice for "assignedTo" (workflow/team) and consideration of project workflows.'),
+  reasoning: z.string().describe('A detailed explanation from the AI on how it derived the task plan, including its choice for "assignedTo" (workflow/team), consideration of project workflows, and any assumptions made.'),
 });
 export type PlanProjectTaskOutput = z.infer<typeof PlanProjectTaskOutputSchema>;
 
@@ -70,9 +76,9 @@ Available Project Workflows (These are existing, defined processes for the proje
 User's Goal:
 "{{{userGoal}}}"
 
-Based on the user's goal and the project context, please generate a single, well-defined task.
+Based on the user's goal and the project context, please generate a single, well-defined main task.
 
-Task Details to Generate:
+Main Task Details to Generate (plannedTask object):
 - title: A clear, action-oriented title for the task.
 - status: Set to "To Do" by default.
 - assignedTo: Determine the most appropriate 'Agent Workflow' or 'Agent Team' for this task.
@@ -85,19 +91,24 @@ Task Details to Generate:
 - isMilestone: Default to false, unless the user's goal clearly indicates a major milestone.
 - parentId: Default to null. Do not suggest a parent task unless explicitly requested or strongly implied.
 - dependencies: Default to an empty array. Do not suggest dependencies unless explicitly requested or strongly implied.
+- suggestedSubTasks: If the main task is complex enough, break it down into a list of actionable sub-tasks or steps that AI agents would perform. For each sub-task:
+    - title: A concise title for the sub-task.
+    - assignedAgentType: The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Testing Agent', 'Deployment Agent', 'Monitoring Agent').
 
-Reasoning:
-Provide a brief 'reasoning' string explaining your thought process for the generated task.
-- Explain your choice for 'assignedTo'. If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit for the user's goal.
+Reasoning (reasoning string):
+Provide a **detailed** 'reasoning' string explaining your thought process for the generated task plan.
+- Explain your choice for 'assignedTo' in detail. If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit for the user's goal.
 - If a new conceptual workflow or team name was suggested for 'assignedTo', explain the rationale for this new grouping and why it's suitable for the task.
-- Explain any choices for duration.
+- Explain any choices for duration or other fields.
+- If you generated 'suggestedSubTasks', briefly explain why this breakdown is appropriate.
 
-Example Reasoning for existing workflow: "The user's goal to 'design a new logo' aligns with the 'Brand Asset Creation' workflow. Task assigned to 'Brand Asset Creation' to initiate this process. Estimated duration is 3 days."
-Example Reasoning for conceptual workflow/team: "The user's goal to 'investigate urgent server outage' does not fit existing workflows. Task assigned to a conceptual 'Urgent Server Response Team' for immediate attention. Estimated duration is 1 day."
+Example Reasoning for existing workflow: "The user's goal to 'design a new logo' strongly aligns with the existing 'Brand Asset Creation' project workflow. Task assigned to 'Brand Asset Creation' to initiate this established process. A 3-day duration is estimated for initial concepts and revisions. The task has been broken down into conceptual design, feedback, and finalization sub-tasks, each handled by appropriate agent types."
+Example Reasoning for conceptual workflow/team: "The user's goal to 'investigate urgent server outage' does not fit existing workflows. This requires immediate, specialized attention, so the task has been assigned to a conceptual 'Urgent Server Response Team'. The estimated duration is 1 day for initial diagnosis and stabilization. Sub-tasks include log analysis, system diagnostics, and reporting findings, handled by Analysis and Monitoring agent types."
 
 Ensure the 'plannedTask.startDate' is in YYYY-MM-DD format.
 Ensure 'plannedTask.durationDays' is an integer and at least 1.
 Ensure 'plannedTask.progress' is an integer between 0 and 100.
+If 'suggestedSubTasks' are provided, each sub-task must have a 'title' and an 'assignedAgentType'.
 `,
 });
 
@@ -122,6 +133,8 @@ const planProjectTaskFlow = ai.defineFlow(
     output.plannedTask.isMilestone = output.plannedTask.isMilestone || false;
     output.plannedTask.parentId = output.plannedTask.parentId === undefined ? null : output.plannedTask.parentId;
     output.plannedTask.dependencies = output.plannedTask.dependencies || [];
+    output.plannedTask.suggestedSubTasks = output.plannedTask.suggestedSubTasks || [];
+
 
     return output;
   }
