@@ -15,17 +15,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from "@/components/ui/form"; // Renamed to avoid conflict
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from "@/components/ui/form";
 import type { Task, ProjectWorkflow } from '@/types';
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, ChevronDown } from "lucide-react"; // Removed User, added Users
+import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label"; // Import basic Label
+import { Label } from "@/components/ui/label";
 
 
 const plannerSchema = z.object({
@@ -40,8 +40,8 @@ interface AITaskPlannerDialogProps {
   projectId: string;
   projectWorkflows: Pick<ProjectWorkflow, 'name' | 'description'>[];
   onTaskPlannedAndAccepted: (
-    taskData: Omit<Task, 'id'>, 
-    aiReasoning: string, 
+    taskData: Omit<Task, 'id'>,
+    aiReasoning: string,
     aiSuggestedSubTasks?: PlanProjectTaskOutput['plannedTask']['suggestedSubTasks']
   ) => void;
 }
@@ -68,7 +68,7 @@ export default function AITaskPlannerDialog({
   const onSubmit: SubmitHandler<PlannerFormData> = async (data) => {
     setIsLoading(true);
     setAiSuggestion(null);
-    setSelectedWorkflowOverride(undefined); 
+    setSelectedWorkflowOverride(undefined);
     try {
       const input: PlanProjectTaskInput = {
         userGoal: data.userGoal,
@@ -95,7 +95,7 @@ export default function AITaskPlannerDialog({
 
   const handleAcceptAndAddTask = () => {
     if (aiSuggestion?.plannedTask) {
-      const finalAssignedTo = selectedWorkflowOverride !== undefined
+      const finalAssignedTo = selectedWorkflowOverride !== undefined && selectedWorkflowOverride !== ""
         ? selectedWorkflowOverride
         : aiSuggestion.plannedTask.assignedTo;
 
@@ -109,11 +109,9 @@ export default function AITaskPlannerDialog({
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
         parentId: aiSuggestion.plannedTask.parentId || null,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
-        // Description will be populated by the parent with reasoning and sub-tasks
       };
       onTaskPlannedAndAccepted(taskData, aiSuggestion.reasoning, aiSuggestion.plannedTask.suggestedSubTasks);
-      onOpenChange(false); // Close dialog
-      // Reset form and suggestion state will happen in useEffect based on `open`
+      onOpenChange(false);
     }
   };
 
@@ -128,7 +126,7 @@ export default function AITaskPlannerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[800px]">
+      <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[800px] flex flex-col max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Plan New Task with AI</DialogTitle>
           <DialogDescription>
@@ -175,14 +173,14 @@ export default function AITaskPlannerDialog({
         </Form>
 
         {isLoading && !aiSuggestion && (
-          <div className="flex flex-col items-center justify-center space-y-2 py-8">
+          <div className="flex flex-col items-center justify-center space-y-2 py-8 flex-grow">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
             <p className="text-muted-foreground">AI is planning your task...</p>
           </div>
         )}
 
         {aiSuggestion && (
-          <ScrollArea className="max-h-[calc(80vh - 280px)] pr-3 mt-4">
+          <ScrollArea className="flex-grow min-h-0 pr-3 mt-4">
             <Card className="bg-accent/30 border-accent shadow-md">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center">
@@ -220,20 +218,19 @@ export default function AITaskPlannerDialog({
                 </div>
 
                 <div className="space-y-1 pt-2">
-                  {/* Use basic Label here as it's not part of a react-hook-form FormField */}
                   <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Optionally, assign to specific existing workflow:</Label>
-                  <Select onValueChange={setSelectedWorkflowOverride} value={selectedWorkflowOverride}>
+                  <Select onValueChange={setSelectedWorkflowOverride} value={selectedWorkflowOverride || ""}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Keep AI suggestion or select a workflow..." />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="">Keep AI suggestion ({aiSuggestion.plannedTask.assignedTo})</SelectItem>
                       {projectWorkflows.map(wf => (
                         <SelectItem key={wf.name} value={wf.name}>{wf.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-
 
                 {aiSuggestion.plannedTask.parentId && (
                   <div>
@@ -274,16 +271,19 @@ export default function AITaskPlannerDialog({
                 )}
               </CardContent>
             </Card>
-            <DialogFooter className="mt-6">
-              <Button variant="outline" onClick={() => { form.reset(); setAiSuggestion(null); setSelectedWorkflowOverride(undefined); }}>
-                Clear & Plan New
-              </Button>
-              <Button onClick={handleAcceptAndAddTask}>
-                <CheckSquare className="mr-2 h-4 w-4" />
-                Accept & Add Task to Project
-              </Button>
-            </DialogFooter>
           </ScrollArea>
+        )}
+
+        {aiSuggestion && (
+          <DialogFooter className="mt-auto pt-4 border-t"> {/* Ensure footer is not part of scroll area */}
+            <Button variant="outline" onClick={() => { form.reset(); setAiSuggestion(null); setSelectedWorkflowOverride(undefined); }}>
+              Clear & Plan New
+            </Button>
+            <Button onClick={handleAcceptAndAddTask}>
+              <CheckSquare className="mr-2 h-4 w-4" />
+              Accept & Add Task to Project
+            </Button>
+          </DialogFooter>
         )}
       </DialogContent>
     </Dialog>
