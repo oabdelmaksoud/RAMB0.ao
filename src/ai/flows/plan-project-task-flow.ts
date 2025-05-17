@@ -29,7 +29,7 @@ export type PlanProjectTaskInput = z.infer<typeof PlanProjectTaskInputSchema>;
 const PlannedTaskSchema = z.object({
   title: z.string().describe('A concise and descriptive title for the planned task.'),
   status: z.enum(['To Do', 'In Progress', 'Done', 'Blocked']).default('To Do').describe("The initial status of the task, typically 'To Do'."),
-  assignedTo: z.string().default('AI Assistant to determine').describe('The suggested assignee for the task. Can be a specific role, team, or a placeholder like "AI Assistant to determine".'),
+  assignedTo: z.string().default('AI Assistant to determine').describe('The suggested assignee for the task. This could be a specific role, team, a workflow name if directly applicable, or a placeholder like "AI Assistant to determine".'),
   startDate: z.string().default(format(new Date(), 'yyyy-MM-dd')).describe("The suggested start date for the task, in YYYY-MM-DD format. Defaults to today's date."),
   durationDays: z.number().int().min(1).default(1).describe('The estimated duration of the task in days. Must be at least 1.'),
   progress: z.number().int().min(0).max(100).default(0).describe('The initial progress of the task, as a percentage from 0 to 100. Defaults to 0.'),
@@ -40,7 +40,7 @@ const PlannedTaskSchema = z.object({
 
 const PlanProjectTaskOutputSchema = z.object({
   plannedTask: PlannedTaskSchema.describe('The structured task details planned by the AI.'),
-  reasoning: z.string().describe('A brief explanation from the AI on how it derived the task plan, including any consideration of project workflows.'),
+  reasoning: z.string().describe('A brief explanation from the AI on how it derived the task plan, including any consideration of project workflows and the choice of assignee.'),
 });
 export type PlanProjectTaskOutput = z.infer<typeof PlanProjectTaskOutputSchema>;
 
@@ -60,7 +60,7 @@ Project ID: {{{projectId}}}
 Available Project Workflows (for context on typical processes, do not assume the user wants to use them unless their goal implies it):
 {{#if projectWorkflows.length}}
 {{#each projectWorkflows}}
-- Workflow Name: {{name}}
+- Workflow Name: "{{name}}"
   Description: {{description}}
 {{/each}}
 {{else}}
@@ -70,14 +70,15 @@ Available Project Workflows (for context on typical processes, do not assume the
 User's Goal:
 "{{{userGoal}}}"
 
-Based on the user's goal and the project context (especially considering if the goal aligns with any existing workflows), please generate a single, well-defined task.
-
-Your output must be a JSON object adhering to the specified schema.
+Based on the user's goal and the project context, please generate a single, well-defined task.
 
 Task Details to Generate:
 - title: A clear, action-oriented title for the task.
 - status: Set to "To Do" by default.
-- assignedTo: Suggest a sensible assignee. This could be a role (e.g., "Developer," "QA Tester"), a team (e.g., "Frontend Team"), or a general placeholder like "Project Lead to assign" or "AI Assistant to determine." Avoid assigning to specific individuals unless the user's goal explicitly mentions it.
+- assignedTo: Suggest a sensible assignee.
+  - If the user's goal strongly aligns with one of the 'Available Project Workflows', you may suggest assigning the task to the name of that workflow itself (e.g., assign to "Software Development Lifecycle") or to a typical initiating role/agent for that workflow (e.g., assign to "Planning Phase Agent" if such a role is commonly the first step in a relevant workflow).
+  - Otherwise, assign it to a relevant role (e.g., "Developer," "QA Tester"), a team (e.g., "Frontend Team"), or a general placeholder like "Project Lead to assign" or "AI Assistant to determine."
+  - Avoid assigning to specific individuals unless the user's goal explicitly mentions it.
 - startDate: Suggest a start date. Default to today's date: ${format(new Date(), 'yyyy-MM-dd')}.
 - durationDays: Estimate a reasonable duration in days (minimum 1).
 - progress: Default to 0.
@@ -86,9 +87,12 @@ Task Details to Generate:
 - dependencies: Default to an empty array. Do not suggest dependencies unless explicitly requested or strongly implied.
 
 Reasoning:
-Provide a brief 'reasoning' string explaining your thought process for the generated task. If one or more of the provided 'Available Project Workflows' significantly influenced your plan (e.g., by suggesting a task type, assignee, or a sequence of actions that aligns with a workflow step), explicitly mention the name(s) of the influential workflow(s) in your reasoning. Also explain any choices for assignee or duration.
+Provide a brief 'reasoning' string explaining your thought process for the generated task.
+- If one or more of the provided 'Available Project Workflows' significantly influenced your plan (e.g., by suggesting a task type, sequence, or assignee), explicitly mention the name(s) of the influential workflow(s) in your reasoning and explain how.
+- Also explain your choice for 'assignedTo', especially if it's a workflow name or a role derived from a workflow.
+- Explain any choices for duration.
 
-Example Reasoning: "The user's goal to 'design a new logo' aligns with the 'Brand Asset Creation' workflow, suggesting an initial design task. Task assigned to 'Graphic Designer' with an estimated duration of 3 days." (Adjust based on actual workflows and goal).
+Example Reasoning: "The user's goal to 'design a new logo' aligns with the 'Brand Asset Creation' workflow. Task assigned to 'Brand Asset Creation' to initiate this process. Estimated duration is 3 days." (Adjust based on actual workflows and goal).
 
 Ensure the 'plannedTask.startDate' is in YYYY-MM-DD format.
 Ensure 'plannedTask.durationDays' is an integer and at least 1.
