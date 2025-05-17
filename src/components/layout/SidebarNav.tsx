@@ -25,7 +25,7 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              <Link href={item.href} passHref> {/* Removed legacyBehavior */}
+              <Link href={item.href} passHref legacyBehavior>
                 <Button
                   variant="ghost"
                   asChild
@@ -34,9 +34,9 @@ export default function SidebarNav() {
                     pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <a> {/* Link's child */}
+                  <a> {/* This 'a' tag is rendered by Button asChild and expected by Link legacyBehavior */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2 hidden lg:inline">{item.label}</span> {/* Label hidden until lg */}
+                    <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>
                 </Button>
               </Link>
