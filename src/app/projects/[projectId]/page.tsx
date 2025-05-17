@@ -226,8 +226,8 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     if (!projectId || !isClient) return;
 
-    const storedProjectsJSON = localStorage.getItem(PROJECTS_STORAGE_KEY);
-    const allProjects: Project[] = storedProjectsJSON ? JSON.parse(storedProjectsJSON) : initialMockProjects;
+    const allProjectsStored = localStorage.getItem(PROJECTS_STORAGE_KEY);
+    const allProjects: Project[] = allProjectsStored ? JSON.parse(allProjectsStored) : initialMockProjects;
     const foundProject = allProjects.find(p => p.id === projectId);
 
     if (foundProject) {
@@ -623,48 +623,48 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
-    // console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n => n.id).join(', '));
+    console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n => n.id).join(', '));
     if (!designingWorkflow) {
-      // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
+      console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
       return;
     }
-    // console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
+    console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
 
     setProjectWorkflows(prevWorkflows => {
-        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
+        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                // console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
+                console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
-        // newWorkflowsArray.forEach(wf => {
-        //     console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:", wf.id, "Nodes count:", wf.nodes?.length);
-        // });
+        newWorkflowsArray.forEach(wf => {
+             console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", (wf.nodes || []).map(n => n.id).join(', '));
+        });
         return newWorkflowsArray;
     });
   }, [designingWorkflow]); // Removed setProjectWorkflows from dependencies
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
-    // console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length);
+    console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length);
      if (!designingWorkflow) {
-        // console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
+        console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
         return;
     }
     setProjectWorkflows(prevWorkflows => {
-        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
+        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                 // console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
+                 console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
                 return { ...wf, edges: updatedEdges };
             }
             return wf;
         });
-        // newWorkflowsArray.forEach(wf => {
-        //      console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", wf.edges?.length);
-        // });
+        newWorkflowsArray.forEach(wf => {
+             console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", wf.edges?.length);
+        });
         return newWorkflowsArray;
     });
   }, [designingWorkflow]);  // Removed setProjectWorkflows from dependencies
@@ -741,31 +741,11 @@ export default function ProjectDetailPage() {
         const taskToReorder = updatedTasksArray.find(t => t.id === draggedTaskId);
         if (!taskToReorder) return;
 
-        // Remove the task and add it to the end of tasks with the same status
         let reorderedTasks = updatedTasksArray.filter(t => t.id !== draggedTaskId);
         
-        // Find the last index of tasks with the same status
-        let lastIndexOfStatus = -1;
-        for (let i = reorderedTasks.length - 1; i >= 0; i--) {
-            if (reorderedTasks[i].status === sourceTaskStatus) {
-                lastIndexOfStatus = i;
-                break;
-            }
-        }
-
-        if (lastIndexOfStatus !== -1) {
-            // Insert after the last task of the same status
-            reorderedTasks.splice(lastIndexOfStatus + 1, 0, taskToReorder);
-        } else {
-            // If no other tasks of this status, add it (should place it correctly based on overall tasks array structure)
-            // This case might need more sophisticated sorting if a strict "append to status group" is needed
-            // For simplicity, just add it to the end of the overall list if no same-status tasks are found
-            // Or find first task of next status and insert before that.
-            // Or, more simply, place all same-status tasks together then append
-            const sameStatusTasks = reorderedTasks.filter(t => t.status === sourceTaskStatus);
-            const otherStatusTasks = reorderedTasks.filter(t => t.status !== sourceTaskStatus);
-            reorderedTasks = [...otherStatusTasks, ...sameStatusTasks, taskToReorder];
-        }
+        const sameStatusTasks = reorderedTasks.filter(t => t.status === sourceTaskStatus);
+        const otherStatusTasks = reorderedTasks.filter(t => t.status !== sourceTaskStatus);
+        reorderedTasks = [...otherStatusTasks, ...sameStatusTasks, taskToReorder]; // Add to the end of its status group
         
         if (JSON.stringify(tasks.map(t=>t.id)) !== JSON.stringify(reorderedTasks.map(t=>t.id))) {
              toast({
@@ -774,7 +754,7 @@ export default function ProjectDetailPage() {
             });
             setTasks(reorderedTasks);
         } else {
-             setTasks(updatedTasksArray); // Fallback if no reorder occurred, to ensure state consistency.
+             setTasks(updatedTasksArray); 
         }
     }
   };
@@ -809,22 +789,25 @@ export default function ProjectDetailPage() {
     if (sourceTaskStatus === targetTask.status) { 
       setTasks(prevTasks => {
         const draggedTaskIndex = prevTasks.findIndex(t => t.id === draggedTaskId);
-        if (draggedTaskIndex === -1) return prevTasks; // Should not happen
+        if (draggedTaskIndex === -1) return prevTasks; 
 
         const draggedTask = prevTasks[draggedTaskIndex];
         
-        // Remove dragged task
-        const tasksWithoutDragged = prevTasks.filter(t => t.id !== draggedTaskId);
+        let tasksWithoutDragged = prevTasks.filter(t => t.id !== draggedTaskId);
         
-        // Find target task index in the filtered list
         const targetTaskIndexInFiltered = tasksWithoutDragged.findIndex(t => t.id === targetTask.id);
-        if (targetTaskIndexInFiltered === -1) return prevTasks; // Should not happen
+        if (targetTaskIndexInFiltered === -1) { // Should not happen if targetTask is valid
+             tasksWithoutDragged.push(draggedTask); // Add to end if target somehow not found
+             return tasksWithoutDragged;
+        }
 
+        // Insert draggedTask before targetTask
         const newTasks = [
           ...tasksWithoutDragged.slice(0, targetTaskIndexInFiltered),
           draggedTask,
           ...tasksWithoutDragged.slice(targetTaskIndexInFiltered)
         ];
+
         toast({
           title: "Task Reordered",
           description: `Task "${draggedTask.title}" reordered within "${sourceTaskStatus}".`,
@@ -844,7 +827,6 @@ export default function ProjectDetailPage() {
       const newTasks = [...prevTasks];
       const [draggedTask] = newTasks.splice(draggedTaskIndex, 1);
       
-      // Adjust targetIndex if dragged item was before target
       const adjustedTargetIndex = draggedTaskIndex < targetTaskIndex ? targetTaskIndex -1 : targetTaskIndex;
       
       newTasks.splice(adjustedTargetIndex, 0, draggedTask);
@@ -1327,7 +1309,18 @@ export default function ProjectDetailPage() {
 // Implements drag-to-move and resize for Gantt chart tasks
 // Uses localStorage for persistence of project-specific data
 // Connects to Genkit AI flows for task planning, agent suggestions, and task chat
+// Pre-defined workflows are added for new projects
+// Tasks can be assigned to workflows, which can activate them
+// Completing all tasks for an active workflow makes it inactive
+// Visual distinction for parent tasks in Gantt and Kanban views
+// Task hierarchy (parentId) can be set in task dialogs
+// Gantt chart displays "Today" marker and allows task reordering via drag-and-drop
+// Workflow canvas allows adding/removing nodes and basic edge creation/removal
+// Project list allows adding/deleting projects, with cleanup of associated data
+// Various UI/UX refinements including toast notifications, responsive design, and icon usage
+// Placeholder AI chat functionality for tasks is connected to a Genkit flow
+// AI task planner output includes detailed reasoning and sub-task breakdown
+// AI task planner duration estimates are based on AI agent execution
+// AI task planner can use a selected project workflow to guide its planning
 
-```
-
-This ensures that when `AITaskPlannerDialog` needs to populate its workflow dropdown, it receives the full `ProjectWorkflow` objects (which include `id`, `name`, `description`, and importantly `nodes` if we need them for context passing to the AI later) rather than just a simplified `{name, description}` array. The `AITaskPlannerDialog` already handles mapping these objects to display the name in the dropdown correctly.
+// End of file, removing any extraneous characters below this line
