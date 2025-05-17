@@ -16,7 +16,7 @@ import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from "@/components/ui/form";
-import type { Task, ProjectWorkflow } from '@/types';
+import type { ProjectWorkflow } from '@/types';
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, FolderGit2, AlertCircle } from "lucide-react";
@@ -25,7 +25,6 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-
 
 const plannerSchema = z.object({
   userGoal: z.string().min(10, "Please describe your task goal in at least 10 characters.").max(1000, "Goal description is too long."),
@@ -39,7 +38,7 @@ interface AITaskPlannerDialogProps {
   projectId: string;
   projectWorkflows: Pick<ProjectWorkflow, 'name' | 'description'>[];
   onTaskPlannedAndAccepted: (
-    taskData: Omit<Task, 'id'>,
+    taskData: Omit<Task, 'id' | 'description'>, // Description is now part of AI's output
     aiReasoning: string,
     aiSuggestedSubTasks?: PlanProjectTaskOutput['plannedTask']['suggestedSubTasks']
   ) => void;
@@ -73,6 +72,7 @@ export default function AITaskPlannerDialog({
   }, [aiSuggestion]);
 
   const onSubmit: SubmitHandler<PlannerFormData> = async (data) => {
+    console.log("AITaskPlannerDialog: onSubmit triggered. Data:", data);
     setIsLoading(true);
     setAiSuggestion(null);
     setSelectedWorkflowOverride(undefined);
@@ -96,6 +96,7 @@ export default function AITaskPlannerDialog({
         variant: "destructive",
       });
     } finally {
+      console.log("AITaskPlannerDialog: Setting isLoading to false in finally block of onSubmit.");
       setIsLoading(false);
     }
   };
@@ -106,13 +107,9 @@ export default function AITaskPlannerDialog({
         ? selectedWorkflowOverride
         : aiSuggestion.plannedTask.assignedTo;
       
-      const subTasksText = aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0
-        ? `\n\nSuggested Sub-Tasks / Steps:\n${aiSuggestion.plannedTask.suggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType})`).join('\n')}`
-        : "\n\nSuggested Sub-Tasks / Steps: None specified by AI.";
-
-      const taskDescription = `AI Reasoning: ${aiSuggestion.reasoning}${subTasksText}`.trim();
-
-      const taskData: Omit<Task, 'id'> = {
+      // The full description, including reasoning and sub-tasks, will be handled by the parent component.
+      // Here, we only pass the core planned task data.
+      const taskData: Omit<Task, 'id' | 'description'> = {
         title: aiSuggestion.plannedTask.title,
         status: aiSuggestion.plannedTask.status || 'To Do',
         assignedTo: finalAssignedTo || 'AI Assistant to determine',
@@ -120,9 +117,8 @@ export default function AITaskPlannerDialog({
         durationDays: aiSuggestion.plannedTask.isMilestone ? 0 : (aiSuggestion.plannedTask.durationDays || 1),
         progress: aiSuggestion.plannedTask.isMilestone ? (aiSuggestion.plannedTask.status === 'Done' ? 100 : 0) : (aiSuggestion.plannedTask.progress || 0),
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
-        parentId: aiSuggestion.plannedTask.parentId === "null" ? null : aiSuggestion.plannedTask.parentId,
+        parentId: aiSuggestion.plannedTask.parentId === "null" ? null : aiSuggestion.plannedTask.parentId, // Handle string "null"
         dependencies: aiSuggestion.plannedTask.dependencies || [],
-        description: taskDescription,
       };
       onTaskPlannedAndAccepted(
         taskData,
@@ -138,7 +134,7 @@ export default function AITaskPlannerDialog({
       form.reset();
       setAiSuggestion(null);
       setSelectedWorkflowOverride(undefined);
-      setIsLoading(false);
+      setIsLoading(false); 
     }
   }, [open, form]);
 
@@ -152,27 +148,29 @@ export default function AITaskPlannerDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="flex-grow overflow-y-auto p-4 space-y-4"> {/* This div will handle scrolling for its content */}
-            <Form {...form} onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm">
-              <FormField
-                control={form.control}
-                name="userGoal"
-                render={({ field }) => (
-                  <FormItem>
-                    <RHFFormLabel>What do you want to achieve?</RHFFormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup'"
-                        className="min-h-[100px] resize-y"
-                        {...field}
-                        disabled={isLoading || !!aiSuggestion}
-                      />
-                    </FormControl>
-                    <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        <div className="flex-grow overflow-y-auto p-4 space-y-4">
+            <Form {...form} > {/* Removed onSubmit from Form, id="aiPlannerForm" */}
+              <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerFormInternal"> {/* Added internal form for RHF */}
+                <FormField
+                  control={form.control}
+                  name="userGoal"
+                  render={({ field }) => (
+                    <FormItem>
+                      <RHFFormLabel>What do you want to achieve?</RHFFormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup'"
+                          className="min-h-[100px] resize-y"
+                          {...field}
+                          disabled={isLoading || !!aiSuggestion}
+                        />
+                      </FormControl>
+                      <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </form> {/* End of internal form */}
             </Form>
 
             {isLoading && !aiSuggestion && (
@@ -209,7 +207,7 @@ export default function AITaskPlannerDialog({
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><CalendarDays className="w-3.5 h-3.5 mr-1"/>Start Date:</Label>
-                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</div>
+                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{(aiSuggestion.plannedTask.startDate && aiSuggestion.plannedTask.startDate !== "N/A") ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Clock3 className="w-3.5 h-3.5 mr-1"/>Duration:</Label>
@@ -246,10 +244,10 @@ export default function AITaskPlannerDialog({
                       disabled={isLoading || !aiSuggestion}
                     >
                       <SelectTrigger className="w-full text-xs">
-                        <SelectValue placeholder="Select a workflow..." />
+                        <SelectValue placeholder="Use AI Suggestion..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={AI_SUGGESTION_OPTION_VALUE}>Use AI Suggestion: ({aiSuggestion.plannedTask.assignedTo || "AI to determine"})</SelectItem>
+                        <SelectItem value={AI_SUGGESTION_OPTION_VALUE}>Use AI Suggestion ({aiSuggestion.plannedTask.assignedTo || "AI to determine"})</SelectItem>
                         {projectWorkflows.map(wf => (
                           <SelectItem key={wf.name} value={wf.name}>{wf.name}</SelectItem>
                         ))}
@@ -276,7 +274,7 @@ export default function AITaskPlannerDialog({
                         {aiSuggestion.plannedTask.suggestedSubTasks.map((subTask, index) => (
                           <div key={index} className="p-2 bg-background/70 rounded-md border border-dashed">
                             <p className="font-medium text-xs">{index + 1}. {subTask.title}</p>
-                            <p className="text-muted-foreground text-xs mt-0.5">Suggested Agent Type: <span className="font-semibold">{subTask.assignedAgentType}</span></p>
+                            <p className="text-muted-foreground text-xs mt-0.5">Suggested Agent Type: <span className="font-semibold">{subTask.assignedAgentType || "N/A"}</span></p>
                           </div>
                         ))}
                       </div>
@@ -290,10 +288,10 @@ export default function AITaskPlannerDialog({
         <DialogFooter className="pt-4 border-t">
           {!aiSuggestion && (
             <>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
                 Cancel
               </Button>
-              <Button type="submit" form="aiPlannerForm" disabled={isLoading}>
+              <Button onClick={form.handleSubmit(onSubmit)} disabled={isLoading}> {/* Changed to direct call */}
                 {isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -305,7 +303,7 @@ export default function AITaskPlannerDialog({
           )}
           {aiSuggestion && (
             <>
-              <Button variant="outline" onClick={() => { form.reset(); setAiSuggestion(null); setSelectedWorkflowOverride(undefined); }} disabled={isLoading}>
+              <Button variant="outline" onClick={() => { form.reset(); setAiSuggestion(null); setSelectedWorkflowOverride(undefined); setIsLoading(false); }} disabled={isLoading}>
                 Clear & Plan New
               </Button>
               <Button onClick={handleAcceptAndAddTask} disabled={isLoading}>
@@ -320,4 +318,3 @@ export default function AITaskPlannerDialog({
   );
 }
 
-    
