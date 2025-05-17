@@ -19,7 +19,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as R
 import type { Task, ProjectWorkflow } from '@/types';
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain } from "lucide-react"; // Added Brain
+import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -67,7 +67,6 @@ export default function AITaskPlannerDialog({
     },
   });
 
-  // DEBUG: Log aiSuggestion when it changes
   React.useEffect(() => {
     if (aiSuggestion) {
       console.log("AI Suggestion Data in Dialog:", JSON.stringify(aiSuggestion, null, 2));
@@ -118,14 +117,14 @@ export default function AITaskPlannerDialog({
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
         parentId: aiSuggestion.plannedTask.parentId || null,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
-        // Description is set in the parent component using reasoning and subtasks
+        description: `AI Reasoning: ${aiSuggestion.reasoning}\n\nSuggested Sub-Tasks:\n${(aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0 ? aiSuggestion.plannedTask.suggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType})`).join('\n') : "None specified by AI.")}`
       };
       onTaskPlannedAndAccepted(
-        taskData, 
-        aiSuggestion.reasoning, 
+        taskData,
+        aiSuggestion.reasoning,
         aiSuggestion.plannedTask.suggestedSubTasks
       );
-      onOpenChange(false); // Close dialog after accepting
+      onOpenChange(false); 
     }
   };
 
@@ -148,8 +147,8 @@ export default function AITaskPlannerDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-grow min-h-0 pr-1 -mr-3 py-2"> {/* Main content scroll area */}
-          <div className="pr-3"> {/* Inner padding to compensate for scrollbar */}
+        <ScrollArea className="flex-grow min-h-0 pr-1 -mr-3 py-2">
+          <div className="pr-3 space-y-4">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm" className="space-y-4">
                 <FormField
@@ -182,7 +181,7 @@ export default function AITaskPlannerDialog({
             )}
 
             {aiSuggestion && (
-              <Card className="bg-accent/30 border-accent shadow-md mt-6">
+              <Card className="bg-accent/30 border-accent shadow-md mt-2 overflow-hidden"> {/* Added overflow-hidden for safety */}
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center">
                     <Sparkles className="w-5 h-5 mr-2 text-primary" />
@@ -192,7 +191,7 @@ export default function AITaskPlannerDialog({
                 <CardContent className="space-y-4 text-sm pt-4">
                   <div>
                     <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Task Title:</Label>
-                    <p className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title}</p>
+                    <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title}</div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
@@ -202,19 +201,19 @@ export default function AITaskPlannerDialog({
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
-                      <p className="mt-0.5 p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo}</p>
+                      <div className="mt-0.5 p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><CalendarDays className="w-3.5 h-3.5 mr-1"/>Start Date:</Label>
-                      <p className="mt-0.5">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'Not set'}</p>
+                      <div className="mt-0.5">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'Not set'}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Clock3 className="w-3.5 h-3.5 mr-1"/>Duration:</Label>
-                      <p className="mt-0.5">{aiSuggestion.plannedTask.durationDays} day(s)</p>
+                      <div className="mt-0.5">{aiSuggestion.plannedTask.durationDays} day(s)</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Milestone className="w-3.5 h-3.5 mr-1"/>Milestone:</Label>
-                      <p className="mt-0.5">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</p>
+                      <div className="mt-0.5">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</div>
                     </div>
                   </div>
 
@@ -223,6 +222,7 @@ export default function AITaskPlannerDialog({
                     <Select 
                       onValueChange={(value) => setSelectedWorkflowOverride(value === AI_SUGGESTION_OPTION_VALUE ? undefined : value)} 
                       value={selectedWorkflowOverride === undefined ? AI_SUGGESTION_OPTION_VALUE : selectedWorkflowOverride}
+                      disabled={isLoading || !aiSuggestion}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select a workflow..." />
@@ -232,6 +232,9 @@ export default function AITaskPlannerDialog({
                         {projectWorkflows.map(wf => (
                           <SelectItem key={wf.name} value={wf.name}>{wf.name}</SelectItem>
                         ))}
+                         {projectWorkflows.length === 0 && (
+                            <div className="p-2 text-center text-muted-foreground text-xs">No project workflows defined yet.</div>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -239,7 +242,7 @@ export default function AITaskPlannerDialog({
                   {aiSuggestion.plannedTask.parentId && (
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Parent Task ID:</Label>
-                      <p className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</p>
+                      <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</div>
                     </div>
                   )}
                   {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
@@ -276,6 +279,8 @@ export default function AITaskPlannerDialog({
                 </CardContent>
               </Card>
             )}
+            {/* This div helps ensure the scroll area has content to push against if the card is short */}
+            <div className="h-1"></div> 
           </div>
         </ScrollArea>
 
@@ -289,7 +294,7 @@ export default function AITaskPlannerDialog({
                 {isLoading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  <Brain className="mr-2 h-4 w-4" /> // Using Brain icon
+                  <Brain className="mr-2 h-4 w-4" />
                 )}
                 Plan with AI
               </Button>
@@ -297,10 +302,10 @@ export default function AITaskPlannerDialog({
           )}
           {aiSuggestion && (
             <>
-              <Button variant="outline" onClick={() => { form.reset(); setAiSuggestion(null); setSelectedWorkflowOverride(undefined); }}>
+              <Button variant="outline" onClick={() => { form.reset(); setAiSuggestion(null); setSelectedWorkflowOverride(undefined); }} disabled={isLoading}>
                 Clear & Plan New
               </Button>
-              <Button onClick={handleAcceptAndAddTask}>
+              <Button onClick={handleAcceptAndAddTask} disabled={isLoading}>
                 <CheckSquare className="mr-2 h-4 w-4" />
                 Accept & Add Task to Project
               </Button>
@@ -311,4 +316,5 @@ export default function AITaskPlannerDialog({
     </Dialog>
   );
 }
+
     
