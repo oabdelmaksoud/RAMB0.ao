@@ -123,9 +123,9 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
     } finally {
       setIsAgentReplying(false);
     }
-  };
+  }; // Ensuring this function is properly closed
 
-  if (!task) return null;
+  if (!task) return null; // Guard clause
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,7 +154,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
                 )}
                 <div
                   className={cn(
-                    "max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm break-words", // Added break-words
+                    "max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm break-words",
                     msg.sender === 'user'
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground'
@@ -208,4 +208,10 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
             disabled={isAgentReplying}
           />
           <Button onClick={handleSendMessage} disabled={!newMessage.trim() || isAgentReplying}>
-            {isAgentReplying ? <Loader2 className="h-4 w-4 animate
+            {isAgentReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
