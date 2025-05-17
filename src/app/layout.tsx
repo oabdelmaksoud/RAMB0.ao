@@ -29,7 +29,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans flex flex-col min-h-screen`}>
         <AppHeader />
-        <main className="flex-1 p-4 sm:p-6 md:p-8 bg-background overflow-y-auto">
+        <main className="flex-1 bg-background overflow-y-auto pt-20 px-4 pb-4 sm:px-6 sm:pb-6 md:px-8 md:pb-8">
           {children}
         </main>
         <Toaster />
