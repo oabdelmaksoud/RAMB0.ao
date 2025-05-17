@@ -4,21 +4,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
-  Briefcase,
+  Briefcase, // Changed from LayoutDashboard for "Projects"
   Activity,
-  SlidersHorizontal,
-  Lightbulb,
-  UserCircle,
-  Settings, 
+  // Other icons removed as their global pages were integrated into project details
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
+// Updated navItems: "Dashboard" becomes "Projects" pointing to `/`, "Monitoring" remains.
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/projects', label: 'Projects', icon: Briefcase },
+  { href: '/', label: 'Projects', icon: Briefcase },
+  { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
 ];
 
 export default function SidebarNav() {
@@ -36,17 +33,20 @@ export default function SidebarNav() {
                   asChild
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
+                    // Exact match for root, startsWith for others to handle nested project routes
+                    (item.href === '/' && pathname === '/') || (item.href !== '/' && pathname.startsWith(item.href))
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
                   <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2 lg:inline hidden">{item.label}</span> {/* Label hidden until lg */}
+                    <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="center" className="lg:hidden"> 
+            <TooltipContent side="bottom" align="center" className="lg:hidden">
               <p>{item.label}</p>
             </TooltipContent>
           </Tooltip>
