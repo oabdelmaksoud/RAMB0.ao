@@ -13,7 +13,7 @@ import { useState, useEffect } from 'react';
 
 interface ProjectCardProps {
   project: Project;
-  onDeleteProject?: (project: Project) => void; // Made optional
+  onDeleteProject?: (project: Project) => void; 
 }
 
 const statusColors: { [key in Project['status']]: string } = {
@@ -36,10 +36,12 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
     }
     try {
       if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString)) {
+        // If it's not a recognizable ISO string, return it as is (it might already be formatted)
         return dateString;
       }
       return format(parseISO(dateString), "MMM d, yyyy");
     } catch (error) {
+      // Fallback for any parsing errors
       return dateString;
     }
   };
@@ -91,13 +93,15 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
         </div>
       </CardContent>
       <CardFooter className="flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1" asChild>
-          <Link href={`/projects/${project.id}`}>
-            View Project
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
-        {onDeleteProject && ( // Conditionally render delete button
+        <Link href={`/projects/${project.id}`} passHref legacyBehavior>
+          <Button variant="outline" size="sm" className="flex-1" asChild>
+            <a>
+              View Project
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </a>
+          </Button>
+        </Link>
+        {onDeleteProject && ( 
           <Button 
               variant="destructive" 
               size="icon" 
