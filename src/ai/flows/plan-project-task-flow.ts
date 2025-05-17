@@ -29,7 +29,7 @@ export type PlanProjectTaskInput = z.infer<typeof PlanProjectTaskInputSchema>;
 const PlannedTaskSchema = z.object({
   title: z.string().describe('A concise and descriptive title for the planned task.'),
   status: z.enum(['To Do', 'In Progress', 'Done', 'Blocked']).default('To Do').describe("The initial status of the task, typically 'To Do'."),
-  assignedTo: z.string().default('AI Assistant to determine').describe('The suggested assignee for the task. This could be a specific role, team, a workflow name if directly applicable, or a placeholder like "AI Assistant to determine".'),
+  assignedTo: z.string().default('AI Assistant to determine').describe('The suggested "Agent Workflow" or "Agent Team" for the task. This should be an existing project workflow name or a conceptual name for a new workflow/team (e.g., "New Feature Rollout Workflow").'),
   startDate: z.string().default(format(new Date(), 'yyyy-MM-dd')).describe("The suggested start date for the task, in YYYY-MM-DD format. Defaults to today's date."),
   durationDays: z.number().int().min(1).default(1).describe('The estimated duration of the task in days. Must be at least 1.'),
   progress: z.number().int().min(0).max(100).default(0).describe('The initial progress of the task, as a percentage from 0 to 100. Defaults to 0.'),
@@ -40,7 +40,7 @@ const PlannedTaskSchema = z.object({
 
 const PlanProjectTaskOutputSchema = z.object({
   plannedTask: PlannedTaskSchema.describe('The structured task details planned by the AI.'),
-  reasoning: z.string().describe('A brief explanation from the AI on how it derived the task plan, including any consideration of project workflows and the choice of assignee.'),
+  reasoning: z.string().describe('A brief explanation from the AI on how it derived the task plan, including its choice for "assignedTo" (workflow/team) and consideration of project workflows.'),
 });
 export type PlanProjectTaskOutput = z.infer<typeof PlanProjectTaskOutputSchema>;
 
@@ -52,12 +52,12 @@ const prompt = ai.definePrompt({
   name: 'planProjectTaskPrompt',
   input: { schema: PlanProjectTaskInputSchema },
   output: { schema: PlanProjectTaskOutputSchema },
-  prompt: `You are an expert project management assistant. Your role is to help plan a new task for a project based on a user's stated goal.
+  prompt: `You are an expert project management assistant specializing in agentic systems. Your role is to help plan a new task for a project based on a user's stated goal. Tasks are handled by 'Agent Workflows' or 'Agent Teams'.
 
 Project Context:
 Project ID: {{{projectId}}}
 
-Available Project Workflows (for context on typical processes, do not assume the user wants to use them unless their goal implies it):
+Available Project Workflows (These are existing, defined processes for the project):
 {{#if projectWorkflows.length}}
 {{#each projectWorkflows}}
 - Workflow Name: "{{name}}"
@@ -75,10 +75,10 @@ Based on the user's goal and the project context, please generate a single, well
 Task Details to Generate:
 - title: A clear, action-oriented title for the task.
 - status: Set to "To Do" by default.
-- assignedTo: Suggest a sensible assignee.
-  - If the user's goal strongly aligns with one of the 'Available Project Workflows', you may suggest assigning the task to the name of that workflow itself (e.g., assign to "Software Development Lifecycle") or to a typical initiating role/agent for that workflow (e.g., assign to "Planning Phase Agent" if such a role is commonly the first step in a relevant workflow).
-  - Otherwise, assign it to a relevant role (e.g., "Developer," "QA Tester"), a team (e.g., "Frontend Team"), or a general placeholder like "Project Lead to assign" or "AI Assistant to determine."
-  - Avoid assigning to specific individuals unless the user's goal explicitly mentions it.
+- assignedTo: Determine the most appropriate 'Agent Workflow' or 'Agent Team' for this task.
+  - If the user's goal strongly aligns with one of the 'Available Project Workflows', assign the task directly to the **name of that existing project workflow** (e.g., "Software Development Lifecycle").
+  - If the user's goal does NOT clearly align with an existing workflow, suggest a **conceptual name for a new workflow or an agent team** that would be responsible for this type of task (e.g., "New Feature Rollout Workflow", "Urgent Bugfix Team", "Marketing Content Creation Workflow").
+  - **IMPORTANT: Do NOT assign this task to an individual agent type (like 'Analysis Agent' or 'Developer'). Always assign to a workflow name (existing or conceptual) or a conceptual team name.** Use "AI Assistant to determine" as a last resort if no specific workflow or team concept fits.
 - startDate: Suggest a start date. Default to today's date: ${format(new Date(), 'yyyy-MM-dd')}.
 - durationDays: Estimate a reasonable duration in days (minimum 1).
 - progress: Default to 0.
@@ -88,11 +88,12 @@ Task Details to Generate:
 
 Reasoning:
 Provide a brief 'reasoning' string explaining your thought process for the generated task.
-- If one or more of the provided 'Available Project Workflows' significantly influenced your plan (e.g., by suggesting a task type, sequence, or assignee), explicitly mention the name(s) of the influential workflow(s) in your reasoning and explain how.
-- Also explain your choice for 'assignedTo', especially if it's a workflow name or a role derived from a workflow.
+- Explain your choice for 'assignedTo'. If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit for the user's goal.
+- If a new conceptual workflow or team name was suggested for 'assignedTo', explain the rationale for this new grouping and why it's suitable for the task.
 - Explain any choices for duration.
 
-Example Reasoning: "The user's goal to 'design a new logo' aligns with the 'Brand Asset Creation' workflow. Task assigned to 'Brand Asset Creation' to initiate this process. Estimated duration is 3 days." (Adjust based on actual workflows and goal).
+Example Reasoning for existing workflow: "The user's goal to 'design a new logo' aligns with the 'Brand Asset Creation' workflow. Task assigned to 'Brand Asset Creation' to initiate this process. Estimated duration is 3 days."
+Example Reasoning for conceptual workflow/team: "The user's goal to 'investigate urgent server outage' does not fit existing workflows. Task assigned to a conceptual 'Urgent Server Response Team' for immediate attention. Estimated duration is 1 day."
 
 Ensure the 'plannedTask.startDate' is in YYYY-MM-DD format.
 Ensure 'plannedTask.durationDays' is an integer and at least 1.
