@@ -86,9 +86,9 @@ Task Details to Generate:
 - dependencies: Default to an empty array. Do not suggest dependencies unless explicitly requested or strongly implied.
 
 Reasoning:
-Provide a brief 'reasoning' string explaining your thought process for the generated task, particularly if you considered any of the project workflows in your planning or why you chose a specific assignee or duration.
+Provide a brief 'reasoning' string explaining your thought process for the generated task. If one or more of the provided 'Available Project Workflows' significantly influenced your plan (e.g., by suggesting a task type, assignee, or a sequence of actions that aligns with a workflow step), explicitly mention the name(s) of the influential workflow(s) in your reasoning. Also explain any choices for assignee or duration.
 
-Example Reasoning: "The user's goal to 'design a new logo' aligns with a typical 'Design Phase' if such a workflow exists. Task assigned to 'Graphic Designer' with an estimated duration of 3 days." (Adjust based on actual workflows and goal).
+Example Reasoning: "The user's goal to 'design a new logo' aligns with the 'Brand Asset Creation' workflow, suggesting an initial design task. Task assigned to 'Graphic Designer' with an estimated duration of 3 days." (Adjust based on actual workflows and goal).
 
 Ensure the 'plannedTask.startDate' is in YYYY-MM-DD format.
 Ensure 'plannedTask.durationDays' is an integer and at least 1.
@@ -121,3 +121,4 @@ const planProjectTaskFlow = ai.defineFlow(
     return output;
   }
 );
+
