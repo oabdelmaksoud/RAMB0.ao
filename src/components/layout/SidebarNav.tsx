@@ -25,7 +25,7 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              <Link href={item.href} passHref legacyBehavior>
+              <Link href={item.href} passHref> {/* Removed legacyBehavior */}
                 <Button
                   variant="ghost"
                   asChild
@@ -36,12 +36,12 @@ export default function SidebarNav() {
                 >
                   <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2 hidden lg:inline">{item.label}</span>
+                    <span className="ml-2 hidden lg:inline">{item.label}</span> {/* Label hidden until lg */}
                   </a>
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="center" className="lg:hidden"> {/* Show tooltip on smaller screens where label might be hidden */}
+            <TooltipContent side="bottom" align="center" className="lg:hidden">
               <p>{item.label}</p>
             </TooltipContent>
           </Tooltip>
@@ -50,4 +50,3 @@ export default function SidebarNav() {
     </TooltipProvider>
   );
 }
-

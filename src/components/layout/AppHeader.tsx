@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Logo from '@/components/icons/Logo';
-import SidebarNav from './SidebarNav'; // Renamed from SidebarNav for clarity if needed, but path is key
+import SidebarNav from './SidebarNav';
 
 export default function AppHeader() {
   const { setTheme, resolvedTheme } = useTheme();
@@ -32,23 +32,23 @@ export default function AppHeader() {
 
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b bg-background/95 px-4 shadow-sm backdrop-blur md:px-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4"> {/* Adjusted gap for better mobile spacing */}
         <Link href="/" className="flex items-center gap-2">
           <Logo className="h-8 w-8 text-primary" />
           <h1 className="text-xl font-bold text-foreground hidden sm:block">RamBo Agent</h1>
         </Link>
-        <nav className="hidden md:flex"> {/* Hide nav items on small screens, show on md+ */}
+        {/* Always display nav, SidebarNav handles responsive icon/text display */}
+        <nav className="flex items-center"> 
           <SidebarNav />
         </nav>
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
         {themeToggle}
-        <Link href="/profile" passHref legacyBehavior>
+        <Link href="/profile" passHref> {/* Removed legacyBehavior for consistency, Button with asChild typically doesn't need it */}
           <Button variant="ghost" size="icon" aria-label="Profile">
             <UserCircle className="h-5 w-5" />
           </Button>
         </Link>
-        {/* Add a MobileNav component here in the future if needed */}
       </div>
     </header>
   );
