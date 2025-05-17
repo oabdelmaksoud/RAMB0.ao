@@ -19,7 +19,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as R
 import type { Task, ProjectWorkflow } from '@/types';
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, AlertCircle } from "lucide-react";
+import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, AlertCircle, FolderGit2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -107,6 +107,12 @@ export default function AITaskPlannerDialog({
         ? selectedWorkflowOverride
         : aiSuggestion.plannedTask.assignedTo;
 
+      const subTasksText = aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0
+        ? `\n\nSuggested Sub-Tasks / Steps:\n${aiSuggestion.plannedTask.suggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType})`).join('\n')}`
+        : "\n\nSuggested Sub-Tasks / Steps: None specified by AI.";
+
+      const taskDescription = `AI Reasoning: ${aiSuggestion.reasoning}${subTasksText}`.trim();
+      
       const taskData: Omit<Task, 'id'> = {
         title: aiSuggestion.plannedTask.title,
         status: aiSuggestion.plannedTask.status || 'To Do',
@@ -115,9 +121,9 @@ export default function AITaskPlannerDialog({
         durationDays: aiSuggestion.plannedTask.durationDays || 1,
         progress: aiSuggestion.plannedTask.progress || 0,
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
-        parentId: aiSuggestion.plannedTask.parentId || null,
+        parentId: aiSuggestion.plannedTask.parentId === "null" ? null : aiSuggestion.plannedTask.parentId,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
-        description: `AI Reasoning: ${aiSuggestion.reasoning}\n\nSuggested Sub-Tasks:\n${(aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0 ? aiSuggestion.plannedTask.suggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType})`).join('\n') : "None specified by AI.")}`
+        description: taskDescription
       };
       onTaskPlannedAndAccepted(
         taskData,
@@ -139,7 +145,7 @@ export default function AITaskPlannerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[800px] flex flex-col max-h-[90vh]">
+      <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[800px] flex flex-col max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Plan New Task with AI</DialogTitle>
           <DialogDescription>
@@ -147,8 +153,8 @@ export default function AITaskPlannerDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <ScrollArea className="flex-grow min-h-0 pr-1 -mr-3 py-2">
-          <div className="pr-3 space-y-4">
+        <ScrollArea className="flex-grow min-h-0">
+          <div className="space-y-4 p-1"> 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm" className="space-y-4">
                 <FormField
@@ -181,23 +187,23 @@ export default function AITaskPlannerDialog({
             )}
 
             {aiSuggestion && (
-              <Card className="bg-accent/30 border-accent shadow-md mt-2 overflow-hidden"> {/* Added overflow-hidden for safety */}
+              <Card className="bg-accent/30 border-accent shadow-md mt-2">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center">
                     <Sparkles className="w-5 h-5 mr-2 text-primary" />
                     AI Task Plan Suggestion
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 text-sm pt-4">
+                <CardContent className="space-y-3 text-sm pt-4">
                   <div>
                     <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Task Title:</Label>
                     <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title}</div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
-                    <div>
-                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
-                       <div className="mt-0.5"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                     <div>
+                        <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
+                        <div className="mt-0.5"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
@@ -216,7 +222,22 @@ export default function AITaskPlannerDialog({
                       <div className="mt-0.5">{aiSuggestion.plannedTask.isMilestone ? 'Yes' : 'No'}</div>
                     </div>
                   </div>
-
+                  
+                  {aiSuggestion.plannedTask.parentId && aiSuggestion.plannedTask.parentId !== "null" && (
+                    <div>
+                      <Label className="text-muted-foreground text-xs font-normal block mb-0.5 flex items-center"><FolderGit2 className="w-3.5 h-3.5 mr-1"/>Parent Task ID:</Label>
+                      <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</div>
+                    </div>
+                  )}
+                  {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Dependencies:</Label>
+                      <ul className="list-disc list-inside pl-1 mt-0.5">
+                        {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  
                   <div className="space-y-1 pt-2">
                     <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Optionally, assign to specific existing workflow:</Label>
                     <Select 
@@ -238,21 +259,6 @@ export default function AITaskPlannerDialog({
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {aiSuggestion.plannedTask.parentId && (
-                    <div>
-                      <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Parent Task ID:</Label>
-                      <div className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit mt-0.5">{aiSuggestion.plannedTask.parentId}</div>
-                    </div>
-                  )}
-                  {aiSuggestion.plannedTask.dependencies && aiSuggestion.plannedTask.dependencies.length > 0 && (
-                    <div>
-                      <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Dependencies:</Label>
-                      <ul className="list-disc list-inside pl-1 mt-0.5">
-                        {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
-                      </ul>
-                    </div>
-                  )}
 
                   <Separator className="my-3"/>
 
@@ -279,8 +285,6 @@ export default function AITaskPlannerDialog({
                 </CardContent>
               </Card>
             )}
-            {/* This div helps ensure the scroll area has content to push against if the card is short */}
-            <div className="h-1"></div> 
           </div>
         </ScrollArea>
 
