@@ -85,14 +85,15 @@ User has indicated this task should align with the following specific workflow:
 Selected Workflow Name: "{{selectedWorkflowDetail.name}}"
 Selected Workflow Description: {{selectedWorkflowDetail.description}}
 {{#if selectedWorkflowDetail.nodes.length}}
-Selected Workflow Agent Node Structure (Agent Types to consider for sub-tasks):
+Selected Workflow Agent Node Structure (Available Agent Types for sub-tasks):
 {{#each selectedWorkflowDetail.nodes}}
 - Node Name: "{{name}}", Agent Type: "{{type}}"
 {{/each}}
+Your plan should primarily be assigned to "{{selectedWorkflowDetail.name}}".
+The ` + "`suggestedSubTasks`" + ` MUST primarily use Agent Types from the 'Selected Workflow Agent Node Structure' listed above. Map each sub-task to the most relevant node's agent type from the selected workflow. Their sequence should be logical and reflect the steps in the selected workflow if possible. If a direct mapping is not possible for a sub-task, you may use a general agent type like 'Analysis Agent' or 'Documentation Agent' but clearly state this choice in the reasoning.
 {{else}}
-- The selected workflow does not have a detailed node structure provided. Base your plan on its name and description.
+- The selected workflow does not have a detailed node structure provided. Base your sub-task agent types and plan on its name and description.
 {{/if}}
-Your plan should primarily be assigned to "{{selectedWorkflowDetail.name}}". The suggested sub-tasks should, where possible, reflect the agent types and logical sequence of the nodes in this selected workflow.
 {{else}}
 General Available Project Workflows (These are existing, defined processes for the project; use for general context if no specific workflow was selected by the user):
 {{#if projectWorkflows.length}}
@@ -130,33 +131,37 @@ Main Task Details to Generate (plannedTask object):
 - dependencies: Default to an empty array.
 - suggestedSubTasks: Break the main task down into a list of actionable sub-tasks or steps that AI agents would perform.
     - title: A concise title for the sub-task.
-    - assignedAgentType: The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Deployment Agent').
-    {{#if selectedWorkflowDetail.nodes.length}}
-    - Attempt to align these agent types with the types found in the selectedWorkflowDetail.nodes. The sequence should also be logical.
-    {{/if}}
+    - assignedAgentType:
+      {{#if selectedWorkflowDetail.nodes.length}}
+      - **Choose an Agent Type exclusively from the 'Selected Workflow Agent Node Structure'** listed above that best fits this sub-task.
+      {{else}}
+      - The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Deployment Agent').
+      {{/if}}
     - description: A brief (1-2 sentences) description explaining the purpose or key activities of this sub-task.
 
 Reasoning (reasoning string):
-Provide a **highly detailed** 'reasoning' string explaining your thought process.
-- Explain your choice for 'assignedTo'.
-{{#if selectedWorkflowDetail}}
-  - **Specifically explain how the user's goal was mapped to the structure of the '{{selectedWorkflowDetail.name}}' workflow and its nodes (if provided).**
-{{else}}
-  - If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit.
-  - If a new conceptual workflow/team name was suggested, explain the rationale.
-{{/if}}
-- Explain your 'durationDays' estimate, **explicitly stating it's based on AI AGENT execution speed and capabilities, not human effort.** Mention why the task might be shorter (or longer) due to AI involvement.
-- If you generated 'suggestedSubTasks':
-  {{#if selectedWorkflowDetail.nodes.length}}
-  - Explain how the sub-tasks and their assigned agent types align with the nodes of the '{{selectedWorkflowDetail.name}}' workflow.
-  {{else}}
-  - Briefly explain why this breakdown is appropriate for AI agent execution.
-  {{/if}}
+Provide a **concise yet detailed (2-5 sentences max) explanation** of your thought process for the ` + "`plannedTask`" + ` object. Focus on these key points:
+1.  Explain your choice for 'assignedTo'.
+    {{#if selectedWorkflowDetail}}
+    - **Specifically explain how the user's goal was mapped to the '{{selectedWorkflowDetail.name}}' workflow AND how its nodes (if provided) influenced the ` + "`suggestedSubTasks`" + ` (agent types and sequence).**
+    {{else}}
+    - If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit.
+    - If a new conceptual workflow/team name was suggested, explain the rationale for the name and its suitability for the user's goal.
+    {{/if}}
+2.  Explain your 'durationDays' estimate, **explicitly stating it's based on AI AGENT execution speed/capabilities.**
+3.  If you generated 'suggestedSubTasks':
+    {{#if selectedWorkflowDetail.nodes.length}}
+    - Briefly confirm how the sub-tasks and their assigned agent types align with the specific nodes of the '{{selectedWorkflowDetail.name}}' workflow.
+    {{else}}
+    - Briefly explain why this sub-task breakdown is appropriate for AI agent execution if no specific workflow was selected.
+    {{/if}}
+Keep the reasoning focused and avoid generic statements.
 
-Ensure 'plannedTask.startDate' is YYYY-MM-DD.
+Ensure 'plannedTask.startDate' is in YYYY-MM-DD format.
 Ensure 'plannedTask.durationDays' is an integer >= 1.
 Ensure 'plannedTask.progress' is an integer 0-100.
 Each suggestedSubTask must have 'title', 'assignedAgentType', and 'description'.
+Do not add any comments or extraneous text outside the main JSON structure.
 `,
 });
 
@@ -168,18 +173,49 @@ const planProjectTaskFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await prompt(input);
-    if (!output) {
-      throw new Error('AI failed to generate a task plan.');
+    if (!output || !output.plannedTask) { // Added check for output.plannedTask
+      console.error("AI output was null or plannedTask was missing. Input:", input);
+      throw new Error('AI failed to generate a valid task plan. The plannedTask field was missing.');
     }
+
     // Ensure defaults are applied if AI misses them, especially for plannedTask
-    const plannedTask = output.plannedTask || {};
+    const plannedTask = output.plannedTask; // No longer need || {} due to check above
+
     plannedTask.status = plannedTask.status || 'To Do';
-    plannedTask.assignedTo = plannedTask.assignedTo || (input.selectedWorkflowDetail ? input.selectedWorkflowDetail.name : 'AI Assistant to determine');
+    
+    if (!plannedTask.assignedTo) {
+        if (input.selectedWorkflowDetail && input.selectedWorkflowDetail.name) {
+            plannedTask.assignedTo = input.selectedWorkflowDetail.name;
+        } else {
+            plannedTask.assignedTo = 'AI Assistant to determine';
+        }
+    }
+    
     plannedTask.startDate = plannedTask.startDate || format(new Date(), 'yyyy-MM-dd');
-    plannedTask.durationDays = plannedTask.durationDays === undefined || plannedTask.durationDays < 1 ? 1 : Math.max(1, plannedTask.durationDays);
-    plannedTask.progress = plannedTask.progress !== undefined ? Math.min(100, Math.max(0, plannedTask.progress)) : 0;
+    
+    // Ensure durationDays is at least 1, unless it's a milestone (where it should be 0)
+    if (plannedTask.isMilestone) {
+        plannedTask.durationDays = 0;
+    } else {
+        plannedTask.durationDays = (plannedTask.durationDays === undefined || plannedTask.durationDays < 1) ? 1 : Math.max(1, plannedTask.durationDays);
+    }
+
+    // Ensure progress is valid and 100 if milestone and done, 0 if milestone and not done
+    if (plannedTask.isMilestone) {
+        plannedTask.progress = plannedTask.status === 'Done' ? 100 : 0;
+    } else {
+        plannedTask.progress = plannedTask.progress !== undefined ? Math.min(100, Math.max(0, plannedTask.progress)) : 0;
+    }
+    
     plannedTask.isMilestone = plannedTask.isMilestone === undefined ? false : plannedTask.isMilestone;
-    plannedTask.parentId = plannedTask.parentId === undefined || plannedTask.parentId === "null" ? null : plannedTask.parentId;
+    
+    // Handle potential "null" string for parentId
+    if (plannedTask.parentId === "null" || plannedTask.parentId === "") {
+        plannedTask.parentId = null;
+    } else {
+        plannedTask.parentId = plannedTask.parentId || null;
+    }
+    
     plannedTask.dependencies = plannedTask.dependencies || [];
     plannedTask.suggestedSubTasks = plannedTask.suggestedSubTasks || [];
     
@@ -190,7 +226,13 @@ const planProjectTaskFlow = ai.defineFlow(
         description: st.description || "No description provided."
     }));
 
-    output.plannedTask = plannedTask; // Reassign plannedTask to the output object
+    // Reassign the potentially modified plannedTask back to the output object
+    output.plannedTask = plannedTask; 
+
+    // Basic check for reasoning (AI sometimes returns very short or empty strings)
+    if (!output.reasoning || output.reasoning.trim().length < 10) {
+        output.reasoning = "AI reasoning was not sufficiently detailed. Please review the planned task carefully.";
+    }
 
     return output;
   }
