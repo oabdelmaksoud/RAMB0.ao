@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Logo from '@/components/icons/Logo';
-import SidebarNav from './SidebarNav'; // This is now our horizontal nav
+import SidebarNav from './SidebarNav'; // This is our horizontal nav
 
 export default function AppHeader() {
   const { setTheme, resolvedTheme } = useTheme();
@@ -44,9 +43,9 @@ export default function AppHeader() {
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
         {themeToggle}
-        <Link href="/profile" passHref>
-          <Button variant="ghost" size="icon" aria-label="Profile">
-            <UserCircle className="h-5 w-5" />
+        <Link href="/profile" passHref legacyBehavior>
+          <Button variant="ghost" size="icon" aria-label="Profile" asChild>
+            <a><UserCircle className="h-5 w-5" /></a>
           </Button>
         </Link>
       </div>

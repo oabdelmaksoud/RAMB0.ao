@@ -5,11 +5,11 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Briefcase,
-  Activity, // Added Activity icon
+  Activity,
   UserCircle,
   SlidersHorizontal,
   Lightbulb,
-  Workflow as WorkflowIconLucide, // aliased to avoid conflict
+  Workflow as WorkflowIconLucide,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -21,8 +21,6 @@ const navItems = [
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
   { href: '/agent-management', label: 'Agents', icon: SlidersHorizontal },
   { href: '/ai-suggestions', label: 'AI Suggestions', icon: Lightbulb },
-  // Workflow Designer is now within projects, so removing global link.
-  // { href: '/workflow-designer', label: 'Designer', icon: WorkflowIconLucide },
 ];
 
 export default function SidebarNav() {
@@ -34,6 +32,11 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
+              {/* 
+                Using legacyBehavior and passHref here because Button has asChild 
+                and renders an <a> tag itself. This is the recommended pattern 
+                for Link to correctly pass props to such custom anchor components.
+              */}
               <Link href={item.href} passHref legacyBehavior>
                 <Button
                   variant="ghost"
@@ -43,7 +46,7 @@ export default function SidebarNav() {
                     pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <a> {/* Link's child */}
+                  <a> {/* This <a> tag is styled by the Button and used by Link */}
                     <item.icon className="h-5 w-5" />
                     <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>
