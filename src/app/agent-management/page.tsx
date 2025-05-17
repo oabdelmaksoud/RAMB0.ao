@@ -21,7 +21,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const initialMockAgents: Agent[] = [
+// Exported for use by other pages like Agent Monitoring
+export const initialMockAgents: Agent[] = [
   { id: 'cfg-001', name: 'Default Code Analyzer', type: 'Analysis Agent', status: 'Idle', lastActivity: '2024-07-20T10:00:00Z', config: { sensitivity: 'high' } },
   { id: 'cfg-002', name: 'Staging Deployer', type: 'Deployment Agent', status: 'Running', lastActivity: '2024-07-21T14:30:00Z', config: { environment: 'staging', branch: 'develop' } },
   { id: 'cfg-003', name: 'Daily Reporter', type: 'Reporting Agent', status: 'Stopped', lastActivity: '2024-07-19T08:00:00Z', config: { frequency: 'daily', recipients: ['manager@example.com'] } },
@@ -29,7 +30,7 @@ const initialMockAgents: Agent[] = [
   { id: 'cfg-005', name: 'User Onboarding Helper', type: 'Notification Agent', status: 'Idle', lastActivity: '2024-07-20T16:00:00Z', config: { template: 'welcome_email_v2' } },
 ];
 
-const AGENTS_STORAGE_KEY = 'agentFlowAgents'; // Global key for this page
+export const AGENTS_STORAGE_KEY = 'agentFlowAgents'; // Global key for this page
 
 export default function AgentManagementPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
