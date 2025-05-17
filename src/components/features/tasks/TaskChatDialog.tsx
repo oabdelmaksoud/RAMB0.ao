@@ -9,12 +9,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  // DialogFooter, // Removed as per previous change
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Bot, User, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { taskChatFlow, type TaskChatInput, type TaskChatOutput } from '@/ai/flows/task-chat-flow';
@@ -42,14 +41,21 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
 
   useEffect(() => {
     if (open && task) {
-      setMessages([
+      const initialMessages: ChatMessage[] = [
         {
           id: `agent-welcome-${Date.now()}`,
           sender: 'agent',
-          text: `Hello! I'm the AI assistant for task "${task.title}". How can I help you today?`,
+          text: `Hello! I'm the AI assistant for task: "${task.title}".`,
           timestamp: new Date(),
         },
-      ]);
+        {
+          id: `agent-plan-review-${Date.now() + 1}`, // Ensure unique ID
+          sender: 'agent',
+          text: `I'm reviewing the plan, which includes:\n\n${task.description || "No detailed plan available."}\n\nI'm ready to start. What are your instructions or questions?`,
+          timestamp: new Date(Date.now() + 1), // Ensure unique timestamp
+        }
+      ];
+      setMessages(initialMessages);
       setNewMessage('');
       setIsAgentReplying(false);
     } else if (!open) {
@@ -127,7 +133,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
         <DialogHeader>
           <DialogTitle>Chat for: {task.title}</DialogTitle>
           <DialogDescription>
-            Interact with the AI assistant for this task. Assigned to: {task.assignedTo}.
+            Interact with the AI assistant for this task. Status: {task.status}. Assigned to: {task.assignedTo}.
           </DialogDescription>
         </DialogHeader>
 
@@ -148,13 +154,13 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
                 )}
                 <div
                   className={cn(
-                    "max-w-[70%] rounded-lg px-3 py-2 text-sm shadow-sm",
+                    "max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm break-words", // Added break-words
                     msg.sender === 'user'
                       ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground'
                   )}
                 >
-                  <p className="break-words whitespace-pre-wrap">{msg.text}</p>
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
                   <p className={cn(
                       "text-xs opacity-70 mt-1",
                       msg.sender === 'user' ? 'text-right text-primary-foreground/80' : 'text-left text-muted-foreground/80'
@@ -202,10 +208,4 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
             disabled={isAgentReplying}
           />
           <Button onClick={handleSendMessage} disabled={!newMessage.trim() || isAgentReplying}>
-            {isAgentReplying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+            {isAgentReplying ? <Loader2 className="h-4 w-4 animate
