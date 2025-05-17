@@ -59,43 +59,57 @@ const getAgentsStorageKey = (projectId: string) => `agentFlowAgents_project_${pr
 const getWorkflowsStorageKey = (projectId: string) => `agentFlowWorkflows_project_${projectId}`;
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  // Initialize with mock projects. Loading useEffect will override if localStorage has data.
+  const [projects, setProjects] = useState<Project[]>(initialMockProjects);
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
   const { toast } = useToast();
 
+  // Load projects from localStorage on component mount (client-side only)
   useEffect(() => {
-    const storedProjects = localStorage.getItem(PROJECTS_STORAGE_KEY);
-    if (storedProjects) {
+    console.log("PROJECTS_PAGE: Attempting to load projects from localStorage.");
+    const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
+    if (storedProjectsJson) {
       try {
-        setProjects(JSON.parse(storedProjects));
-      } catch (error) {
-        console.error("Failed to parse projects from localStorage", error);
-        setProjects(initialMockProjects);
+        const storedProjects = JSON.parse(storedProjectsJson);
+        console.log("PROJECTS_PAGE: Loaded from localStorage:", storedProjects);
+        setProjects(storedProjects);
+      } catch (e) {
+        console.error("PROJECTS_PAGE: Error parsing projects from localStorage. Initial mocks will be used and saved.", e);
+        // If parsing fails, `projects` state remains `initialMockProjects`.
+        // The save effect below will then save these initial mocks.
       }
     } else {
-      setProjects(initialMockProjects);
+      console.log("PROJECTS_PAGE: No projects found in localStorage. Initial mocks will be used and saved.");
+      // `projects` state is already `initialMockProjects`, so no need to set it again.
+      // The save effect below will save the initialMockProjects.
     }
-  }, []);
+  }, []); // Empty dependency array ensures this runs once on mount
 
+  // Save projects to localStorage whenever the projects state changes
   useEffect(() => {
-    if (projects.length > 0 || localStorage.getItem(PROJECTS_STORAGE_KEY) !== null) {
-        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-    }
+    console.log("PROJECTS_PAGE: Attempting to save projects to localStorage. Current projects state:", projects);
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+    console.log("PROJECTS_PAGE: Successfully saved projects to localStorage.");
   }, [projects]);
 
   const handleAddProject = (projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'agentCount' | 'workflowCount'>) => {
     const newProject: Project = {
-      ...projectData,
       id: `proj-${Date.now().toString().slice(-5)}-${Math.random().toString(36).substring(2, 7)}`,
+      ...projectData,
       status: 'Active',
       lastUpdated: new Date().toISOString(),
-      thumbnailUrl: 'https://placehold.co/600x400.png', // Default thumbnail
-      agentCount: 0, // New projects start with 0 agents
-      workflowCount: 0, // New projects start with 0 workflows
+      thumbnailUrl: projectData.thumbnailUrl || 'https://placehold.co/600x400.png',
+      agentCount: 0,
+      workflowCount: 0,
     };
-    setProjects(prevProjects => [newProject, ...prevProjects]);
+    console.log("PROJECTS_PAGE: handleAddProject - Adding new project:", newProject);
+    setProjects(prevProjects => {
+      const updatedProjects = [newProject, ...prevProjects];
+      console.log("PROJECTS_PAGE: handleAddProject - State updated. New projects list:", updatedProjects);
+      return updatedProjects;
+    });
     toast({
       title: 'Project Created',
       description: `Project "${newProject.name}" has been successfully created.`,
@@ -109,13 +123,17 @@ export default function ProjectsPage() {
 
   const confirmDeleteProject = () => {
     if (projectToDelete) {
+      console.log("PROJECTS_PAGE: confirmDeleteProject - Deleting project:", projectToDelete);
       // Remove project-specific data
       localStorage.removeItem(getTasksStorageKey(projectToDelete.id));
       localStorage.removeItem(getAgentsStorageKey(projectToDelete.id));
       localStorage.removeItem(getWorkflowsStorageKey(projectToDelete.id));
-      // Add more keys here if other project-specific data is stored
 
-      setProjects(prevProjects => prevProjects.filter(p => p.id !== projectToDelete.id));
+      setProjects(prevProjects => {
+        const updatedProjects = prevProjects.filter(p => p.id !== projectToDelete.id);
+        console.log("PROJECTS_PAGE: confirmDeleteProject - State updated. New projects list:", updatedProjects);
+        return updatedProjects;
+      });
       toast({
         title: 'Project Deleted',
         description: `Project "${projectToDelete.name}" and its associated data have been deleted.`,
@@ -192,3 +210,4 @@ export default function ProjectsPage() {
     </div>
   );
 }
+
