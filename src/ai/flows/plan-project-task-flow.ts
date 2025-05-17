@@ -11,8 +11,8 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { format } from 'date-fns';
-// Ensure WorkflowNode type is available, potentially define a Zod schema for it if not already global
-// For this example, assuming WorkflowNode has at least id, name, type.
+
+// Zod schema for WorkflowNode, ensuring it's available for PlanProjectTaskInputSchema
 const WorkflowNodeSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -123,7 +123,7 @@ Main Task Details to Generate (plannedTask object):
   - **IMPORTANT: Do NOT assign this task to an individual agent type (like 'Analysis Agent'). Always assign to a workflow name (existing or conceptual) or a conceptual team name.** Use "AI Assistant to determine" as a last resort if no specific workflow or team concept fits.
   {{/if}}
 - startDate: Suggest a start date. Default to today's date: ${format(new Date(), 'yyyy-MM-dd')}.
-- durationDays: **CRITICAL: Estimate a reasonable duration in days assuming AI AGENTS are performing ALL the work. This is NOT an estimate for human engineers.** Tasks that might take humans days or weeks could be completed by AI agents in a few hours or a single day. Be aggressive with short durations if AI can automate the core work. Minimum duration is 1 day.
+- durationDays: **CRITICAL: Estimate a reasonable duration in days assuming AI AGENTS are performing ALL the work. This is NOT an estimate for human engineers.** Tasks that might take humans days or weeks could be completed by AI agents in a few hours or a single day. Examples include code generation, data analysis, report drafting, initial design mockups. Be aggressive with short durations if AI can automate the core work. The minimum duration is 1 day.
 - progress: Default to 0.
 - isMilestone: Default to false.
 - parentId: Default to null.
@@ -132,7 +132,7 @@ Main Task Details to Generate (plannedTask object):
     - title: A concise title for the sub-task.
     - assignedAgentType: The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Deployment Agent').
     {{#if selectedWorkflowDetail.nodes.length}}
-    - **Attempt to align these agent types with the types found in the `selectedWorkflowDetail.nodes`.** The sequence should also be logical.
+    - Attempt to align these agent types with the types found in the selectedWorkflowDetail.nodes. The sequence should also be logical.
     {{/if}}
     - description: A brief (1-2 sentences) description explaining the purpose or key activities of this sub-task.
 
@@ -145,7 +145,7 @@ Provide a **highly detailed** 'reasoning' string explaining your thought process
   - If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit.
   - If a new conceptual workflow/team name was suggested, explain the rationale.
 {{/if}}
-- Explain your 'durationDays' estimate, **explicitly stating it's based on AI AGENT execution speed.**
+- Explain your 'durationDays' estimate, **explicitly stating it's based on AI AGENT execution speed and capabilities, not human effort.** Mention why the task might be shorter (or longer) due to AI involvement.
 - If you generated 'suggestedSubTasks':
   {{#if selectedWorkflowDetail.nodes.length}}
   - Explain how the sub-tasks and their assigned agent types align with the nodes of the '{{selectedWorkflowDetail.name}}' workflow.
@@ -171,19 +171,28 @@ const planProjectTaskFlow = ai.defineFlow(
     if (!output) {
       throw new Error('AI failed to generate a task plan.');
     }
-    // Ensure defaults are applied if AI misses them
-    output.plannedTask.status = output.plannedTask.status || 'To Do';
-    output.plannedTask.assignedTo = output.plannedTask.assignedTo || (input.selectedWorkflowDetail ? input.selectedWorkflowDetail.name : 'AI Assistant to determine');
-    output.plannedTask.startDate = output.plannedTask.startDate || format(new Date(), 'yyyy-MM-dd');
-    output.plannedTask.durationDays = output.plannedTask.durationDays === undefined ? 1 : Math.max(1, output.plannedTask.durationDays);
-    output.plannedTask.progress = output.plannedTask.progress !== undefined ? Math.min(100, Math.max(0, output.plannedTask.progress)) : 0;
-    output.plannedTask.isMilestone = output.plannedTask.isMilestone === undefined ? false : output.plannedTask.isMilestone;
-    output.plannedTask.parentId = output.plannedTask.parentId === undefined ? null : output.plannedTask.parentId;
-    output.plannedTask.dependencies = output.plannedTask.dependencies || [];
-    output.plannedTask.suggestedSubTasks = output.plannedTask.suggestedSubTasks || [];
+    // Ensure defaults are applied if AI misses them, especially for plannedTask
+    const plannedTask = output.plannedTask || {};
+    plannedTask.status = plannedTask.status || 'To Do';
+    plannedTask.assignedTo = plannedTask.assignedTo || (input.selectedWorkflowDetail ? input.selectedWorkflowDetail.name : 'AI Assistant to determine');
+    plannedTask.startDate = plannedTask.startDate || format(new Date(), 'yyyy-MM-dd');
+    plannedTask.durationDays = plannedTask.durationDays === undefined || plannedTask.durationDays < 1 ? 1 : Math.max(1, plannedTask.durationDays);
+    plannedTask.progress = plannedTask.progress !== undefined ? Math.min(100, Math.max(0, plannedTask.progress)) : 0;
+    plannedTask.isMilestone = plannedTask.isMilestone === undefined ? false : plannedTask.isMilestone;
+    plannedTask.parentId = plannedTask.parentId === undefined || plannedTask.parentId === "null" ? null : plannedTask.parentId;
+    plannedTask.dependencies = plannedTask.dependencies || [];
+    plannedTask.suggestedSubTasks = plannedTask.suggestedSubTasks || [];
+    
+    // Ensure each subtask has required fields
+    plannedTask.suggestedSubTasks = plannedTask.suggestedSubTasks.map(st => ({
+        title: st.title || "Untitled Sub-task",
+        assignedAgentType: st.assignedAgentType || "General Agent",
+        description: st.description || "No description provided."
+    }));
+
+    output.plannedTask = plannedTask; // Reassign plannedTask to the output object
 
     return output;
   }
 );
 
-```
