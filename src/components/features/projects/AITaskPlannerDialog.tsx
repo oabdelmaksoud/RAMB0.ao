@@ -19,7 +19,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as R
 import type { Task, ProjectWorkflow } from '@/types';
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, AlertCircle, FolderGit2 } from "lucide-react";
+import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, FolderGit2, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -105,31 +105,31 @@ export default function AITaskPlannerDialog({
       const finalAssignedTo = selectedWorkflowOverride !== undefined && selectedWorkflowOverride !== AI_SUGGESTION_OPTION_VALUE
         ? selectedWorkflowOverride
         : aiSuggestion.plannedTask.assignedTo;
-
+      
       const subTasksText = aiSuggestion.plannedTask.suggestedSubTasks && aiSuggestion.plannedTask.suggestedSubTasks.length > 0
         ? `\n\nSuggested Sub-Tasks / Steps:\n${aiSuggestion.plannedTask.suggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType})`).join('\n')}`
         : "\n\nSuggested Sub-Tasks / Steps: None specified by AI.";
 
       const taskDescription = `AI Reasoning: ${aiSuggestion.reasoning}${subTasksText}`.trim();
-      
+
       const taskData: Omit<Task, 'id'> = {
         title: aiSuggestion.plannedTask.title,
         status: aiSuggestion.plannedTask.status || 'To Do',
         assignedTo: finalAssignedTo || 'AI Assistant to determine',
         startDate: aiSuggestion.plannedTask.startDate,
-        durationDays: aiSuggestion.plannedTask.durationDays || 1,
-        progress: aiSuggestion.plannedTask.progress || 0,
+        durationDays: aiSuggestion.plannedTask.isMilestone ? 0 : (aiSuggestion.plannedTask.durationDays || 1),
+        progress: aiSuggestion.plannedTask.isMilestone ? (aiSuggestion.plannedTask.status === 'Done' ? 100 : 0) : (aiSuggestion.plannedTask.progress || 0),
         isMilestone: aiSuggestion.plannedTask.isMilestone || false,
         parentId: aiSuggestion.plannedTask.parentId === "null" ? null : aiSuggestion.plannedTask.parentId,
         dependencies: aiSuggestion.plannedTask.dependencies || [],
-        description: taskDescription
+        description: taskDescription,
       };
       onTaskPlannedAndAccepted(
         taskData,
         aiSuggestion.reasoning,
         aiSuggestion.plannedTask.suggestedSubTasks
       );
-      onOpenChange(false); 
+      onOpenChange(false);
     }
   };
 
@@ -152,8 +152,8 @@ export default function AITaskPlannerDialog({
           </DialogDescription>
         </DialogHeader>
         
-        <div className="flex-grow overflow-y-auto p-4 space-y-4"> {/* Main scrollable content area */}
-            <Form {...form} onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm" className="space-y-4">
+        <div className="flex-grow overflow-y-auto p-4 space-y-4"> {/* This div will handle scrolling for its content */}
+            <Form {...form} onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerForm">
               <FormField
                 control={form.control}
                 name="userGoal"
@@ -193,27 +193,27 @@ export default function AITaskPlannerDialog({
                 <CardContent className="space-y-3 text-sm pt-4">
                   <div>
                     <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Task Title:</Label>
-                    <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title}</div>
+                    <div className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title || "N/A"}</div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                      <div>
                         <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
-                        <div className="p-1 bg-background/50 border rounded-sm text-xs w-fit">
-                          <Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge>
+                        <div className="mt-0.5">
+                          <Badge variant="outline">{aiSuggestion.plannedTask.status || "N/A"}</Badge>
                         </div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
-                      <div className="p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo}</div>
+                      <div className="p-1 bg-background/50 border border-dashed rounded-sm text-xs">{aiSuggestion.plannedTask.assignedTo || "N/A"}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><CalendarDays className="w-3.5 h-3.5 mr-1"/>Start Date:</Label>
-                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'Not set'}</div>
+                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.startDate ? new Date(aiSuggestion.plannedTask.startDate + 'T00:00:00').toLocaleDateString() : 'N/A'}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Clock3 className="w-3.5 h-3.5 mr-1"/>Duration:</Label>
-                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.durationDays} day(s)</div>
+                      <div className="p-1 bg-background/50 border rounded-sm text-xs">{aiSuggestion.plannedTask.durationDays === undefined ? 'N/A' : `${aiSuggestion.plannedTask.durationDays} day(s)`}</div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Milestone className="w-3.5 h-3.5 mr-1"/>Milestone:</Label>
@@ -265,7 +265,7 @@ export default function AITaskPlannerDialog({
                   <div className="pt-1"> 
                     <Label className="text-muted-foreground text-xs font-normal block mb-1">Detailed AI Reasoning:</Label>
                     <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
-                      {aiSuggestion.reasoning}
+                      {aiSuggestion.reasoning || "No reasoning provided."}
                     </ShadCnCardDescription>
                   </div>
 
@@ -320,3 +320,4 @@ export default function AITaskPlannerDialog({
   );
 }
 
+    
