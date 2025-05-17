@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -34,14 +33,14 @@ export default function SidebarNav() {
                     pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <a> {/* This 'a' tag is rendered by Button asChild and expected by Link legacyBehavior */}
+                  <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2 hidden lg:inline">{item.label}</span>
+                    <span className="ml-2">{item.label}</span> {/* Removed hidden lg:inline */}
                   </a>
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="center" className="lg:hidden">
+            <TooltipContent side="bottom" align="center" className="lg:hidden"> {/* Tooltip can remain for consistency or be removed if deemed unnecessary */}
               <p>{item.label}</p>
             </TooltipContent>
           </Tooltip>
