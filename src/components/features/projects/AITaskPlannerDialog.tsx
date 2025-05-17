@@ -1,8 +1,6 @@
 
 'use client';
 
-import *dart:core';
-
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -201,7 +199,9 @@ export default function AITaskPlannerDialog({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                      <div>
                         <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1"/>Status:</Label>
-                        <div className="p-1 bg-background/50 border rounded-sm text-xs w-fit"><Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge></div>
+                        <div className="p-1 bg-background/50 border rounded-sm text-xs w-fit">
+                          <Badge variant="outline">{aiSuggestion.plannedTask.status}</Badge>
+                        </div>
                     </div>
                     <div>
                       <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><Users className="w-3.5 h-3.5 mr-1"/>AI Suggested Assignee (Workflow/Team):</Label>
@@ -236,7 +236,7 @@ export default function AITaskPlannerDialog({
                     </div>
                   )}
 
-                  <Separator className="my-3"/> {/* Visual separator */}
+                  <Separator className="my-3"/>
                   
                   <div className="space-y-1">
                     <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Optionally, assign to specific existing workflow:</Label>
@@ -262,7 +262,7 @@ export default function AITaskPlannerDialog({
 
                   <Separator className="my-3"/>
 
-                  <div className="pt-1"> {/* Added padding-top for spacing */}
+                  <div className="pt-1"> 
                     <Label className="text-muted-foreground text-xs font-normal block mb-1">Detailed AI Reasoning:</Label>
                     <ShadCnCardDescription className="mt-1 p-2 bg-background/70 rounded-md border italic text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">
                       {aiSuggestion.reasoning}
@@ -319,3 +319,4 @@ export default function AITaskPlannerDialog({
     </Dialog>
   );
 }
+
