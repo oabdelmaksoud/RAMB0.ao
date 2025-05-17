@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent that plans a project task based on user goals and project context.
@@ -133,7 +132,7 @@ Main Task Details to Generate (plannedTask object):
     - title: A concise title for the sub-task.
     - assignedAgentType:
       {{#if selectedWorkflowDetail.nodes.length}}
-      - **Choose an Agent Type exclusively from the 'Selected Workflow Agent Node Structure'** listed above that best fits this sub-task.
+      - **Choose an Agent Type exclusively from the 'Selected Workflow Agent Node Structure'** listed above that best fits this sub-task. If no direct match is obvious, you can use a general agent type like 'Analysis Agent' or 'Documentation Agent' but explain this choice in your reasoning.
       {{else}}
       - The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Deployment Agent').
       {{/if}}
@@ -158,7 +157,7 @@ Provide a **concise yet detailed (2-5 sentences max) explanation** of your thoug
 Keep the reasoning focused and avoid generic statements.
 
 Ensure 'plannedTask.startDate' is in YYYY-MM-DD format.
-Ensure 'plannedTask.durationDays' is an integer >= 1.
+Ensure 'plannedTask.durationDays' is an integer >= 1 (unless it's a milestone, then 0).
 Ensure 'plannedTask.progress' is an integer 0-100.
 Each suggestedSubTask must have 'title', 'assignedAgentType', and 'description'.
 Do not add any comments or extraneous text outside the main JSON structure.
@@ -235,4 +234,3 @@ const planProjectTaskFlow = ai.defineFlow(
     return output;
   }
 );
-

@@ -313,6 +313,7 @@ export default function ProjectDetailPage() {
  useEffect(() => {
     if (isClient && projectId ) {
         const currentWorkflowsInStorage = localStorage.getItem(getWorkflowsStorageKey(projectId));
+        // console.log(`PROJECT_DETAIL_PAGE: useEffect for projectWorkflows triggered. Current count: ${projectWorkflows.length}, In Storage: ${!!currentWorkflowsInStorage}`);
         if (projectWorkflows.length > 0 || currentWorkflowsInStorage !== null) {
              try {
                 // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}. Data:`, JSON.stringify(projectWorkflows.map(wf => ({id: wf.id, name: wf.name, nodesCount: wf.nodes?.length, edgesCount: wf.edges?.length }))));
@@ -393,85 +394,78 @@ export default function ProjectDetailPage() {
     aiReasoning: string,
     aiSuggestedSubTasks?: PlanProjectTaskOutput['plannedTask']['suggestedSubTasks']
   ) => {
-    const subTasksDescription = aiSuggestedSubTasks && aiSuggestedSubTasks.length > 0
-      ? `\n\nSuggested Sub-Tasks / Steps:\n${aiSuggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType}) - Description: ${st.description || 'N/A'}`).join('\n')}`
+    const subTasksSummary = aiSuggestedSubTasks && aiSuggestedSubTasks.length > 0
+      ? `\n\nAI Suggested Sub-Tasks / Steps:\n${aiSuggestedSubTasks.map(st => `- ${st.title} (Agent Type: ${st.assignedAgentType}) - Desc: ${st.description || 'N/A'}`).join('\n')}`
       : ""; 
 
-    const taskDescription = `AI Reasoning: ${aiReasoning}${subTasksDescription}`.trim();
+    const taskDescription = `AI Reasoning: ${aiReasoning}${subTasksSummary}`.trim();
 
-    let newTask: Task = {
-      ...plannedTaskData, // This comes from the AI's `plannedTask` object
+    let newTasksToAdd: Task[] = [];
+
+    const mainTask: Task = {
+      ...plannedTaskData,
       id: `task-proj-${projectId}-${Date.now().toString().slice(-4)}-${Math.random().toString(36).substring(2, 6)}`,
       progress: plannedTaskData.isMilestone ? (plannedTaskData.status === 'Done' ? 100 : 0) : (plannedTaskData.progress ?? 0),
       durationDays: plannedTaskData.isMilestone ? 0 : (plannedTaskData.durationDays ?? 1),
-      status: plannedTaskData.status || (plannedTaskData.isMilestone ? 'To Do' : 'To Do'), // Default status if AI doesn't specify
+      status: plannedTaskData.status || (plannedTaskData.isMilestone ? 'To Do' : 'To Do'),
       description: taskDescription,
       parentId: plannedTaskData.parentId === "null" ? null : plannedTaskData.parentId,
       dependencies: plannedTaskData.dependencies || [],
       isMilestone: plannedTaskData.isMilestone || false,
     };
+    newTasksToAdd.push(mainTask);
 
-    let agentAutoStarted = false;
     let workflowAutoActivated = false;
-    let targetNameForToast: string | null = plannedTaskData.assignedTo; 
+    const assignedWorkflowName = mainTask.assignedTo;
 
-    if (!newTask.isMilestone &&
-        newTask.assignedTo &&
-        newTask.assignedTo !== "Unassigned" &&
-        newTask.assignedTo !== "AI Assistant to determine" &&
-        newTask.status !== 'Done'
-    ) {
-      const assignedAgent = projectAgents.find(agent => agent.name === newTask.assignedTo);
-      const assignedWorkflow = projectWorkflows.find(wf => wf.name === newTask.assignedTo);
-
-      if (assignedAgent) { 
-        if (assignedAgent.status === 'Running') {
-          newTask.status = 'In Progress';
-          newTask.progress = (newTask.progress === 0 || newTask.progress === undefined) ? 10 : newTask.progress;
-          setProjectAgents(prevAgents =>
-            prevAgents.map(agent =>
-              agent.id === assignedAgent.id ? { ...agent, lastActivity: new Date().toISOString() } : agent
-            )
-          );
-          agentAutoStarted = true;
-        }
-      } else if (assignedWorkflow) {
-        if (assignedWorkflow.status === 'Draft' || assignedWorkflow.status === 'Inactive') {
-           setProjectWorkflows(prevWorkflows => {
-            const updatedWorkflows = prevWorkflows.map(wf => 
-              wf.id === assignedWorkflow.id ? {...wf, status: 'Active', lastRun: new Date().toISOString()} : wf
-            );
-            workflowAutoActivated = true;
-            return updatedWorkflows;
-          });
-        }
+    // Auto-activate workflow if task is assigned to it and it's not already active
+    if (assignedWorkflowName && assignedWorkflowName !== "AI Assistant to determine" && !mainTask.isMilestone) {
+      const targetWorkflow = projectWorkflows.find(wf => wf.name === assignedWorkflowName);
+      if (targetWorkflow && (targetWorkflow.status === 'Draft' || targetWorkflow.status === 'Inactive')) {
+        setProjectWorkflows(prevWorkflows =>
+          prevWorkflows.map(wf =>
+            wf.id === targetWorkflow.id ? { ...wf, status: 'Active', lastRun: new Date().toISOString() } : wf
+          )
+        );
+        workflowAutoActivated = true;
       }
     }
 
-    setTasks(prevTasks => [newTask, ...prevTasks]);
+    // Create sub-tasks if suggested by AI
+    if (aiSuggestedSubTasks && aiSuggestedSubTasks.length > 0) {
+      const subTasks: Task[] = aiSuggestedSubTasks.map((st, index) => ({
+        id: `subtask-${mainTask.id}-${index}-${Date.now().toString().slice(-3)}`,
+        title: st.title,
+        status: 'To Do', // Sub-tasks default to 'To Do'
+        assignedTo: st.assignedAgentType, // Assign to the suggested agent type
+        startDate: mainTask.startDate, // Or some logic to sequence them
+        durationDays: 1, // Default for sub-tasks, AI could suggest this in future
+        progress: 0,
+        isMilestone: false,
+        parentId: mainTask.id, // Link to the main task
+        dependencies: [], // Could be enhanced by AI
+        description: st.description,
+      }));
+      newTasksToAdd = [...newTasksToAdd, ...subTasks];
+    }
+
+    setTasks(prevTasks => [...newTasksToAdd, ...prevTasks]);
     setIsAITaskPlannerDialogOpen(false);
 
-    if (agentAutoStarted && targetNameForToast) {
-      toast({
-        title: "Task In Progress (AI Planned)",
-        description: `Task "${newTask.title}" assigned to running agent "${targetNameForToast}" and is now being processed.`
-      });
-    } else if (workflowAutoActivated && targetNameForToast) {
-      toast({
-        title: "Task Added & Workflow Activated (AI Planned)",
-        description: `Task "${newTask.title}" assigned to workflow "${targetNameForToast}", which is now Active.`,
-      });
-    } else if (targetNameForToast && !newTask.isMilestone && newTask.assignedTo !== "AI Assistant to determine") {
-        toast({
-            title: "Task Added (AI Planned)",
-            description: `Task "${newTask.title}" assigned to workflow/team "${targetNameForToast}".`,
-        });
-    } else {
-      toast({
-        title: newTask.isMilestone ? "Milestone Added (AI Planned)" : "Task Added (AI Planned)",
-        description: `${newTask.isMilestone ? "Milestone" : "Task"} "${newTask.title}" has been added to project "${project?.name}". ${newTask.assignedTo && newTask.assignedTo !== "AI Assistant to determine" && !newTask.isMilestone ? `Assigned to ${newTask.assignedTo}.` : ''}`.trim()
-      });
+    // Toast notifications
+    let toastTitle = mainTask.isMilestone ? "Milestone Added (AI Planned)" : "Task Added (AI Planned)";
+    let toastDescription = `${mainTask.isMilestone ? "Milestone" : "Task"} "${mainTask.title}" has been added to project "${project?.name}".`;
+
+    if (assignedWorkflowName && assignedWorkflowName !== "AI Assistant to determine" && !mainTask.isMilestone) {
+      toastDescription += ` Assigned to workflow/team "${assignedWorkflowName}".`;
     }
+    if (workflowAutoActivated) {
+      toastDescription += ` Workflow "${assignedWorkflowName}" is now Active.`;
+    }
+    if (newTasksToAdd.length > 1) { // More than just the main task
+      toastDescription += ` ${newTasksToAdd.length - 1} sub-task(s) also created.`;
+    }
+    toast({ title: toastTitle, description: toastDescription.trim() });
   };
 
 
@@ -623,48 +617,48 @@ export default function ProjectDetailPage() {
   };
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
-    console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n => n.id).join(', '));
+    // console.log("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length:", updatedNodes.length, "IDs:", updatedNodes.map(n => n.id).join(', '));
     if (!designingWorkflow) {
       console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
       return;
     }
-    console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
+    // console.log("PROJECT_DETAIL_PAGE: Current designingWorkflow ID:", designingWorkflow.id, "Name:", designingWorkflow.name);
 
     setProjectWorkflows(prevWorkflows => {
-        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
+        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
+                // console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
                 return { ...wf, nodes: updatedNodes };
             }
             return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-             console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", (wf.nodes || []).map(n => n.id).join(', '));
-        });
+        // newWorkflowsArray.forEach(wf => {
+        //      console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:", wf.id, "Nodes count:", wf.nodes?.length, "Nodes IDs:", (wf.nodes || []).map(n => n.id).join(', '));
+        // });
         return newWorkflowsArray;
     });
   }, [designingWorkflow]); // Removed setProjectWorkflows from dependencies
 
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
-    console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length);
+    // console.log("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length:", updatedEdges.length);
      if (!designingWorkflow) {
         console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
         return;
     }
     setProjectWorkflows(prevWorkflows => {
-        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
+        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                 console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
+                 // console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
                 return { ...wf, edges: updatedEdges };
             }
             return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-             console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", wf.edges?.length);
-        });
+        // newWorkflowsArray.forEach(wf => {
+        //      console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", wf.edges?.length);
+        // });
         return newWorkflowsArray;
     });
   }, [designingWorkflow]);  // Removed setProjectWorkflows from dependencies
@@ -1014,7 +1008,7 @@ export default function ProjectDetailPage() {
                             >
                               <CardHeader className="p-3 flex items-start justify-between gap-2">
                                   <div className="flex items-center">
-                                    <GripVertical className="h-4 w-4 mr-1.5 text-muted-foreground/50 cursor-grab flex-shrink-0" />
+                                    <GripVertical className="h-4 w-4 mr-1.5 text-muted-foreground/50 cursor-grab flex-shrink-0 opacity-50 group-hover:opacity-100" />
                                     <CardTitle 
                                         className={cn(
                                             "text-sm font-medium leading-tight flex items-center",
@@ -1324,3 +1318,5 @@ export default function ProjectDetailPage() {
 // AI task planner can use a selected project workflow to guide its planning
 
 // End of file, removing any extraneous characters below this line
+
+```
