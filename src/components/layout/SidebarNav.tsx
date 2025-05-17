@@ -25,24 +25,23 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              {/* Using legacyBehavior and passHref for proper accessibility and styling with custom components like Button */}
-              <Link href={item.href} passHref legacyBehavior> 
+              <Link href={item.href} passHref legacyBehavior>
                 <Button
                   variant="ghost"
-                  asChild 
+                  asChild
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
                     pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <a> {/* The <a> tag is the direct child that Link expects with legacyBehavior */}
+                  <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
                     <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="center" className="lg:hidden">
+            <TooltipContent side="bottom" align="center" className="lg:hidden"> {/* Show tooltip on smaller screens where label might be hidden */}
               <p>{item.label}</p>
             </TooltipContent>
           </Tooltip>
@@ -51,4 +50,4 @@ export default function SidebarNav() {
     </TooltipProvider>
   );
 }
-    
+
