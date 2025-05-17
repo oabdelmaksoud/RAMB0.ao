@@ -2,7 +2,7 @@
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Users, ShieldCheck, ToyBrick, Settings2, ListChecks } from 'lucide-react';
+import { Users, ShieldCheck, ToyBrick, Settings2, ListChecks, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
 
 export default function AdminSettingsPage() {
   return (
