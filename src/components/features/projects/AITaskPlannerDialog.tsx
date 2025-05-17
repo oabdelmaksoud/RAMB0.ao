@@ -25,10 +25,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 
 const plannerSchema = z.object({
   userGoal: z.string().min(10, "Please describe your task goal in at least 10 characters.").max(1000, "Goal description is too long."),
-  selectedWorkflowId: z.string().optional(), // Store ID, not name, for more robust lookup
+  selectedWorkflowId: z.string().optional(),
 });
 
 type PlannerFormData = z.infer<typeof plannerSchema>;
@@ -37,7 +39,7 @@ interface AITaskPlannerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  projectWorkflows: ProjectWorkflow[]; // Expect full workflow objects
+  projectWorkflows: ProjectWorkflow[];
   onTaskPlannedAndAccepted: (aiOutput: PlanProjectTaskOutput) => void;
 }
 
@@ -66,14 +68,14 @@ export default function AITaskPlannerDialog({
 
   React.useEffect(() => {
     if (aiSuggestion) {
-      console.log("AI Suggestion Data in Dialog:", JSON.stringify(aiSuggestion, null, 2));
+      console.log("AITaskPlannerDialog: AI Suggestion Data in Dialog:", JSON.stringify(aiSuggestion, null, 2));
     }
   }, [aiSuggestion]);
 
   const onSubmit: SubmitHandler<PlannerFormData> = async (data) => {
     setIsLoading(true);
     setAiSuggestion(null);
-    setSelectedWorkflowOverrideId(undefined); // Reset override when new plan is requested
+    setSelectedWorkflowOverrideId(undefined);
 
     let selectedWorkflowDetailForAI: PlanProjectTaskInput['selectedWorkflowDetail'] = undefined;
     if (data.selectedWorkflowId && data.selectedWorkflowId !== NO_WORKFLOW_SELECTED_VALUE) {
@@ -82,7 +84,7 @@ export default function AITaskPlannerDialog({
         selectedWorkflowDetailForAI = {
           name: selectedWfObject.name,
           description: selectedWfObject.description,
-          nodes: (selectedWfObject.nodes || []).map(n => ({ id: n.id, name: n.name, type: n.type })),
+          nodes: (selectedWfObject.nodes || []).map(n => ({id: n.id, name: n.name, type: n.type })),
         };
       }
     }
@@ -108,15 +110,14 @@ export default function AITaskPlannerDialog({
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false); // Ensure loading state is reset
+      setIsLoading(false);
     }
   };
 
   const handleAcceptAndAddTask = () => {
     if (aiSuggestion?.plannedTask) {
       let finalAssignedTo = aiSuggestion.plannedTask.assignedTo;
-      // If user selected an override, use that workflow's name
-      if (selectedWorkflowOverrideId && selectedWorkflowOverrideId !== AI_SUGGESTION_OPTION_VALUE) {
+      if (selectedWorkflowOverrideId && selectedWorkflowOverrideId !== AI_SUGGESTION_OPTION_VALUE && selectedWorkflowOverrideId !== NO_WORKFLOW_SELECTED_VALUE) {
         const chosenWorkflow = projectWorkflows.find(wf => wf.id === selectedWorkflowOverrideId);
         if (chosenWorkflow) {
           finalAssignedTo = chosenWorkflow.name;
@@ -137,7 +138,6 @@ export default function AITaskPlannerDialog({
 
   React.useEffect(() => {
     if (!open) {
-      // Reset form and suggestion when dialog closes
       form.reset({ userGoal: "", selectedWorkflowId: NO_WORKFLOW_SELECTED_VALUE });
       setAiSuggestion(null);
       setSelectedWorkflowOverrideId(undefined);
@@ -155,9 +155,7 @@ export default function AITaskPlannerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* This div will contain the scrollable content */}
         <div className="flex-grow overflow-y-auto p-4 space-y-4">
-          {/* Form is now inside the scrollable div */}
           {!aiSuggestion && !isLoading && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerFormInternal" className="space-y-6">
@@ -181,7 +179,7 @@ export default function AITaskPlannerDialog({
                 />
                 <FormField
                   control={form.control}
-                  name="selectedWorkflowId" // Changed from selectedWorkflowName to selectedWorkflowId
+                  name="selectedWorkflowId"
                   render={({ field }) => (
                     <FormItem>
                       <RHFFormLabel>Guide AI with Workflow (Optional)</RHFFormLabel>
@@ -197,7 +195,7 @@ export default function AITaskPlannerDialog({
                         <SelectContent>
                           <SelectItem value={NO_WORKFLOW_SELECTED_VALUE}>Let AI decide / No specific workflow</SelectItem>
                           {projectWorkflows.map(wf => (
-                            <SelectItem key={wf.id} value={wf.id}> {/* Use wf.id as value */}
+                            <SelectItem key={wf.id} value={wf.id}>
                               {wf.name}
                               <span className="text-muted-foreground/70 text-xs ml-2">({wf.nodes?.length || 0} nodes)</span>
                             </SelectItem>
@@ -235,10 +233,10 @@ export default function AITaskPlannerDialog({
               <CardContent className="space-y-3 text-sm pt-4">
                 <div>
                   <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Task Title:</Label>
-                  <p className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.plannedTask.title || "N/A"}</p>
+                  <p className="p-2 bg-background/70 rounded-md border font-medium break-words">{aiSuggestion.plannedTask.title || "N/A"}</p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                    <div>
                     <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1" />Status:</Label>
                     <div className="mt-0.5">
@@ -271,7 +269,7 @@ export default function AITaskPlannerDialog({
                   <div className="mt-2">
                     <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Dependencies:</Label>
                     <ul className="list-disc list-inside pl-1 mt-0.5">
-                      {aiSuggestion.plannedTask.dependencies.map(dep => <li key={dep} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
+                      {aiSuggestion.plannedTask.dependencies.map((dep, index) => <li key={`${dep}-${index}`} className="font-mono text-xs bg-muted px-2 py-1 rounded w-fit my-1">{dep}</li>)}
                     </ul>
                   </div>
                 )}
@@ -281,7 +279,7 @@ export default function AITaskPlannerDialog({
                  <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs font-normal block mb-0.5">Override Assignee with Existing Workflow (Optional):</Label>
                   <Select
-                    onValueChange={(value) => setSelectedWorkflowOverrideId(value === AI_SUGGESTION_OPTION_VALUE ? undefined : value)}
+                    onValueChange={(value) => setSelectedWorkflowOverrideId(value === AI_SUGGESTION_OPTION_VALUE ? undefined : (value === NO_WORKFLOW_SELECTED_VALUE ? undefined : value))}
                     value={selectedWorkflowOverrideId === undefined ? AI_SUGGESTION_OPTION_VALUE : selectedWorkflowOverrideId}
                   >
                     <SelectTrigger className="w-full text-sm">
@@ -289,8 +287,9 @@ export default function AITaskPlannerDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={AI_SUGGESTION_OPTION_VALUE}>Use AI's default assignee suggestion</SelectItem>
+                      <SelectItem value={NO_WORKFLOW_SELECTED_VALUE}>No specific workflow (Let AI/Manager decide team)</SelectItem>
                       {projectWorkflows.map(wf => (
-                        <SelectItem key={wf.id} value={wf.id}> {/* Use wf.id as value */}
+                        <SelectItem key={wf.id} value={wf.id}>
                             {wf.name}
                             <span className="text-muted-foreground/70 text-xs ml-2">({wf.nodes?.length || 0} nodes)</span>
                         </SelectItem>
@@ -315,7 +314,7 @@ export default function AITaskPlannerDialog({
                     <Label className="text-muted-foreground text-xs font-normal block mb-1">Suggested Sub-Tasks / Steps by AI Agents:</Label>
                     <div className="space-y-2 mt-1 max-h-60 overflow-y-auto border rounded-md p-2 bg-background/50">
                       {aiSuggestion.plannedTask.suggestedSubTasks.map((subTask, index) => (
-                        <div key={`${subTask.title}-${index}`} className="p-2 bg-background/70 rounded-md border border-dashed">
+                        <div key={`${subTask.title?.replace(/\s+/g, '-') || 'subtask'}-${index}`} className="p-2 bg-background/70 rounded-md border border-dashed">
                           <p className="font-medium text-xs">{index + 1}. {subTask.title || "Untitled Sub-task"}</p>
                           <p className="text-muted-foreground text-xs mt-0.5">Suggested Agent Type: <span className="font-semibold">{subTask.assignedAgentType || "N/A"}</span></p>
                           <p className="text-muted-foreground text-xs mt-0.5 whitespace-pre-wrap">Description: <span className="italic">{subTask.description || "N/A"}</span></p>
@@ -327,17 +326,23 @@ export default function AITaskPlannerDialog({
               </CardContent>
             </Card>
           )}
-        </div> {/* End of scrollable div */}
+        </div>
 
         <DialogFooter className="pt-4 border-t">
           {!aiSuggestion && (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+              <Button variant="outline" onClick={() => {
+                 form.reset({ userGoal: "", selectedWorkflowId: NO_WORKFLOW_SELECTED_VALUE }); 
+                 setAiSuggestion(null);
+                 setSelectedWorkflowOverrideId(undefined);
+                 onOpenChange(false);
+                }} 
+                disabled={isLoading}>
                 Cancel
               </Button>
               <Button
                 type="submit"
-                form="aiPlannerFormInternal" // Link to the form
+                form="aiPlannerFormInternal"
                 disabled={isLoading || !form.formState.isValid || form.formState.isSubmitting}
               >
                 {isLoading ? (
