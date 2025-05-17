@@ -36,7 +36,7 @@ const PlannedTaskSchema = z.object({
   status: z.enum(['To Do', 'In Progress', 'Done', 'Blocked']).default('To Do').describe("The initial status of the task, typically 'To Do'."),
   assignedTo: z.string().default('AI Assistant to determine').describe('The suggested "Agent Workflow" or "Agent Team" for the task. This should be an existing project workflow name or a conceptual name for a new workflow/team (e.g., "New Feature Rollout Workflow").'),
   startDate: z.string().default(format(new Date(), 'yyyy-MM-dd')).describe("The suggested start date for the task, in YYYY-MM-DD format. Defaults to today's date."),
-  durationDays: z.number().int().min(1).default(1).describe('The estimated duration of the task in days. Must be at least 1.'),
+  durationDays: z.number().int().min(1).default(1).describe('The estimated duration of the task in days, assuming AI agents are performing the work. Must be at least 1.'),
   progress: z.number().int().min(0).max(100).default(0).describe('The initial progress of the task, as a percentage from 0 to 100. Defaults to 0.'),
   isMilestone: z.boolean().default(false).describe('Whether this task should be considered a project milestone. Defaults to false.'),
   parentId: z.string().nullable().default(null).describe('The ID of a parent task, if this is a subtask. Defaults to null.'),
@@ -46,7 +46,7 @@ const PlannedTaskSchema = z.object({
 
 const PlanProjectTaskOutputSchema = z.object({
   plannedTask: PlannedTaskSchema.describe('The structured task details planned by the AI.'),
-  reasoning: z.string().describe('A detailed explanation from the AI on how it derived the task plan, including its choice for "assignedTo" (workflow/team), consideration of project workflows, and any assumptions made.'),
+  reasoning: z.string().describe('A detailed explanation from the AI on how it derived the task plan, including its choice for "assignedTo" (workflow/team), consideration of project workflows, estimation of duration based on AI agent execution, and any assumptions made.'),
 });
 export type PlanProjectTaskOutput = z.infer<typeof PlanProjectTaskOutputSchema>;
 
@@ -58,7 +58,7 @@ const prompt = ai.definePrompt({
   name: 'planProjectTaskPrompt',
   input: { schema: PlanProjectTaskInputSchema },
   output: { schema: PlanProjectTaskOutputSchema },
-  prompt: `You are an expert project management assistant specializing in agentic systems. Your role is to help plan a new task for a project based on a user's stated goal. Tasks are handled by 'Agent Workflows' or 'Agent Teams'.
+  prompt: `You are an expert project management assistant specializing in agentic systems where tasks are primarily executed by AI Agents. Your role is to help plan a new task for a project based on a user's stated goal.
 
 Project Context:
 Project ID: {{{projectId}}}
@@ -86,7 +86,7 @@ Main Task Details to Generate (plannedTask object):
   - If the user's goal does NOT clearly align with an existing workflow, suggest a **conceptual name for a new workflow or an agent team** that would be responsible for this type of task (e.g., "New Feature Rollout Workflow", "Urgent Bugfix Team", "Marketing Content Creation Workflow").
   - **IMPORTANT: Do NOT assign this task to an individual agent type (like 'Analysis Agent' or 'Developer'). Always assign to a workflow name (existing or conceptual) or a conceptual team name.** Use "AI Assistant to determine" as a last resort if no specific workflow or team concept fits.
 - startDate: Suggest a start date. Default to today's date: ${format(new Date(), 'yyyy-MM-dd')}.
-- durationDays: Estimate a reasonable duration in days (minimum 1).
+- durationDays: Estimate a reasonable duration in days. **Crucially, this estimation should be based on the assumption that AI Agents are performing the work, not human engineers.** This might mean some tasks are significantly shorter than human estimates. Minimum duration is 1 day.
 - progress: Default to 0.
 - isMilestone: Default to false, unless the user's goal clearly indicates a major milestone.
 - parentId: Default to null. Do not suggest a parent task unless explicitly requested or strongly implied.
@@ -99,11 +99,11 @@ Reasoning (reasoning string):
 Provide a **detailed** 'reasoning' string explaining your thought process for the generated task plan.
 - Explain your choice for 'assignedTo' in detail. If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit for the user's goal.
 - If a new conceptual workflow or team name was suggested for 'assignedTo', explain the rationale for this new grouping and why it's suitable for the task.
-- Explain any choices for duration or other fields.
-- If you generated 'suggestedSubTasks', briefly explain why this breakdown is appropriate.
+- Explain your choices for duration, **specifically referencing that it's based on AI Agent execution speed/capabilities**, and any other fields.
+- If you generated 'suggestedSubTasks', briefly explain why this breakdown is appropriate for AI agent execution.
 
-Example Reasoning for existing workflow: "The user's goal to 'design a new logo' strongly aligns with the existing 'Brand Asset Creation' project workflow. Task assigned to 'Brand Asset Creation' to initiate this established process. A 3-day duration is estimated for initial concepts and revisions. The task has been broken down into conceptual design, feedback, and finalization sub-tasks, each handled by appropriate agent types."
-Example Reasoning for conceptual workflow/team: "The user's goal to 'investigate urgent server outage' does not fit existing workflows. This requires immediate, specialized attention, so the task has been assigned to a conceptual 'Urgent Server Response Team'. The estimated duration is 1 day for initial diagnosis and stabilization. Sub-tasks include log analysis, system diagnostics, and reporting findings, handled by Analysis and Monitoring agent types."
+Example Reasoning for existing workflow: "The user's goal to 'design a new logo' strongly aligns with the existing 'Brand Asset Creation' project workflow. Task assigned to 'Brand Asset Creation' to initiate this established process. A 1-day duration is estimated for initial AI-driven concept generation and automated revisions based on standard parameters. The task has been broken down into conceptual design, feedback collection (simulated), and finalization sub-tasks, each handled by appropriate agent types."
+Example Reasoning for conceptual workflow/team: "The user's goal to 'investigate urgent server outage' does not fit existing workflows. This requires immediate, specialized attention, so the task has been assigned to a conceptual 'Urgent Server Response Team'. The estimated duration is 1 day for initial automated log analysis and system diagnostics. Sub-tasks include log analysis, system diagnostics, and reporting findings, handled by Analysis and Monitoring agent types."
 
 Ensure the 'plannedTask.startDate' is in YYYY-MM-DD format.
 Ensure 'plannedTask.durationDays' is an integer and at least 1.
