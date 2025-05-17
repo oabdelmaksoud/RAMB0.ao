@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,9 @@ import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Logo from '@/components/icons/Logo';
-import SidebarNav from './SidebarNav'; // This is our horizontal nav
+import SidebarNav from './SidebarNav';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
 
 export default function AppHeader() {
   const { setTheme, resolvedTheme } = useTheme();
@@ -16,14 +19,23 @@ export default function AppHeader() {
   let themeToggle;
   if (mounted) {
     themeToggle = (
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-        aria-label="Toggle theme"
-      >
-        {resolvedTheme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              aria-label="Toggle theme"
+            >
+              {resolvedTheme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Toggle theme</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   } else {
     themeToggle = <Button variant="ghost" size="icon" disabled aria-label="Toggle theme"><Sun className="h-5 w-5" /></Button>;
@@ -36,18 +48,27 @@ export default function AppHeader() {
           <Logo className="h-8 w-8 text-primary" />
           <h1 className="text-xl font-bold text-foreground hidden sm:block">RamBo Agent</h1>
         </Link>
-        {/* SidebarNav is now used as a horizontal navigation component */}
         <nav className="flex items-center"> 
           <SidebarNav />
         </nav>
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
         {themeToggle}
-        <Link href="/profile" passHref legacyBehavior>
-          <Button variant="ghost" size="icon" aria-label="Profile" asChild>
-            <a><UserCircle className="h-5 w-5" /></a>
-          </Button>
-        </Link>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link href="/profile" passHref> {/* Removed asChild here */}
+                <Button variant="ghost" size="icon" aria-label="Profile">
+                  {/* No explicit <a> tag needed here */}
+                  <UserCircle className="h-5 w-5" />
+                </Button>
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Profile</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </header>
   );

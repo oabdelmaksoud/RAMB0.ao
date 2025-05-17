@@ -1,9 +1,11 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, // For Projects/Dashboard
+  LayoutDashboard,
+  Briefcase,
   Activity,
   SlidersHorizontal,
   Lightbulb,
@@ -14,10 +16,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Projects', icon: LayoutDashboard }, // Consolidated Projects view
+  { href: '/', label: 'Projects', icon: LayoutDashboard }, // Consolidated from "Dashboard"
+  // { href: '/projects', label: 'Projects', icon: Briefcase }, // Removed as / is now projects
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
   { href: '/agent-management', label: 'Agents', icon: SlidersHorizontal },
   { href: '/ai-suggestions', label: 'AI Suggestions', icon: Lightbulb },
+  // Profile is handled directly in AppHeader
 ];
 
 export default function SidebarNav() {
@@ -29,14 +33,16 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              <Link href={item.href} passHref asChild>
+              <Link href={item.href} passHref> {/* Removed asChild here */}
                 <Button
                   variant="ghost"
+                  // Removed asChild here, Link provides the <a>
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
                     pathname === item.href ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
+                  {/* No explicit <a> tag needed here; Button becomes link content */}
                   <item.icon className="h-5 w-5" />
                   <span className="ml-2 hidden lg:inline">{item.label}</span>
                 </Button>
