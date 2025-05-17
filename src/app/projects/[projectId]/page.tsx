@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, Play, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare, Settings, Brain, AlertTriangle, Edit } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare, Settings, Brain, AlertTriangle, Edit } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
@@ -358,6 +358,31 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const updateWorkflowStatusOnTaskChange = (
+    updatedTasks: Task[],
+    currentWorkflows: ProjectWorkflow[]
+  ): ProjectWorkflow[] => {
+    let workflowsChanged = false;
+    const newWorkflows = currentWorkflows.map(workflow => {
+      if (workflow.status === 'Active') {
+        const relevantTasks = updatedTasks.filter(task => task.assignedTo === workflow.name);
+        if (relevantTasks.length > 0 && relevantTasks.every(task => task.status === 'Done')) {
+          if (workflow.status !== 'Inactive') {
+            toast({
+              title: "Workflow Completed",
+              description: `Workflow "${workflow.name}" is now Inactive as all its assigned tasks are Done.`,
+            });
+            workflowsChanged = true;
+            return { ...workflow, status: 'Inactive' };
+          }
+        }
+      }
+      return workflow;
+    });
+    return workflowsChanged ? newWorkflows : currentWorkflows; // Return original if no changes to avoid unnecessary re-renders
+  };
+
+
   const handleTaskPlannedAndAccepted = (
     plannedTaskData: Omit<Task, 'id'>,
     aiReasoning: string,
@@ -381,20 +406,21 @@ export default function ProjectDetailPage() {
       isMilestone: plannedTaskData.isMilestone || false,
     };
 
-    let autoStarted = false;
-    let targetNameForToast: string | null = null; 
+    let agentAutoStarted = false;
+    let workflowAutoActivated = false;
+    let targetNameForToast: string | null = plannedTaskData.assignedTo; 
 
+    // Logic to auto-start agents or activate workflows
     if (!newTask.isMilestone &&
         newTask.assignedTo &&
         newTask.assignedTo !== "Unassigned" &&
         newTask.assignedTo !== "AI Assistant to determine" &&
         newTask.status !== 'Done'
     ) {
-      const assignedAgent = projectAgents.find(agent => agent.name === newTask.assignedTo); // Try matching agent by name
-      const assignedWorkflow = projectWorkflows.find(wf => wf.name === newTask.assignedTo); // Try matching workflow by name
+      const assignedAgent = projectAgents.find(agent => agent.name === newTask.assignedTo);
+      const assignedWorkflow = projectWorkflows.find(wf => wf.name === newTask.assignedTo);
 
       if (assignedAgent) { 
-        targetNameForToast = assignedAgent.name;
         if (assignedAgent.status === 'Running') {
           newTask.status = 'In Progress';
           newTask.progress = (newTask.progress === 0 || newTask.progress === undefined) ? 10 : newTask.progress;
@@ -403,30 +429,33 @@ export default function ProjectDetailPage() {
               agent.id === assignedAgent.id ? { ...agent, lastActivity: new Date().toISOString() } : agent
             )
           );
-          autoStarted = true;
+          agentAutoStarted = true;
         }
       } else if (assignedWorkflow) {
-        targetNameForToast = assignedWorkflow.name;
-        // Here you might add logic to "start" the workflow or set task status to In Progress if workflow is Active.
-        // For now, we'll just acknowledge the assignment.
-        if (assignedWorkflow.status === 'Active') {
-            // Example: If workflow is active, maybe set task to 'In Progress'
-            // newTask.status = 'In Progress';
-            // newTask.progress = (newTask.progress === 0 || newTask.progress === undefined) ? 5 : newTask.progress;
-            // autoStarted = true; // Or a different flag for workflow assignment
+        if (assignedWorkflow.status === 'Draft' || assignedWorkflow.status === 'Inactive') {
+          setProjectWorkflows(prevWorkflows => 
+            prevWorkflows.map(wf => 
+              wf.id === assignedWorkflow.id ? {...wf, status: 'Active', lastRun: new Date().toISOString()} : wf
+            )
+          );
+          workflowAutoActivated = true;
         }
-      } else {
-        targetNameForToast = newTask.assignedTo; // For conceptual teams
       }
     }
 
     setTasks(prevTasks => [newTask, ...prevTasks]);
     setIsAITaskPlannerDialogOpen(false);
 
-    if (autoStarted && targetNameForToast) {
+    // Toast notifications
+    if (agentAutoStarted && targetNameForToast) {
       toast({
         title: "Task In Progress (AI Planned)",
         description: `Task "${newTask.title}" assigned to running agent "${targetNameForToast}" and is now being processed.`
+      });
+    } else if (workflowAutoActivated && targetNameForToast) {
+      toast({
+        title: "Task Added & Workflow Activated (AI Planned)",
+        description: `Task "${newTask.title}" assigned to workflow "${targetNameForToast}", which is now Active.`,
       });
     } else if (targetNameForToast && !newTask.isMilestone && newTask.assignedTo !== "AI Assistant to determine") {
         toast({
@@ -458,7 +487,14 @@ export default function ProjectDetailPage() {
         dependencies: updatedTaskData.dependencies || [],
     }
 
-    setTasks(prevTasks => prevTasks.map(task => task.id === taskToUpdate.id ? taskToUpdate : task));
+    const newTasks = tasks.map(task => task.id === taskToUpdate.id ? taskToUpdate : task);
+    setTasks(newTasks);
+    
+    // Check if this task update causes any workflow to complete
+    if (taskToUpdate.assignedTo && taskToUpdate.status === 'Done') {
+      setProjectWorkflows(prevWorkflows => updateWorkflowStatusBasedOnTasks(newTasks, prevWorkflows));
+    }
+    
     setIsEditTaskDialogOpen(false);
     setEditingTask(null);
     setIsViewingTask(false);
@@ -472,7 +508,12 @@ export default function ProjectDetailPage() {
 
   const confirmDeleteTask = () => {
     if (taskToDelete) {
-      setTasks(prevTasks => prevTasks.filter(task => task.id !== taskToDelete.id));
+      const remainingTasks = tasks.filter(task => task.id !== taskToDelete.id)
+      setTasks(remainingTasks);
+      // Check if this deletion causes any workflow to complete
+      if (taskToDelete.assignedTo && taskToDelete.status !== 'Done') { // Only check if a non-done task was deleted
+         setProjectWorkflows(prevWorkflows => updateWorkflowStatusBasedOnTasks(remainingTasks, prevWorkflows));
+      }
       toast({ title: taskToDelete.isMilestone ? "Milestone Deleted" : "Task Deleted", description: `${taskToDelete.isMilestone ? "Milestone" : "Task"} "${taskToDelete.title}" has been deleted from project "${project?.name}".`, variant: 'destructive' });
       setTaskToDelete(null);
       setIsDeleteTaskDialogOpen(false);
@@ -570,21 +611,6 @@ export default function ProjectDetailPage() {
     toast({ title: "Project Workflow Added", description: `Workflow "${newWorkflow.name}" created for project "${project?.name}".` });
   };
 
-  const handleRunWorkflow = (workflowId: string) => {
-    setProjectWorkflows(prevWorkflows =>
-      prevWorkflows.map(wf =>
-        wf.id === workflowId
-          ? { ...wf, status: 'Active', lastRun: new Date().toISOString() }
-          : wf
-      )
-    );
-    const workflowName = projectWorkflows.find(wf => wf.id === workflowId)?.name;
-    toast({
-      title: "Workflow Initiated (Simulation)",
-      description: `Workflow "${workflowName || workflowId}" has been started.`,
-    });
-  };
-
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
     setDesigningWorkflow(workflow);
   };
@@ -674,27 +700,30 @@ export default function ProjectDetailPage() {
     const taskToMove = tasks.find(task => task.id === draggedTaskId);
     if (!taskToMove) return;
 
+    let updatedTasksArray = [...tasks]; // Create a mutable copy
+
     if (sourceTaskStatus !== newStatus) { 
       const updatedTask: Task = {
         ...taskToMove,
         status: newStatus,
         progress: newStatus === 'Done' ? 100 : (taskToMove.isMilestone ? taskToMove.progress : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : (taskToMove.progress || 0))),
       };
-      let updatedTasks = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
+      updatedTasksArray = tasks.map(task => (task.id === draggedTaskId ? updatedTask : task));
       
-      // Move task to the end of the new status group visually by reordering the main tasks array
-      const taskToReorder = updatedTasks.find(t => t.id === draggedTaskId)!;
-      updatedTasks = updatedTasks.filter(t => t.id !== draggedTaskId); // remove from current position
-      updatedTasks.push(taskToReorder); // add to end (will be filtered into correct column and appear last)
+      const taskToReorder = updatedTasksArray.find(t => t.id === draggedTaskId)!;
+      updatedTasksArray = updatedTasksArray.filter(t => t.id !== draggedTaskId); 
+      updatedTasksArray.push(taskToReorder); 
 
-
-      setTasks(updatedTasks);
+      setTasks(updatedTasksArray);
+      // Check if this status update completes a workflow
+      if (updatedTask.assignedTo && updatedTask.status === 'Done') {
+         setProjectWorkflows(prevWorkflows => updateWorkflowStatusBasedOnTasks(updatedTasksArray, prevWorkflows));
+      }
       toast({
         title: "Task Status Updated",
         description: `Task "${updatedTask.title}" moved to "${newStatus}".`,
       });
     } else { 
-        // Dropped in the same column's empty space, move to end
         setTasks(prevTasks => {
             const taskToReorder = prevTasks.find(t => t.id === draggedTaskId);
             if (!taskToReorder) return prevTasks;
@@ -702,7 +731,6 @@ export default function ProjectDetailPage() {
             let newTasksArray = prevTasks.filter(t => t.id !== draggedTaskId);
             newTasksArray.push(taskToReorder); 
 
-            // Only toast if the order actually changed significantly
             if (JSON.stringify(prevTasks.map(t=>t.id)) !== JSON.stringify(newTasksArray.map(t=>t.id))) {
                  toast({
                     title: "Task Reordered",
@@ -990,10 +1018,10 @@ export default function ProjectDetailPage() {
                                 }
                               </CardContent>
                                <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
-                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
-                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
-                                <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
-                                <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="ghost" size="sm" className="text-xs flex-1" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
+                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
                           )})}
@@ -1086,7 +1114,7 @@ export default function ProjectDetailPage() {
                                             <Trash2 className="h-4 w-4" />
                                             <span className="sr-only">Delete Workflow</span>
                                           </Button>
-                                          <Button variant="default" size="sm" className="text-xs flex-1" onClick={() => handleRunWorkflow(workflow.id)}><Play className="mr-1.5 h-3.5 w-3.5" /> Run Workflow</Button>
+                                          {/* Removed manual Run Workflow button - now automated */}
                                       </CardFooter>
                                   </Card>
                               ))}
