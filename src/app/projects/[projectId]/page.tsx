@@ -2,10 +2,10 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare, Settings, Brain, AlertTriangle, Edit, Play } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, PlusCircle, LinkIcon, PlusSquareIcon, Edit2, Eye, SlidersHorizontal, Lightbulb, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, EyeIcon, X, Diamond, Users, FolderGit2, ListTree, MessageSquare, Settings, Brain, AlertTriangle, Edit, Play, Folder as FolderIcon, File as FileIcon, UploadCloud, FolderPlus } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { useEffect, useState, useCallback, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
-import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge } from '@/types';
+import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge, ProjectFile } from '@/types';
 import { initialMockProjects } from '@/app/projects/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -48,6 +48,7 @@ import ProjectGanttChartView from '@/components/features/projects/ProjectGanttCh
 import TaskChatDialog from '@/components/features/tasks/TaskChatDialog';
 import AITaskPlannerDialog from '@/components/features/projects/AITaskPlannerDialog';
 import type { PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
+import { Table, TableBody, TableCell, TableHead, TableHeader as ShadCnTableHeader, TableRow } from "@/components/ui/table";
 
 
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -75,6 +76,7 @@ const PROJECTS_STORAGE_KEY = 'agentFlowProjects';
 const getAgentsStorageKey = (projectId: string) => `agentFlowAgents_project_${projectId}`;
 const getTasksStorageKey = (projectId: string) => `agentFlowTasks_project_${projectId}`;
 const getWorkflowsStorageKey = (projectId: string) => `agentFlowWorkflows_project_${projectId}`;
+const getFilesStorageKey = (projectId: string) => `agentFlowFiles_project_${projectId}`;
 
 
 const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
@@ -172,6 +174,19 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
   return workflows;
 };
 
+const initialMockFiles: ProjectFile[] = [
+    { id: 'file-1', name: 'ProjectProposal.docx', type: 'file', path: '/', size: '1.2MB', lastModified: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
+    { id: 'folder-1', name: 'Source Code', type: 'folder', path: '/', children: [
+        { id: 'file-2', name: 'main.py', type: 'file', path: '/Source Code/', size: '50KB', lastModified: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: 'file-3', name: 'utils.py', type: 'file', path: '/Source Code/', size: '25KB', lastModified: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
+    ]},
+    { id: 'folder-2', name: 'Documentation', type: 'folder', path: '/', children: [
+        { id: 'file-4', name: 'UserManual.pdf', type: 'file', path: '/Documentation/', size: '2.5MB', lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+        { id: 'file-5', name: 'API_Reference.md', type: 'file', path: '/Documentation/', size: '300KB', lastModified: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
+    ]},
+    { id: 'file-6', name: 'MeetingNotes_2024-07-20.txt', type: 'file', path: '/', size: '5KB', lastModified: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString() },
+];
+
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -211,6 +226,9 @@ export default function ProjectDetailPage() {
   // State for Task Chat Dialog
   const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
   const [chattingTask, setChattingTask] = useState<Task | null>(null);
+
+  // State for Project Files (Repository Tab)
+  const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
 
 
   useEffect(() => {
@@ -288,6 +306,19 @@ export default function ProjectDetailPage() {
         setProjectWorkflows(defaultWorkflowsWithIds);
       }
 
+      const filesStorageKey = getFilesStorageKey(projectId);
+      const storedFiles = localStorage.getItem(filesStorageKey);
+      if (storedFiles) {
+        try {
+          setProjectFiles(JSON.parse(storedFiles));
+        } catch (error) {
+          console.error(`Failed to parse files for project ${projectId} from localStorage`, error);
+          setProjectFiles(initialMockFiles);
+        }
+      } else {
+        setProjectFiles(initialMockFiles);
+      }
+
     }
   }, [projectId, isClient]);
 
@@ -338,6 +369,12 @@ export default function ProjectDetailPage() {
     }
   }, [projectWorkflows, designingWorkflow]);
 
+  useEffect(() => {
+    if (isClient && projectId && (projectFiles.length > 0 || localStorage.getItem(getFilesStorageKey(projectId)) !== null )) {
+      localStorage.setItem(getFilesStorageKey(projectId), JSON.stringify(projectFiles));
+    }
+  }, [projectFiles, projectId, isClient]);
+
 
   const formatDate = (dateString: string | undefined, options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' }) => {
     if (!isClient || !dateString) return 'Loading date...';
@@ -382,7 +419,13 @@ export default function ProjectDetailPage() {
   ) => {
     const { suggestedSubTasks, ...mainTaskData } = plannedTaskDataFromAI;
 
-    let combinedDescription = `AI Reasoning: ${mainTaskData.reasoning || 'N/A'}`; // Using the reasoning from mainTaskData as per latest flow schema
+    const subTasksDetails = (suggestedSubTasks && suggestedSubTasks.length > 0)
+    ? suggestedSubTasks
+        .map(st => `- ${st.title || 'Sub-task'} (Agent Type: ${st.assignedAgentType || 'N/A'}) - Desc: ${st.description || 'N/A'}`)
+        .join('\n')
+    : "None specified by AI.";
+
+    let combinedDescription = `AI Reasoning: ${mainTaskData.reasoning || 'N/A'}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetails}`;
     
     let newTasksToAdd: Task[] = [];
 
@@ -391,13 +434,13 @@ export default function ProjectDetailPage() {
       title: mainTaskData.title || "Untitled AI Task",
       status: mainTaskData.status || (mainTaskData.isMilestone ? 'To Do' : 'To Do'), // Default to 'To Do'
       assignedTo: mainTaskData.assignedTo || 'AI Assistant to determine',
-      startDate: mainTaskData.startDate || format(new Date(), 'yyyy-MM-dd'),
-      durationDays: mainTaskData.isMilestone ? 0 : (mainTaskData.durationDays ?? 1),
-      progress: mainTaskData.isMilestone ? (mainTaskData.status === 'Done' ? 100 : 0) : (mainTaskData.progress ?? 0),
+      startDate: mainTaskData.startDate,
+      durationDays: mainTaskData.isMilestone ? 0 : (mainTaskData.durationDays === undefined ? 1 : Math.max(1, mainTaskData.durationDays)), // Ensure duration is at least 1 for non-milestones
+      progress: mainTaskData.isMilestone ? (mainTaskData.status === 'Done' ? 100 : 0) : (mainTaskData.progress === undefined ? 0 : Math.min(100, Math.max(0, mainTaskData.progress))),
       isMilestone: mainTaskData.isMilestone || false,
-      parentId: mainTaskData.parentId === "null" ? null : mainTaskData.parentId,
+      parentId: mainTaskData.parentId === "null" || mainTaskData.parentId === "" ? null : mainTaskData.parentId,
       dependencies: mainTaskData.dependencies || [],
-      description: combinedDescription.trim(), // Initial description from reasoning
+      description: combinedDescription.trim(),
     };
     newTasksToAdd.push(mainTask);
 
@@ -433,32 +476,22 @@ export default function ProjectDetailPage() {
         }
     }
 
-    // If AI suggested sub-tasks, create them
+    // If AI suggested sub-tasks, create them as actual tasks
     if (suggestedSubTasks && suggestedSubTasks.length > 0) {
       const subTasks: Task[] = suggestedSubTasks.map((st, index) => ({
         id: `subtask-${mainTask.id}-${index}-${Date.now().toString().slice(-3)}`,
         title: st.title || "Untitled Sub-task",
         status: 'To Do', // Sub-tasks always start as 'To Do'
-        assignedTo: st.assignedAgentType,
-        startDate: mainTask.startDate, // Inherit start date, or make it sequential
+        assignedTo: st.assignedAgentType, // Assign to the agent type suggested by AI
+        startDate: mainTask.startDate, // Inherit start date, or make it sequential (can be improved later)
         durationDays: 1, // Default, AI might suggest this in future
         progress: 0,
         isMilestone: false,
         parentId: mainTask.id, // Link to the main AI-planned task
-        dependencies: [], // Could be populated by AI in future
+        dependencies: index === 0 ? [] : [`subtask-${mainTask.id}-${index-1}-${Date.now().toString().slice(-3)}`], // Simple sequential dependency for now
         description: st.description || "No description provided.",
       }));
       newTasksToAdd = [...newTasksToAdd, ...subTasks];
-
-      // Update main task description to include sub-tasks
-      const subTasksDetails = suggestedSubTasks
-        .map(st => `- ${st.title || 'Sub-task'} (Agent Type: ${st.assignedAgentType || 'N/A'}) - Desc: ${st.description || 'N/A'}`)
-        .join('\n');
-      mainTask.description = `${mainTask.description}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetails}`;
-
-    } else if (mainTask.description?.includes("AI Suggested Sub-Tasks / Steps: None specified by AI.")){
-        // No sub-tasks, remove the default placeholder text if it was added by AI
-        mainTask.description = mainTask.description.replace("\n\nAI Suggested Sub-Tasks / Steps: None specified by AI.", "").trim();
     }
 
 
@@ -872,6 +905,27 @@ export default function ProjectDetailPage() {
     setIsChatDialogOpen(true);
   };
 
+  // Render files in repository
+  const renderProjectFiles = (filesToRender: ProjectFile[], currentPath: string = '/') => {
+    return filesToRender
+      .filter(file => file.path === currentPath) // Simplified, only show root files for now
+      .map(file => (
+        <TableRow key={file.id} className="hover:bg-muted/50">
+          <TableCell>
+            <div className="flex items-center gap-2">
+              {file.type === 'folder' ? <FolderIcon className="h-5 w-5 text-primary" /> : <FileIcon className="h-5 w-5 text-muted-foreground" />}
+              <span className="font-medium">{file.name}</span>
+            </div>
+          </TableCell>
+          <TableCell className="text-muted-foreground">{file.size || '-'}</TableCell>
+          <TableCell className="text-muted-foreground">{file.lastModified ? formatDate(file.lastModified, { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}</TableCell>
+          <TableCell className="text-right">
+            <Button variant="ghost" size="sm" disabled>Actions</Button>
+          </TableCell>
+        </TableRow>
+      ));
+  };
+
 
   if (!project) {
     return (
@@ -898,7 +952,7 @@ export default function ProjectDetailPage() {
                 src={project.thumbnailUrl}
                 alt={`${project.name} thumbnail`}
                 fill
-                sizes="(max-width: 639px) 64px, (max-width: 767px) 80px, 96px"
+                sizes="(max-width: 639px) 64px, (max-width: 767px) 80px, (max-width: 1023px) 80px, 96px"
                 style={{ objectFit: 'cover' }}
                 data-ai-hint="project abstract"
                 priority
@@ -960,9 +1014,10 @@ export default function ProjectDetailPage() {
       <Separator className="my-6" />
 
       <Tabs defaultValue="gantt" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:w-auto xl:inline-grid mb-4">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:w-auto xl:inline-grid mb-4">
           <TabsTrigger value="gantt"><GanttChartSquare className="mr-2 h-4 w-4"/>Gantt Chart</TabsTrigger>
           <TabsTrigger value="board"><ListChecks className="mr-2 h-4 w-4"/>Task Board</TabsTrigger>
+          <TabsTrigger value="repository"><FolderIcon className="mr-2 h-4 w-4"/>Repository</TabsTrigger>
           <TabsTrigger value="projectAgents"><SlidersHorizontal className="mr-2 h-4 w-4"/>Project Agents</TabsTrigger>
           <TabsTrigger value="projectWorkflows"><WorkflowIcon className="mr-2 h-4 w-4"/>Project Workflows &amp; Design</TabsTrigger>
           <TabsTrigger value="aiSuggestions"><Lightbulb className="mr-2 h-4 w-4"/>AI Agent Suggestions</TabsTrigger>
@@ -1068,10 +1123,10 @@ export default function ProjectDetailPage() {
                                 }
                               </CardContent>
                                <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
-                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
-                                <Button variant="outline" size="sm" className="text-xs" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
-                                <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
-                                <Button variant="destructive" size="sm" className="text-xs" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task, true)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
+                                <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => handleOpenEditTaskDialog(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
+                                <Button variant="ghost" size="sm" className="text-xs flex-1" onClick={() => handleOpenChatDialog(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
+                                <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => handleOpenDeleteTaskDialog(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
                               </CardFooter>
                             </Card>
                           )})}
@@ -1092,6 +1147,48 @@ export default function ProjectDetailPage() {
                   <Button variant="outline" size="sm" onClick={() => setIsAITaskPlannerDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
                      <Brain className="mr-2 h-4 w-4" />Plan First Task with AI
                   </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="repository">
+          <Card>
+            <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+              <div>
+                <CardTitle>Project Repository</CardTitle>
+                <CardDescription>Manage files and folders for project "{project.name}".</CardDescription>
+              </div>
+              <div className="flex gap-2 mt-2 sm:mt-0">
+                <Button variant="outline" size="sm" disabled className="w-full sm:w-auto">
+                  <UploadCloud className="mr-2 h-4 w-4" /> Upload Files
+                </Button>
+                <Button variant="outline" size="sm" disabled className="w-full sm:w-auto">
+                  <FolderPlus className="mr-2 h-4 w-4" /> New Folder
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {projectFiles.length > 0 ? (
+                <Table>
+                  <ShadCnTableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Last Modified</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </ShadCnTableHeader>
+                  <TableBody>
+                    {renderProjectFiles(projectFiles)}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
+                  <FolderIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                  <p className="text-lg font-medium text-muted-foreground">No files or folders in this project repository yet.</p>
+                  <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Upload files or create folders to get started.</p>
                 </div>
               )}
             </CardContent>
@@ -1327,3 +1424,7 @@ export default function ProjectDetailPage() {
   );
 }
 // End of file
+// Note to self: The AITaskPlannerDialog and ProjectGanttChartView are getting quite complex and might benefit from further componentization or state management solutions if features keep expanding.
+// The console errors about font loading and Supabase are likely external/environmental.
+// The Next.js Link legacyBehavior warnings are minor and related to Tooltip usage, can be revisited if they become problematic.
+// Project File/Repository tab is a mock UI. Actual file operations are beyond scope.

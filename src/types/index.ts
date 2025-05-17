@@ -1,5 +1,3 @@
-
-
 export interface Agent {
   id: string;
   name: string;
@@ -64,3 +62,12 @@ export interface Task {
   description?: string; // Optional detailed description for the task
 }
 
+export interface ProjectFile {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  path: string; // e.g., "/" or "/documents/"
+  size?: string; // e.g., "1.2 MB", "500 KB"
+  lastModified?: string; // ISO date string or human-readable
+  children?: ProjectFile[]; // For folders, to represent hierarchy
+}
