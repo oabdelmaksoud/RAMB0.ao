@@ -34,8 +34,8 @@ export interface ProjectWorkflow {
   description: string;
   status: 'Active' | 'Inactive' | 'Draft';
   lastRun?: string; // ISO Date string
-  nodes?: WorkflowNode[];
-  edges?: WorkflowEdge[];
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
 }
 
 export type ProjectStatus = 'Active' | 'On Hold' | 'Completed' | 'Archived';
@@ -66,13 +66,14 @@ export interface Sprint {
 }
 
 export type TaskStatus = 'To Do' | 'In Progress' | 'Done' | 'Blocked';
+export const taskStatuses: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
 export interface Task {
   id: string;
   projectId: string;
   title: string;
   status: TaskStatus;
-  assignedTo: string;
+  assignedTo: string; // Can be an Agent name, a Workflow name, or a Team name
   startDate?: string; // ISO date string e.g., "2024-07-01"
   durationDays?: number; // Duration in days
   progress?: number; // Percentage 0-100
@@ -81,7 +82,7 @@ export interface Task {
   dependencies?: string[];
   description?: string;
   isAiPlanned?: boolean;
-  sprintId?: string | null; // Added for Sprint association
+  sprintId?: string | null;
 }
 
 export interface ProjectFile {
@@ -91,27 +92,29 @@ export interface ProjectFile {
   path: string; // e.g., "/" or "/documents/"
   content?: string; // For file content
   size?: string; // e.g., "1.2 MB", "500 KB"
-  lastModified?: string; // ISO date string or human-readable
+  lastModified: string; // ISO date string or human-readable
   children?: ProjectFile[];
 }
 
-export type RequirementStatus = 'Draft' | 'Under Review' | 'Approved' | 'Implemented' | 'Obsolete' | 'Rejected';
-export const requirementStatuses: RequirementStatus[] = ['Draft', 'Under Review', 'Approved', 'Implemented', 'Obsolete', 'Rejected'];
+// Requirements are now managed as ProjectFile objects within a specific structure
+// The old Requirement type is removed to avoid confusion.
+// export type RequirementStatus = 'Draft' | 'Under Review' | 'Approved' | 'Implemented' | 'Obsolete' | 'Rejected';
+// export const requirementStatuses: RequirementStatus[] = ['Draft', 'Under Review', 'Approved', 'Implemented', 'Obsolete', 'Rejected'];
 
-export type RequirementPriority = 'High' | 'Medium' | 'Low';
-export const requirementPriorities: RequirementPriority[] = ['High', 'Medium', 'Low'];
+// export type RequirementPriority = 'High' | 'Medium' | 'Low';
+// export const requirementPriorities: RequirementPriority[] = ['High', 'Medium', 'Low'];
 
-export interface Requirement {
-  id: string;
-  projectId: string;
-  title: string;
-  description: string;
-  status: RequirementStatus;
-  priority: RequirementPriority;
-  version: string;
-  createdDate: string; // ISO date string
-  updatedDate: string; // ISO date string
-}
+// export interface Requirement {
+//   id: string;
+//   projectId: string;
+//   title: string;
+//   description: string;
+//   status: RequirementStatus;
+//   priority: RequirementPriority;
+//   version: string;
+//   createdDate: string; // ISO date string
+//   updatedDate: string; // ISO date string
+// }
 
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
 export const ticketStatuses: TicketStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
@@ -135,7 +138,7 @@ export interface Ticket {
   createdDate: string; // ISO date string
   updatedDate: string; // ISO date string
   aiMetadata?: Record<string, any>;
-  sprintId?: string | null; // Added for Sprint association
+  sprintId?: string | null;
 }
 
 export interface ProjectTemplate {
