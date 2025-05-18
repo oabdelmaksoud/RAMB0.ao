@@ -8,7 +8,7 @@ import * as z from 'zod';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Sparkles, Loader2, Send } from 'lucide-react';
 import { suggestAgentConfiguration, type SuggestAgentConfigurationInput, type SuggestAgentConfigurationOutput } from '@/ai/flows/suggest-agent-configuration';
@@ -70,18 +70,21 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
   const handleUseConfiguration = () => {
     if (suggestion?.suggestedAgent) {
       const { name, type, config } = suggestion.suggestedAgent;
-      const agentDataToPass = { name, type, config };
+      const agentDataToPass: Omit<Agent, 'id' | 'status' | 'lastActivity'> = { name, type, config };
 
-      if (onSuggestionAccepted) { // This prop is passed by ProjectDetailPage
+      if (onSuggestionAccepted) {
         onSuggestionAccepted(agentDataToPass);
-        // The parent (ProjectDetailPage) will show a toast: "AI-suggested agent added to project agents."
+        toast({
+          title: "AI Suggestion Applied",
+          description: "Agent details have been used to add a new project agent.",
+        });
       } else {
-        // Fallback: if used in a context without onSuggestionAccepted (e.g., global AI suggestions page, which is currently not linked)
+        // Fallback: if used in a context without onSuggestionAccepted (e.g., global AI suggestions page)
         const storageKey = projectId ? `aiSuggestedAgentConfig_project_${projectId}` : 'aiSuggestedAgentConfig_GLOBAL';
         localStorage.setItem(storageKey, JSON.stringify({ name, type, configString: JSON.stringify(config, null, 2) }));
         toast({
           title: 'Configuration Copied!',
-          description: "This configuration has been copied to localStorage. You can manually create an agent using it.",
+          description: "This configuration has been copied. You can manually create an agent using it or it might pre-fill the 'Add Agent' dialog.",
         });
       }
       setSuggestion(null); // Clear suggestion after use
@@ -104,7 +107,7 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
                 name="taskDescription"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Task Description</FormLabel>
+                    <RHFFormLabel>Task Description</RHFFormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="e.g., 'Analyze daily sales data and generate a summary report.'"
@@ -124,7 +127,7 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
                 name="historicalPerformanceData"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Historical Performance Data (Optional)</FormLabel>
+                    <RHFFormLabel>Historical Performance Data (Optional)</RHFFormLabel>
                     <FormControl>
                       <Textarea
                         placeholder="Provide context or past data, e.g., 'Similar tasks completed in 2 hours with Agent Type B using 2 CPU cores.'"
@@ -158,8 +161,8 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
         <Card className="mt-6 bg-muted/30 border-dashed border-muted-foreground/50">
           <CardContent className="p-6 text-center flex flex-col items-center justify-center min-h-[200px]">
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary mb-4" />
-            <p className="text-lg font-semibold text-muted-foreground">AI is working on your suggestion...</p>
-            <p className="text-sm text-muted-foreground mt-1">This may take a few moments.</p>
+            <p className="text-lg font-semibold text-muted-foreground">AI is analyzing your request...</p>
+            <p className="text-sm text-muted-foreground mt-1">Generating configuration suggestion.</p>
           </CardContent>
         </Card>
       )}
@@ -172,8 +175,8 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
               AI Configuration Suggestion
             </CardTitle>
             <CardDescription>
-              Review the AI-generated suggestion below. 
-              {onSuggestionAccepted && " You can add this directly to your project agents using the button below."}
+              Review the AI-generated suggestion below.
+              {onSuggestionAccepted ? " You can add this directly to your project agents using the button below." : " You can copy this configuration to manually create an agent."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 pt-4">
@@ -204,7 +207,13 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
             </div>
           </CardContent>
           <CardFooter className="flex justify-end border-t pt-6">
-            <Button onClick={handleUseConfiguration} disabled={!onSuggestionAccepted}>
-              <Send className="mr-2 h-4 w-4" /> Use this Configuration
+            <Button onClick={handleUseConfiguration} disabled={!onSuggestionAccepted && !projectId}>
+              <Send className="mr-2 h-4 w-4" />
+              {onSuggestionAccepted ? 'Add Agent to Project' : 'Copy Configuration (Feature Pending)'}
             </Button>
-          </
+          </CardFooter>
+        </Card>
+      )}
+    </>
+  );
+}
