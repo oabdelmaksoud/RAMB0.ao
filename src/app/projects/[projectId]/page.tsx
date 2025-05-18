@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, EyeIcon, SlidersHorizontal, Lightbulb, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, X, Diamond, Users, FolderGit2, MessageSquare, Settings, Brain, AlertTriangle, Edit, Folder as FolderIcon, File as FileIcon, UploadCloud, FolderPlus, ArrowLeftCircle, InfoIcon, Play, ClipboardList, ChevronDown, ChevronRight, PlusSquare as PlusSquareIcon, Edit2, Files, LayoutGrid } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, EyeIcon, SlidersHorizontal, Lightbulb, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, X, Diamond, Users, FolderGit2, MessageSquare, Settings, Brain, AlertTriangle, Edit, Folder as FolderIcon, File as FileIcon, UploadCloud, FolderPlus, ArrowLeftCircle, InfoIcon, Play, ClipboardList, ChevronDown, ChevronRight, PlusSquare as PlusSquareIcon, Edit2, Files, LayoutGrid, FolderClosed } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge, ProjectFile, Requirement, RequirementStatus, RequirementPriority } from '@/types';
@@ -241,6 +241,9 @@ export default function ProjectDetailPage() {
   const [designingWorkflow, setDesigningWorkflow] = useState<ProjectWorkflow | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<ProjectWorkflow | null>(null);
   const [isDeleteWorkflowDialogOpen, setIsDeleteWorkflowDialogOpen] = useState(false);
+  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
+  const [selectedWorkflowForDialog, setSelectedWorkflowForDialog] = useState<ProjectWorkflow | null>(null);
+
 
   const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
   const [chattingTask, setChattingTask] = useState<Task | null>(null);
@@ -422,21 +425,24 @@ export default function ProjectDetailPage() {
 
  useEffect(() => {
     // This effect syncs `designingWorkflow` state if the underlying object in `projectWorkflows` changes
-    if (!designingWorkflow?.id || !projectWorkflows?.length) return;
+    // or if `designingWorkflow.id` changes.
+    const designingWorkflowId = designingWorkflow?.id;
+    if (!designingWorkflowId || !projectWorkflows?.length) return;
 
-    const currentDesigningWorkflowInState = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
+    const currentDesigningWorkflowInState = projectWorkflows.find(wf => wf.id === designingWorkflowId);
+
     if (currentDesigningWorkflowInState) {
-      // Only update if the object reference or content is different
+      // Deep comparison to avoid unnecessary updates if only the reference changed but content is the same
       if (JSON.stringify(currentDesigningWorkflowInState) !== JSON.stringify(designingWorkflow)) {
-        // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow from projectWorkflows state. ID:", designingWorkflow.id);
+        // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow from projectWorkflows state. ID:", designingWorkflowId);
         setDesigningWorkflow(JSON.parse(JSON.stringify(currentDesigningWorkflowInState))); // Deep clone
       }
     } else {
       // If the designing workflow is no longer in the main list (e.g., deleted), close the designer.
-      // console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer in projectWorkflows list. Closing designer. ID was:", designingWorkflow.id);
+      // console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer in projectWorkflows list. Closing designer. ID was:", designingWorkflowId);
       setDesigningWorkflow(null);
     }
-  }, [projectWorkflows, designingWorkflow]);
+  }, [projectWorkflows, designingWorkflow?.id]); // Depend on designingWorkflow.id instead of the whole object
 
 
   useEffect(() => {
@@ -496,17 +502,18 @@ const handleTaskPlannedAndAccepted = useCallback(
   (aiOutput: PlanProjectTaskOutput) => {
     console.log("PROJECT_DETAIL_PAGE: handleTaskPlannedAndAccepted received aiOutput:", JSON.stringify(aiOutput, null, 2));
     
-    const plannedTaskDataFromAI = aiOutput?.plannedTask || {};
+    const plannedTaskDataFromAI = aiOutput?.plannedTask || {}; // Ensure plannedTaskDataFromAI is an object
     const aiReasoning = aiOutput?.reasoning || "No reasoning provided by AI.";
+    const suggestedSubTasksFromAI = plannedTaskDataFromAI.suggestedSubTasks || [];
+
 
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted taskTitle:", plannedTaskDataFromAI.title || "Untitled AI Task");
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted aiReasoning:", aiReasoning);
-    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted suggestedSubTasksFromAI:", JSON.stringify(plannedTaskDataFromAI.suggestedSubTasks || [], null, 2));
+    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted suggestedSubTasksFromAI:", JSON.stringify(suggestedSubTasksFromAI, null, 2));
 
-    const subTasksFromAI = plannedTaskDataFromAI.suggestedSubTasks || [];
 
-    const subTasksDetailsText = subTasksFromAI.length > 0
-      ? subTasksFromAI
+    const subTasksDetailsText = suggestedSubTasksFromAI.length > 0
+      ? suggestedSubTasksFromAI
         .map(st => `- ${st.title || 'Untitled Sub-task'} (Agent: ${st.assignedAgentType || 'N/A'}) - Desc: ${st.description || 'N/A'}`)
         .join('\n')
       : "None specified by AI.";
@@ -534,7 +541,7 @@ const handleTaskPlannedAndAccepted = useCallback(
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Initial mainTask object:", JSON.stringify(mainTask, null, 2));
 
     let newTasksList: Task[] = [];
-    let autoStartedOrActivatedWorkflow = false;
+    let autoStartedWorkflow = false;
     let toastDescriptionText = "";
 
     const assignedToValue = mainTask.assignedTo;
@@ -546,7 +553,7 @@ const handleTaskPlannedAndAccepted = useCallback(
           let changed = false;
           const updatedWorkflows = prevWorkflows.map(wf => {
             if (wf.id === matchingWorkflow.id && (wf.status === 'Draft' || wf.status === 'Inactive')) {
-              autoStartedOrActivatedWorkflow = true;
+              autoStartedWorkflow = true;
               changed = true;
               return { ...wf, status: 'Active', lastRun: new Date().toISOString() };
             }
@@ -555,7 +562,7 @@ const handleTaskPlannedAndAccepted = useCallback(
           return changed ? updatedWorkflows : prevWorkflows;
         });
 
-        if (autoStartedOrActivatedWorkflow) {
+        if (autoStartedWorkflow) {
           mainTask = { ...mainTask, status: 'In Progress', progress: (mainTask.progress === 0 || mainTask.progress === undefined) ? 10 : mainTask.progress };
           toastDescriptionText += ` Workflow activated. Main task set to 'In Progress'.`;
         } else if (matchingWorkflow.status === 'Active') {
@@ -564,6 +571,7 @@ const handleTaskPlannedAndAccepted = useCallback(
         }
 
       } else {
+        // Check if assignedTo matches a project agent (legacy behavior, might be refined later)
         const assignedAgentInstance = projectAgents.find(agent => agent.name === assignedToValue);
         if (assignedAgentInstance) {
           toastDescriptionText = `Task "${mainTask.title}" assigned to project agent "${assignedToValue}".`;
@@ -577,7 +585,7 @@ const handleTaskPlannedAndAccepted = useCallback(
             toastDescriptionText += ` Agent is not running. Start the agent to process.`;
           }
         } else {
-          toastDescriptionText = `Task "${mainTask.title}" created. Consider creating or assigning to workflow/team: "${assignedToValue}".`;
+          toastDescriptionText = `Task "${mainTask.title}" created. Assigned to: "${assignedToValue}". Consider creating a matching workflow or agent.`;
         }
       }
     } else if (mainTask.isMilestone) {
@@ -589,10 +597,10 @@ const handleTaskPlannedAndAccepted = useCallback(
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Final mainTask before adding to list:", JSON.stringify(mainTask, null, 2));
     newTasksList.push(mainTask); 
 
-    if (subTasksFromAI.length > 0 && !mainTask.isMilestone) {
-      const createdSubTasks: Task[] = subTasksFromAI.map((st, index) => {
+    if (suggestedSubTasksFromAI.length > 0 && !mainTask.isMilestone) {
+      const createdSubTasks: Task[] = suggestedSubTasksFromAI.map((st, index) => {
         const subTaskId = uid(`subtask-${mainTaskId.slice(-5)}`);
-        const previousSubTask = index > 0 ? newTasksList.find(t => t.parentId === mainTaskId && t.title === subTasksFromAI[index-1].title) : null;
+        const previousSubTask = index > 0 ? newTasksList.find(t => t.parentId === mainTaskId && t.title === suggestedSubTasksFromAI[index-1].title) : null;
         
         return {
           id: subTaskId,
@@ -601,7 +609,7 @@ const handleTaskPlannedAndAccepted = useCallback(
           status: 'To Do',
           assignedTo: st.assignedAgentType || "General Agent",
           startDate: mainTask.startDate, 
-          durationDays: 1,
+          durationDays: 1, // Default duration for sub-tasks
           progress: 0,
           isMilestone: false,
           parentId: mainTaskId,
@@ -629,7 +637,7 @@ const handleTaskPlannedAndAccepted = useCallback(
     setIsAITaskPlannerDialogOpen(false);
 
     let toastTitle = mainTask.isMilestone ? "Milestone Planned (AI)" : "Task Planned (AI)";
-    if (autoStartedOrActivatedWorkflow || (mainTask.status === 'In Progress' && !mainTask.isMilestone)) {
+    if (autoStartedWorkflow || (mainTask.status === 'In Progress' && !mainTask.isMilestone)) {
       toastTitle = "Task In Progress (AI Planned)";
     }
     setTimeout(() => toast({ title: toastTitle, description: toastDescriptionText.trim() }), 0);
@@ -752,13 +760,11 @@ const handleTaskPlannedAndAccepted = useCallback(
         let insertAtIndex = updatedTasksArray.length; // Default to end of the whole array
         for (let i = 0; i < updatedTasksArray.length; i++) {
             if (updatedTasksArray[i].status === newStatus) {
-                // If this is the first task of the new status, or if the next task is of a different status
                 if (i + 1 === updatedTasksArray.length || updatedTasksArray[i+1].status !== newStatus) {
                     insertAtIndex = i + 1;
                     break;
                 }
             } else if (updatedTasksArray[i].status !== newStatus && i > 0 && updatedTasksArray[i-1].status === newStatus) {
-                 // If we just passed the newStatus group
                 insertAtIndex = i;
                 break;
             }
@@ -772,18 +778,16 @@ const handleTaskPlannedAndAccepted = useCallback(
         setTasks(updatedTasksArray);
         setProjectWorkflows(prevWorkflows => updateWorkflowStatusBasedOnTasks(updatedTasksArray, prevWorkflows));
 
-    } else { 
-        const isDroppedOnCard = (event.target as HTMLElement).closest('[data-task-id]');
-        if (!isDroppedOnCard && draggedTaskId) { 
-            const currentTask = updatedTasksArray.splice(taskToMoveIndex, 1)[0];
-            updatedTasksArray.push(currentTask); 
-            
-            setTasks(updatedTasksArray);
-            setTimeout(() => toast({
-                title: "Task Reordered",
-                description: `Task "${currentTask.title}" moved to the end of "${sourceTaskStatus}".`,
-            }),0);
-        }
+    } else if (sourceTaskStatus === newStatus && draggedTaskId) {
+      // Dropped in the same column, not on another card - move to end
+        const currentTask = updatedTasksArray.splice(taskToMoveIndex, 1)[0];
+        updatedTasksArray.push(currentTask); 
+        
+        setTasks(updatedTasksArray);
+        setTimeout(() => toast({
+            title: "Task Reordered",
+            description: `Task "${currentTask.title}" moved to the end of "${sourceTaskStatus}".`,
+        }),0);
     }
   };
 
@@ -847,10 +851,8 @@ const handleTaskPlannedAndAccepted = useCallback(
         const newTasks = [...prevTasks];
         const [draggedTask] = newTasks.splice(draggedTaskIndex, 1);
         
-        // Important: Find the target index *after* removing the dragged task
         const newTargetIndexAfterSplice = newTasks.findIndex(task => task.id === targetTaskId);
         
-        // Insert before the target task
         newTasks.splice(newTargetIndexAfterSplice, 0, draggedTask);
         
         setTimeout(() => { 
@@ -972,20 +974,20 @@ const handleTaskPlannedAndAccepted = useCallback(
         console.warn("PROJECT_DETAIL_PAGE: handleWorkflowNodesChange called without designingWorkflow set.");
         return;
     }
-    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n => n.id).join(', ')}`);
+    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange received updatedNodes. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n => n.id).join(', ')}`);
     
     setProjectWorkflows(prevWorkflows => {
-        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
+        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for nodes. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
+                // console.log("PROJECT_DETAIL_PAGE: Updating nodes for workflow ID:", wf.id, ". New nodes count:", updatedNodes.length);
                 return { ...wf, nodes: updatedNodes, lastRun: new Date().toISOString() };
             }
             return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-            console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:", wf.id, "Nodes count:", (wf.nodes || []).length, "Nodes IDs:", (wf.nodes || []).map(n => n.id).join(', '));
-        });
+        // newWorkflowsArray.forEach(wf => {
+        //     console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after node map). ID:", wf.id, "Nodes count:", (wf.nodes || []).length, "Nodes IDs:", (wf.nodes || []).map(n => n.id).join(', '));
+        // });
         return newWorkflowsArray;
     });
   }, [designingWorkflow]);
@@ -995,19 +997,19 @@ const handleTaskPlannedAndAccepted = useCallback(
         console.warn("PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange called without designingWorkflow set.");
         return;
     }
-    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length: ${updatedEdges.length}`);
+    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length: ${updatedEdges.length}`);
     setProjectWorkflows(prevWorkflows => {
-        console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
+        // console.log("PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for edges. prevWorkflows length:", prevWorkflows.length);
         const newWorkflowsArray = prevWorkflows.map(wf => {
             if (wf.id === designingWorkflow.id) {
-                 console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
+                //  console.log("PROJECT_DETAIL_PAGE: Updating edges for workflow ID:", wf.id, ". New edges count:", updatedEdges.length);
                 return { ...wf, edges: updatedEdges, lastRun: new Date().toISOString() };
             }
             return wf;
         });
-        newWorkflowsArray.forEach(wf => {
-             console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", (wf.edges || []).length);
-        });
+        // newWorkflowsArray.forEach(wf => {
+        //      console.log("PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after edge map). ID:", wf.id, "Edges count:", (wf.edges || []).length);
+        // });
         return newWorkflowsArray;
     });
   }, [designingWorkflow]);
@@ -1038,12 +1040,12 @@ const handleTaskPlannedAndAccepted = useCallback(
     try {
       const date = parseISO(dateString);
       if (!isValid(date)) { 
-        console.warn(`Invalid date string encountered: ${dateString}`);
+        // console.warn(`Invalid date string encountered: ${dateString}`);
         return "Invalid Date"; 
       }
       return format(date, formatString);
     } catch (error) {
-      console.warn(`Error formatting date: ${dateString}`, error);
+      // console.warn(`Error formatting date: ${dateString}`, error);
       return dateString; 
     }
   };
@@ -1365,7 +1367,7 @@ const handleTaskPlannedAndAccepted = useCallback(
       <Separator className="my-6" />
 
        <Tabs defaultValue="taskManagement" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 mb-6 xl:w-auto xl:inline-grid">
+       <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:w-auto xl:inline-grid">
             <TabsTrigger value="taskManagement"><ListChecks className="mr-2 h-4 w-4"/>Task Management</TabsTrigger>
             <TabsTrigger value="projectAssets"><Files className="mr-2 h-4 w-4"/>Project Assets</TabsTrigger>
             <TabsTrigger value="aiAutomation"><Brain className="mr-2 h-4 w-4"/>AI &amp; Automation</TabsTrigger>
@@ -1373,7 +1375,7 @@ const handleTaskPlannedAndAccepted = useCallback(
 
         <TabsContent value="taskManagement" className="mt-8 sm:mt-4">
             <Card>
-                <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+                 <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
                     <div>
                         <CardTitle>Task Management</CardTitle>
                         <CardDescription className="text-xs sm:text-sm text-muted-foreground">
@@ -1494,7 +1496,7 @@ const handleTaskPlannedAndAccepted = useCallback(
                     <Tabs defaultValue="requirements" className="w-full">
                         <TabsList className="grid w-full grid-cols-2 mb-4 sm:w-auto sm:inline-grid">
                            <TabsTrigger value="requirements"><ClipboardList className="mr-2 h-4 w-4"/>Requirements</TabsTrigger>
-                           <TabsTrigger value="repository"><FolderIcon className="mr-2 h-4 w-4"/>Repository</TabsTrigger>
+                           <TabsTrigger value="repository"><FolderClosed className="mr-2 h-4 w-4"/>Repository</TabsTrigger> {/* Changed Icon */}
                         </TabsList>
 
                         <TabsContent value="requirements" className="mt-4">
@@ -1613,7 +1615,7 @@ const handleTaskPlannedAndAccepted = useCallback(
                                 </Table>
                               ) : (
                                 <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
-                                  <FolderIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                                  <FolderClosed className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" /> {/* Changed Icon */}
                                   <p className="text-lg font-medium text-muted-foreground">
                                     {currentFilePath === '/' ? 'No files or folders in this project repository yet.' : `Folder "${currentFilePath.slice(0,-1).split('/').pop()}" is empty.`}
                                   </p>
@@ -1671,13 +1673,20 @@ const handleTaskPlannedAndAccepted = useCallback(
                           <SlidersHorizontal className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
                           <p className="text-lg font-medium text-muted-foreground">No agents configured for this project yet.</p>
                           <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add an agent to get started with automation!</p>
-                           <Button onClick={() => {
-                                const addAgentButtons = document.querySelectorAll('button');
-                                // Find a button that seems like the "Add New Project Agent" button. This is brittle.
-                                const addAgentButton = Array.from(addAgentButtons).find(btn => btn.textContent?.includes("Add New Agent"));
-                                if (addAgentButton instanceof HTMLElement) addAgentButton.click();
-                                else setTimeout(() => toast({title: "Hint", description: "Click 'Add New Project Agent' above to create your first agent."}),0);
-                            }} className="w-full max-w-xs sm:w-auto">
+                           <Button 
+                             onClick={() => {
+                                const addAgentDialogTrigger = document.querySelector('#project-detail-page button:not([aria-controls^="radix-"]) > svg.lucide-plus-circle'); // Attempt to find a suitable trigger
+                                if (addAgentDialogTrigger && addAgentDialogTrigger.parentElement instanceof HTMLElement) {
+                                    addAgentDialogTrigger.parentElement.click();
+                                } else {
+                                    // Fallback if specific trigger not found
+                                    const addButtons = document.querySelectorAll('button');
+                                    const genericAddButton = Array.from(addButtons).find(btn => btn.textContent?.includes("Add New Agent"));
+                                    if (genericAddButton) genericAddButton.click();
+                                    else setTimeout(() => toast({title: "Hint", description: "Click 'Add New Agent' above to create your first agent."}),0);
+                                }
+                             }}
+                             className="w-full max-w-xs sm:w-auto">
                                <PlusSquareIcon className="mr-2 h-4 w-4"/> Add First Agent
                            </Button>
                         </div>
@@ -1941,4 +1950,3 @@ const handleTaskPlannedAndAccepted = useCallback(
   );
 }
 // End of file
-// Previous extraneous text and markdown has been removed.
