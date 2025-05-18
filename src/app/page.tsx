@@ -4,15 +4,14 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription, CardFooter } from '@/components/ui/card'; // Added CardFooter
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Briefcase, CheckCircle, Activity, ListChecks, TrendingUp, ExternalLink, PieChart } from 'lucide-react';
 import type { Project, Task, TaskStatus } from '@/types';
-import { PROJECTS_STORAGE_KEY, initialMockProjects, getTasksStorageKey } from '@/app/projects/page'; // Import from new location
-import ProjectCard from '@/components/features/projects/ProjectCard';
+import { PROJECTS_STORAGE_KEY, initialMockProjects, getTasksStorageKey } from '@/app/projects/page'; // Import from projects/page
 import { cn } from '@/lib/utils';
 
 const projectStatusColors: { [key in Project['status']]: string } = {
@@ -22,7 +21,6 @@ const projectStatusColors: { [key in Project['status']]: string } = {
   Archived: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
 
-// This is now the Portfolio Dashboard Page
 export default function PortfolioDashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -36,9 +34,12 @@ export default function PortfolioDashboardPage() {
   useEffect(() => {
     if (!isClient) return;
 
+    console.log("PORTFOLIO_DASHBOARD: Attempting to load projects from localStorage.");
     const storedProjects = localStorage.getItem(PROJECTS_STORAGE_KEY);
     const loadedProjects = storedProjects ? JSON.parse(storedProjects) : initialMockProjects;
     setProjects(loadedProjects);
+    console.log("PORTFOLIO_DASHBOARD: Loaded projects:", loadedProjects.length);
+
 
     let allTasks: Task[] = [];
     loadedProjects.forEach((project: Project) => {
@@ -48,11 +49,12 @@ export default function PortfolioDashboardPage() {
         try {
           allTasks = allTasks.concat(JSON.parse(storedTasks));
         } catch (e) {
-          console.error(`Error parsing tasks for project ${project.id}`, e);
+          console.error(`PORTFOLIO_DASHBOARD: Error parsing tasks for project ${project.id}`, e);
         }
       }
     });
     setTasks(allTasks);
+    console.log("PORTFOLIO_DASHBOARD: Loaded total tasks:", allTasks.length);
     setIsLoading(false);
   }, [isClient]);
 
@@ -62,10 +64,10 @@ export default function PortfolioDashboardPage() {
   const toDoTasks = tasks.filter(task => task.status === 'To Do').length;
   const blockedTasks = tasks.filter(task => task.status === 'Blocked').length;
 
-  const overallProgress = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  const activeProjects = projects.filter(p => p.status === 'Active').length;
-  const completedProjects = projects.filter(p => p.status === 'Completed').length;
+  const activeProjectsCount = projects.filter(p => p.status === 'Active').length;
+  const completedProjectsCount = projects.filter(p => p.status === 'Completed').length;
 
   const getProjectHealth = (project: Project): { status: 'Healthy' | 'Warning' | 'Critical' | 'Unknown', message: string } => {
     const projectTasks = tasks.filter(t => t.projectId === project.id);
@@ -73,18 +75,32 @@ export default function PortfolioDashboardPage() {
     if (project.status === 'Completed') return { status: 'Healthy', message: 'Completed' };
     if (project.status === 'On Hold' || project.status === 'Archived') return { status: 'Unknown', message: project.status };
 
-    const overdueTasks = projectTasks.filter(t => t.startDate && new Date(t.startDate) < new Date() && t.status !== 'Done').length;
-    const highPriorityBlocked = projectTasks.filter(t => (t.priority === 'High' || t.priority === 'Medium') && t.status === 'Blocked').length;
+    const overdueTasks = projectTasks.filter(t => {
+      if (!t.startDate || !t.durationDays) return false;
+      try {
+        const dueDate = addDays(parseISO(t.startDate), t.durationDays -1); // -1 because duration includes start day
+        return dueDate < new Date() && t.status !== 'Done';
+      } catch {
+        return false;
+      }
+    }).length;
+    const highPriorityBlocked = projectTasks.filter(t => t.priority === 'High' && t.status === 'Blocked').length; // Assuming Task has 'priority'
 
-    if (highPriorityBlocked > 0 || overdueTasks > 3) return { status: 'Critical', message: `${highPriorityBlocked} critical blockage(s), ${overdueTasks} overdue` };
-    if (overdueTasks > 0 || projectTasks.some(t => t.status === 'Blocked')) return { status: 'Warning', message: `${overdueTasks} overdue, some blocked` };
+    if (highPriorityBlocked > 0 || overdueTasks > 3) return { status: 'Critical', message: `${highPriorityBlocked > 0 ? highPriorityBlocked + ' high priority blocked. ' : ''}${overdueTasks > 0 ? overdueTasks + ' overdue.' : ''}`.trim() };
+    if (overdueTasks > 0 || projectTasks.some(t => t.status === 'Blocked')) return { status: 'Warning', message: `${overdueTasks > 0 ? overdueTasks + ' overdue. ' : ''}${projectTasks.some(t => t.status === 'Blocked') ? 'Some tasks blocked.' : ''}`.trim() };
     return { status: 'Healthy', message: 'On track' };
+  };
+
+  const addDays = (date: Date, days: number): Date => {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
   };
 
 
   if (!isClient || isLoading) {
     return (
-      <div className="container mx-auto p-4">
+      <div className="container mx-auto">
         <PageHeader>
           <PageHeaderHeading><PieChart className="mr-2 inline-block h-7 w-7" /> Portfolio Dashboard</PageHeaderHeading>
           <PageHeaderDescription>Aggregated view of all your projects and tasks. Loading data...</PageHeaderDescription>
@@ -110,13 +126,13 @@ export default function PortfolioDashboardPage() {
           <CardContent>
             <div className="text-2xl font-bold">{projects.length}</div>
             <p className="text-xs text-muted-foreground">
-              {activeProjects} Active, {completedProjects} Completed
+              {activeProjectsCount} Active, {completedProjectsCount} Completed
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Overall Progress</CardTitle>
+            <CardTitle className="text-sm font-medium">Overall Task Progress</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -150,7 +166,7 @@ export default function PortfolioDashboardPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Projects Overview</CardTitle>
-            <ShadCnCardDescription>Current status of all projects.</ShadCnCardDescription>
+            <ShadCnCardDescription>Current status and health of all projects.</ShadCnCardDescription>
           </CardHeader>
           <CardContent>
             {projects.length > 0 ? (
@@ -161,15 +177,18 @@ export default function PortfolioDashboardPage() {
                     <li key={project.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                       <div className="flex items-center gap-3">
                         <span className={cn(
-                          "h-3 w-3 rounded-full",
+                          "h-3 w-3 rounded-full flex-shrink-0",
                           health.status === 'Healthy' && "bg-green-500",
                           health.status === 'Warning' && "bg-yellow-500",
                           health.status === 'Critical' && "bg-red-500",
                           health.status === 'Unknown' && "bg-gray-400"
                         )} title={health.message}></span>
-                        <Link href={`/projects/${project.id}`} className="font-medium hover:underline">
-                          {project.name}
-                        </Link>
+                        <div className="flex-grow">
+                          <Link href={`/projects/${project.id}`} className="font-medium hover:underline">
+                            {project.name}
+                          </Link>
+                           <p className="text-xs text-muted-foreground">{health.message}</p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline" className={cn("text-xs", projectStatusColors[project.status])}>
@@ -186,7 +205,7 @@ export default function PortfolioDashboardPage() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Briefcase className="mx-auto h-10 w-10 mb-2 opacity-50" />
-                No projects found. <Link href="/projects" className="text-primary hover:underline">Manage projects here.</Link>
+                No projects found. <Link href="/projects" className="text-primary hover:underline">Create or manage projects here.</Link>
               </div>
             )}
           </CardContent>
