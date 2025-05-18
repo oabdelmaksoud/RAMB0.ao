@@ -4,24 +4,24 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
   Briefcase,
   Activity,
   Users,
   Mail,
-  PieChart, // Changed from LayoutGrid
-  Settings, // Added for Admin Settings
+  PieChart,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: PieChart }, // Points to Portfolio Dashboard
+  { href: '/', label: 'Dashboard', icon: PieChart }, // Points to Portfolio Dashboard at root
   { href: '/projects', label: 'Projects', icon: Briefcase }, // Points to Project Management
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
   { href: '/resource-allocation', label: 'Resources', icon: Users },
   { href: '/personal-assistant', label: 'Assistant', icon: Mail },
+  // Admin Settings link is now directly in AppHeader
 ];
 
 export default function SidebarNav() {
@@ -33,20 +33,22 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              <Link href={item.href} passHref> {/* No asChild here */}
+              <Link href={item.href} passHref legacyBehavior>
                 <Button
                   variant="ghost"
+                  asChild
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    // Adjusted active check for root path specifically
-                    (pathname === item.href || (item.href === '/' && pathname === '/'))
+                    (pathname === item.href || (item.href === '/' && pathname === '/')) // Simplified active check
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                   aria-label={item.label}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span className="ml-2 hidden lg:inline">{item.label}</span>
+                  <a> {/* Explicit anchor for TooltipTrigger asChild and Link legacyBehavior */}
+                    <item.icon className="h-5 w-5" />
+                    <span className="ml-2 hidden lg:inline">{item.label}</span>
+                  </a>
                 </Button>
               </Link>
             </TooltipTrigger>
