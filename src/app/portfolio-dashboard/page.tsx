@@ -9,7 +9,7 @@ export default function PortfolioDashboardRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/');
+    router.replace('/'); // Redirect to the root, which is now the portfolio dashboard
   }, [router]);
 
   return (
