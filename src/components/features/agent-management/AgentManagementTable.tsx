@@ -1,4 +1,4 @@
-
+// src/components/features/agent-management/AgentManagementTable.tsx
 'use client';
 
 import type { Agent } from '@/types';
@@ -42,10 +42,13 @@ export default function AgentManagementTable({
   }, []);
 
   const formatDate = (dateString: string) => {
+    if (!isClient) return 'Processing...';
     try {
-      return format(parseISO(dateString), "MMM d, yyyy HH:mm");
+      const date = parseISO(dateString);
+      return format(date, "MMM d, yyyy HH:mm");
     } catch (error) {
-      return dateString; // Fallback if date is not ISO
+      // console.warn(`Error parsing date string: "${dateString}"`, error);
+      return dateString; // Fallback if date is not ISO or invalid
     }
   };
 
@@ -65,7 +68,7 @@ export default function AgentManagementTable({
           {agents.length === 0 && (
             <TableRow>
               <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                No agents configured yet.
+                No agents configured for this project.
               </TableCell>
             </TableRow>
           )}
@@ -79,7 +82,7 @@ export default function AgentManagementTable({
                 </Badge>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {isClient ? formatDate(agent.lastActivity) : 'Processing...'}
+                {formatDate(agent.lastActivity)}
               </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
