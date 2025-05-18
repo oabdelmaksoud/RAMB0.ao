@@ -19,13 +19,14 @@ import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Ticket, TicketStatus, TicketPriority, TicketType } from '@/types';
+import { ticketTypes, ticketPriorities, ticketStatuses } from '@/types'; // Import enums
 
 const ticketSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters").max(100, "Title must be 100 characters or less"),
   description: z.string().min(10, "Description must be at least 10 characters").max(1000, "Description must be 1000 characters or less"),
-  type: z.enum(['Bug', 'Feature Request', 'Support Request', 'Change Request'], { required_error: "Ticket type is required" }),
-  priority: z.enum(['High', 'Medium', 'Low'], { required_error: "Priority is required" }),
-  status: z.enum(['Open', 'In Progress', 'Resolved', 'Closed'], { required_error: "Status is required" }),
+  type: z.enum(ticketTypes as [TicketType, ...TicketType[]], { required_error: "Ticket type is required" }),
+  priority: z.enum(ticketPriorities as [TicketPriority, ...TicketPriority[]], { required_error: "Priority is required" }),
+  status: z.enum(ticketStatuses as [TicketStatus, ...TicketStatus[]], { required_error: "Status is required" }),
   assignee: z.string().optional(),
 });
 
@@ -37,10 +38,6 @@ interface EditTicketDialogProps {
   onOpenChange: (open: boolean) => void;
   onUpdateTicket: (ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'>) => void;
 }
-
-const ticketTypes: TicketType[] = ['Bug', 'Feature Request', 'Support Request', 'Change Request'];
-const ticketPriorities: TicketPriority[] = ['High', 'Medium', 'Low'];
-const ticketStatuses: TicketStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
 export default function EditTicketDialog({ ticketToEdit, open, onOpenChange, onUpdateTicket }: EditTicketDialogProps) {
   const form = useForm<TicketFormData>({
@@ -66,7 +63,7 @@ export default function EditTicketDialog({ ticketToEdit, open, onOpenChange, onU
         assignee: ticketToEdit.assignee || "",
       });
     } else if (!open && !form.formState.isSubmitSuccessful) {
-      form.reset({
+      form.reset({ // Reset to defaults if dialog is closed without submit, only if not submitted
         title: "",
         description: "",
         type: 'Bug',
@@ -84,16 +81,16 @@ export default function EditTicketDialog({ ticketToEdit, open, onOpenChange, onU
       assignee: data.assignee || undefined,
     };
     onUpdateTicket(ticketData);
-    // form.reset(); // Let parent handle closing and resetting editingTicket state
+    onOpenChange(false); // Close dialog after successful submission
   };
 
-  if (!ticketToEdit && open) return null; // Should not happen if open is true and ticketToEdit is null, but good practice
+  if (!ticketToEdit && open) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px] max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Edit Ticket: {ticketToEdit?.title}</DialogTitle>
+          <DialogTitle>Edit Ticket: {form.watch('title') || ticketToEdit?.title}</DialogTitle>
           <DialogDescription>
             Update the details for this ticket. Click save when you're done.
           </DialogDescription>
@@ -209,3 +206,4 @@ export default function EditTicketDialog({ ticketToEdit, open, onOpenChange, onU
     </Dialog>
   );
 }
+

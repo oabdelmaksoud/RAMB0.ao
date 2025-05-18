@@ -16,16 +16,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Ticket, TicketStatus, TicketPriority, TicketType } from '@/types';
+import { ticketTypes, ticketPriorities, ticketStatuses } from '@/types'; // Import enums
 
 const ticketSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters").max(100, "Title must be 100 characters or less"),
   description: z.string().min(10, "Description must be at least 10 characters").max(1000, "Description must be 1000 characters or less"),
-  type: z.enum(['Bug', 'Feature Request', 'Support Request', 'Change Request'], { required_error: "Ticket type is required" }),
-  priority: z.enum(['High', 'Medium', 'Low'], { required_error: "Priority is required" }),
-  status: z.enum(['Open', 'In Progress', 'Resolved', 'Closed'], { required_error: "Status is required" }),
+  type: z.enum(ticketTypes as [TicketType, ...TicketType[]], { required_error: "Ticket type is required" }),
+  priority: z.enum(ticketPriorities as [TicketPriority, ...TicketPriority[]], { required_error: "Priority is required" }),
+  status: z.enum(ticketStatuses as [TicketStatus, ...TicketStatus[]], { required_error: "Status is required" }),
   assignee: z.string().optional(),
 });
 
@@ -36,10 +37,6 @@ interface AddTicketDialogProps {
   onOpenChange: (open: boolean) => void;
   onAddTicket: (ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'>) => void;
 }
-
-const ticketTypes: TicketType[] = ['Bug', 'Feature Request', 'Support Request', 'Change Request']; // Updated 'Task' to 'Change Request'
-const ticketPriorities: TicketPriority[] = ['High', 'Medium', 'Low'];
-const ticketStatuses: TicketStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
 export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: AddTicketDialogProps) {
   const form = useForm<TicketFormData>({
@@ -61,6 +58,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
     };
     onAddTicket(ticketData);
     form.reset(); 
+    onOpenChange(false); // Close dialog after successful submission
   };
 
   React.useEffect(() => {
@@ -188,7 +186,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
             />
           </form>
         </Form>
-        <DialogFooter className="pt-4 border-t mt-auto">
+        <DialogFooter className="pt-4 mt-auto border-t">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button type="submit" form="addTicketForm">Add Ticket</Button>
         </DialogFooter>

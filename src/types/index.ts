@@ -64,6 +64,7 @@ export interface Task {
   parentId?: string | null;
   dependencies?: string[];
   description?: string;
+  isAiPlanned?: boolean; // New field
 }
 
 export interface ProjectFile {
@@ -93,7 +94,6 @@ export interface Requirement {
   version: string;
   createdDate: string; // ISO date string
   updatedDate: string; // ISO date string
-  // Future: linkedTasks?: string[]; linkedTests?: string[];
 }
 
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
