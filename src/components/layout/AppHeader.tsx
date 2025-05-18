@@ -57,7 +57,7 @@ export default function AppHeader() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/admin/settings" passHref asChild>
+              <Link href="/admin/settings" passHref>
                 <Button variant="ghost" size="icon" aria-label="Admin Settings">
                   <Settings className="h-5 w-5" />
                 </Button>
@@ -71,7 +71,7 @@ export default function AppHeader() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/profile" passHref asChild>
+              <Link href="/profile" passHref>
                 <Button variant="ghost" size="icon" aria-label="Profile">
                   <UserCircle className="h-5 w-5" />
                 </Button>

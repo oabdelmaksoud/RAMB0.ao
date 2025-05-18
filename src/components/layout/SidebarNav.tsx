@@ -6,18 +6,17 @@ import {
   LayoutDashboard,
   Briefcase,
   Activity,
-  Users, // Re-added for Resource Allocation
-  Settings, // For Admin Settings
-  UserCircle, // For Profile
-  Mail, // For Personal Assistant
+  Users,
+  Mail,
+  Settings,
+  UserCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard }, // Points to project overview
-  { href: '/projects', label: 'Projects', icon: Briefcase }, // Explicit projects management page
+  { href: '/', label: 'Projects', icon: Briefcase }, // Changed Dashboard to Projects, points to root
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
   { href: '/resource-allocation', label: 'Resources', icon: Users },
   { href: '/personal-assistant', label: 'Assistant', icon: Mail },
@@ -32,7 +31,7 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              <Link href={item.href} passHref asChild>
+              <Link href={item.href} passHref>
                 <Button
                   variant="ghost"
                   className={cn(
@@ -41,6 +40,7 @@ export default function SidebarNav() {
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
+                  aria-label={item.label}
                 >
                   <item.icon className="h-5 w-5" />
                   <span className="ml-2 hidden lg:inline">{item.label}</span>
