@@ -16,7 +16,7 @@ import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from "@/components/ui/form";
-import type { ProjectWorkflow } from '@/types';
+import type { ProjectWorkflow } from '@/types'; // Ensure Task is imported if used
 import { planProjectTask, type PlanProjectTaskInput, type PlanProjectTaskOutput, type WorkflowNode as AIWorkflowNode } from "@/ai/flows/plan-project-task-flow";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, CheckSquare, ListChecks, CalendarDays, Users, Clock3, Milestone, Brain, FolderGit2, AlertCircle, Settings, InfoIcon, BadgeCheck, RotateCcw } from "lucide-react";
@@ -29,7 +29,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const plannerSchema = z.object({
   userGoal: z.string().min(10, "Please describe your task goal in at least 10 characters.").max(1000, "Goal description is too long."),
-  selectedWorkflowId: z.string().optional(),
+  selectedWorkflowId: z.string().optional(), // This will now hold the ID
 });
 
 type PlannerFormData = z.infer<typeof plannerSchema>;
@@ -41,6 +41,7 @@ interface AITaskPlannerDialogProps {
   projectWorkflows: Array<{ id: string; name: string; description: string; nodes?: AIWorkflowNode[] }>;
   onTaskPlannedAndAccepted: (aiOutput: PlanProjectTaskOutput) => void;
   initialGoal?: string;
+  sourceTicketAssignee?: string; // Added for ticket context
 }
 
 const AI_SUGGESTION_OPTION_VALUE = "__AI_SUGGESTION_AS_IS__";
@@ -53,6 +54,7 @@ export default function AITaskPlannerDialog({
   projectWorkflows,
   onTaskPlannedAndAccepted,
   initialGoal,
+  sourceTicketAssignee,
 }: AITaskPlannerDialogProps) {
   const [isLoading, setIsLoading] = React.useState(false);
   const [aiSuggestion, setAiSuggestion] = React.useState<PlanProjectTaskOutput | null>(null);
@@ -86,17 +88,20 @@ export default function AITaskPlannerDialog({
     if (!modificationDetails) {
       setAiSuggestion(null);
     }
-    // Keep selectedWorkflowOverrideId as is for modifications, reset only for new plans
     if (!modificationDetails) {
         setSelectedWorkflowOverrideId(undefined); 
     }
     
     const formValues = form.getValues();
     let selectedWorkflowDetailForAI: PlanProjectTaskInput['selectedWorkflowDetail'] = undefined;
-    const currentSelectedWorkflowId = formValues.selectedWorkflowId;
+    // Use selectedWorkflowOverrideId if available and valid, otherwise use form's selectedWorkflowId
+    const effectiveSelectedWorkflowId = selectedWorkflowOverrideId && selectedWorkflowOverrideId !== AI_SUGGESTION_OPTION_VALUE && selectedWorkflowOverrideId !== NO_WORKFLOW_SELECTED_VALUE 
+                                        ? selectedWorkflowOverrideId 
+                                        : (formValues.selectedWorkflowId && formValues.selectedWorkflowId !== NO_WORKFLOW_SELECTED_VALUE ? formValues.selectedWorkflowId : undefined);
 
-    if (currentSelectedWorkflowId && currentSelectedWorkflowId !== NO_WORKFLOW_SELECTED_VALUE) {
-      const selectedWfObject = projectWorkflows.find(wf => wf.id === currentSelectedWorkflowId);
+
+    if (effectiveSelectedWorkflowId) {
+      const selectedWfObject = projectWorkflows.find(wf => wf.id === effectiveSelectedWorkflowId);
       if (selectedWfObject) {
         selectedWorkflowDetailForAI = {
           name: selectedWfObject.name,
@@ -112,6 +117,7 @@ export default function AITaskPlannerDialog({
         projectId,
         projectWorkflows: projectWorkflows.map(wf => ({ name: wf.name, description: wf.description })),
         selectedWorkflowDetail: selectedWorkflowDetailForAI,
+        sourceTicketAssignee: sourceTicketAssignee, // Pass this to the AI flow
         modificationRequest: modificationDetails?.request,
         previousPlan: modificationDetails?.previousPlan,
       };
@@ -128,7 +134,7 @@ export default function AITaskPlannerDialog({
       if (!Array.isArray(result.plannedTask.suggestedSubTasks)) {
         result.plannedTask.suggestedSubTasks = [];
       }
-      result.plannedTask.suggestedSubTasks = result.plannedTask.suggestedSubTasks.map(st => ({
+      result.plannedTask.suggestedSubTasks = (result.plannedTask.suggestedSubTasks || []).map(st => ({
         title: st.title || "Untitled Sub-task",
         assignedAgentType: st.assignedAgentType || "N/A",
         description: st.description || "No description."
@@ -159,29 +165,47 @@ export default function AITaskPlannerDialog({
 
   const handleRequestModification = () => {
     if (!aiSuggestion || !feedbackText.trim()) return;
-    prepareAndRunPlanner(form.getValues("userGoal"), { request: feedbackText, previousPlan: aiSuggestion });
+    const previousSuggestionForFlow: PlanProjectTaskOutput = { // Ensure correct type for previousPlan
+        plannedTask: {
+            ...aiSuggestion.plannedTask,
+            suggestedSubTasks: (aiSuggestion.plannedTask.suggestedSubTasks || []).map(st => ({
+                title: st.title || "Untitled Sub-task",
+                assignedAgentType: st.assignedAgentType || "N/A",
+                description: st.description || "No description."
+            }))
+        },
+        reasoning: aiSuggestion.reasoning,
+    };
+    prepareAndRunPlanner(form.getValues("userGoal"), { request: feedbackText, previousPlan: previousSuggestionForFlow });
     setFeedbackText("");
   };
 
   const handleAcceptAndAddTask = () => {
     if (aiSuggestion?.plannedTask) {
       let finalAssignedTo = aiSuggestion.plannedTask.assignedTo;
-      const userSelectedWorkflowForOverride = selectedWorkflowOverrideId; // Use the state variable directly
+      const userChoiceForWorkflow = selectedWorkflowOverrideId; // This holds the ID
 
-      if (userSelectedWorkflowForOverride && userSelectedWorkflowForOverride !== AI_SUGGESTION_OPTION_VALUE && userSelectedWorkflowForOverride !== NO_WORKFLOW_SELECTED_VALUE) {
-        const chosenWorkflow = projectWorkflows.find(wf => wf.id === userSelectedWorkflowForOverride);
+      if (userChoiceForWorkflow && userChoiceForWorkflow !== AI_SUGGESTION_OPTION_VALUE && userChoiceForWorkflow !== NO_WORKFLOW_SELECTED_VALUE) {
+        const chosenWorkflow = projectWorkflows.find(wf => wf.id === userChoiceForWorkflow);
         if (chosenWorkflow) {
           finalAssignedTo = chosenWorkflow.name;
         }
-      } else if (userSelectedWorkflowForOverride === NO_WORKFLOW_SELECTED_VALUE) {
-        finalAssignedTo = "AI Assistant to determine"; 
+      } else if (userChoiceForWorkflow === NO_WORKFLOW_SELECTED_VALUE) {
+        finalAssignedTo = "AI Assistant to determine"; // Or some other general placeholder
       }
+      // If AI_SUGGESTION_OPTION_VALUE or undefined, stick with aiSuggestion.plannedTask.assignedTo
 
       const taskOutputWithOverride: PlanProjectTaskOutput = {
         ...aiSuggestion,
         plannedTask: {
           ...aiSuggestion.plannedTask,
           assignedTo: finalAssignedTo || "AI Assistant to determine",
+          parentId: (aiSuggestion.plannedTask.parentId === "null" || aiSuggestion.plannedTask.parentId === "") ? null : aiSuggestion.plannedTask.parentId,
+          suggestedSubTasks: (aiSuggestion.plannedTask.suggestedSubTasks || []).map(st => ({
+            title: st.title || "Untitled Sub-task",
+            assignedAgentType: st.assignedAgentType || "N/A",
+            description: st.description || "No description."
+          }))
         }
       };
       onTaskPlannedAndAccepted(taskOutputWithOverride);
@@ -201,14 +225,14 @@ export default function AITaskPlannerDialog({
       onOpenChange(isOpen);
     }}>
       <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[800px] flex flex-col max-h-[90vh] overflow-hidden">
-        <DialogHeader>
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Plan New Task with AI</DialogTitle>
           <DialogDescription>
-            Describe your goal. Optionally, select an existing project workflow to guide the AI's planning.
+            Describe your goal. The AI will consider project workflows and suggest a plan.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-grow overflow-y-auto p-4 space-y-4">
+        <div className="flex-grow overflow-y-auto p-4 space-y-4"> {/* This div will scroll */}
           {!aiSuggestion && !isLoading && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} id="aiPlannerFormInternal" className="space-y-6">
@@ -217,15 +241,15 @@ export default function AITaskPlannerDialog({
                   name="userGoal"
                   render={({ field }) => (
                     <FormItem>
-                      <RHFFormLabel>What do you want to achieve?</RHFFormLabel>
+                      <RHFFormLabel>What task or goal do you want to achieve?</RHFFormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup'"
+                          placeholder="e.g., 'Implement user login with email and password', or 'Design the new homepage mockup and include ASPICE SYS.1 considerations'"
                           className="min-h-[100px] resize-y"
                           {...field}
                         />
                       </FormControl>
-                      <FormDescription>Be as specific or general as you like. The AI will consider your project's workflows.</FormDescription>
+                      <FormDescription>Be as specific or general as you like.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -235,7 +259,7 @@ export default function AITaskPlannerDialog({
                   name="selectedWorkflowId"
                   render={({ field }) => (
                     <FormItem>
-                      <RHFFormLabel>Guide AI with Workflow (Optional)</RHFFormLabel>
+                      <RHFFormLabel>Guide AI with Existing Workflow (Optional)</RHFFormLabel>
                       <Select
                         onValueChange={field.onChange}
                         value={field.value || NO_WORKFLOW_SELECTED_VALUE}
@@ -258,11 +282,12 @@ export default function AITaskPlannerDialog({
                           )}
                         </SelectContent>
                       </Select>
-                      <FormDescription>Selecting a workflow helps the AI align its plan and sub-tasks with that workflow's structure and agent types.</FormDescription>
+                      <FormDescription>Selecting a workflow helps AI align its plan with that workflow's structure and agent types.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+                 {/* Button moved to footer, form submitted via id */}
               </form>
             </Form>
           )}
@@ -293,7 +318,7 @@ export default function AITaskPlannerDialog({
                   <div>
                     <Label className="text-muted-foreground text-xs font-normal flex items-center mb-0.5"><ListChecks className="w-3.5 h-3.5 mr-1" />Status:</Label>
                     <div className="mt-0.5">
-                      <Badge variant="outline">{aiSuggestion.plannedTask.status || "N/A"}</Badge>
+                       <Badge variant="outline" className="font-normal">{aiSuggestion.plannedTask.status || "N/A"}</Badge>
                     </div>
                   </div>
                   <div>
@@ -341,9 +366,9 @@ export default function AITaskPlannerDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={AI_SUGGESTION_OPTION_VALUE}>Use AI's default assignee suggestion</SelectItem>
-                      <SelectItem value={NO_WORKFLOW_SELECTED_VALUE}>No specific workflow (Let AI/Manager decide team)</SelectItem>
+                      <SelectItem value={NO_WORKFLOW_SELECTED_VALUE}>No specific workflow (AI to determine team)</SelectItem>
                       {projectWorkflows.map(wf => (
-                        <SelectItem key={wf.id} value={wf.id}>
+                        <SelectItem key={wf.id} value={wf.id} >
                           {wf.name}
                           <span className="text-muted-foreground/70 text-xs ml-2">({wf.nodes?.length || 0} nodes)</span>
                         </SelectItem>
@@ -395,37 +420,26 @@ export default function AITaskPlannerDialog({
           )}
         </div>
 
-        <DialogFooter className="pt-4 border-t mt-auto"> {/* Ensure footer is not part of scrollable content */}
+        <DialogFooter className="pt-4 border-t flex-shrink-0"> {/* Footer not part of scrollable content */}
+          <Button variant="outline" onClick={() => { onOpenChange(false); }} disabled={isLoading}>
+            Cancel
+          </Button>
           {!aiSuggestion && (
-            <>
-              <Button variant="outline" onClick={() => { onOpenChange(false); }} disabled={isLoading}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                form="aiPlannerFormInternal"
-                disabled={isLoading || !form.formState.isValid || form.formState.isSubmitting}
-              >
-                {isLoading ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Brain className="mr-2 h-4 w-4" />
-                )}
-                Plan with AI
-              </Button>
-            </>
+            <Button
+              type="submit"
+              form="aiPlannerFormInternal" // Link to the form
+              disabled={isLoading || !form.formState.isValid || form.formState.isSubmitting}
+            >
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Brain className="mr-2 h-4 w-4" />
+              )}
+              Plan with AI
+            </Button>
           )}
           {aiSuggestion && (
             <>
-              <Button variant="outline" onClick={() => {
-                form.reset({ userGoal: form.getValues("userGoal"), selectedWorkflowId: form.getValues("selectedWorkflowId") }); 
-                setAiSuggestion(null);
-                setSelectedWorkflowOverrideId(undefined);
-                setFeedbackText("");
-                setIsLoading(false);
-              }} disabled={isLoading}>
-                Plan New / Clear
-              </Button>
               <Button 
                 onClick={handleRequestModification} 
                 disabled={isLoading || !feedbackText.trim()}

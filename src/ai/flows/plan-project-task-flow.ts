@@ -2,7 +2,8 @@
 'use server';
 /**
  * @fileOverview An AI agent that plans a project task based on user goals and project context,
- * potentially guided by a selected project workflow, and allows for iterative refinement based on user feedback.
+ * potentially guided by a selected project workflow or a source ticket's assignee,
+ * and allows for iterative refinement based on user feedback.
  *
  * - planProjectTask - A function that handles the task planning process.
  * - PlanProjectTaskInput - The input type for the planProjectTask function.
@@ -44,7 +45,7 @@ const PlannedTaskSchema = z.object({
   status: z.enum(['To Do', 'In Progress', 'Done', 'Blocked']).default('To Do').describe("The initial status of the task, typically 'To Do'."),
   assignedTo: z.string().default('AI Assistant to determine').describe('The suggested "Agent Workflow" or "Agent Team" for the task. If a specific workflow was selected by the user and provided in `selectedWorkflowDetail`, this should be its name. Otherwise, it should be an existing project workflow name or a conceptual name for a new workflow/team (e.g., "New Feature Rollout Workflow"). DO NOT assign to individual agent types like "Analysis Agent".'),
   startDate: z.string().default(format(new Date(), 'yyyy-MM-dd')).describe("The suggested start date for the task, in YYYY-MM-DD format. Defaults to today's date."),
-  durationDays: z.number().int().min(0).default(1).describe('The estimated duration of the task in days, assuming AI agents are performing the work. For milestones, this should be 0. For other tasks, must be at least 1.'),
+  durationDays: z.number().int().min(0).default(1).describe('CRITICAL: Estimate a reasonable duration in days assuming AI AGENTS are performing ALL the work. This is NOT an estimate for human engineers. For milestones, this should be 0. For other tasks, must be at least 1.'),
   progress: z.number().int().min(0).max(100).default(0).describe('The initial progress of the task, as a percentage from 0 to 100. Defaults to 0. For milestones, 0 unless status is Done (then 100).'),
   isMilestone: z.boolean().default(false).describe('Whether this task should be considered a project milestone. Defaults to false.'),
   parentId: z.string().nullable().default(null).describe('The ID of a parent task, if this is a subtask. Defaults to null.'),
@@ -54,7 +55,7 @@ const PlannedTaskSchema = z.object({
 
 const PlanProjectTaskOutputSchema = z.object({
   plannedTask: PlannedTaskSchema.describe('The structured task details planned by the AI.'),
-  reasoning: z.string().describe('A concise (2-5 sentences max) explanation from the AI on how it derived the task plan. This MUST include: 1. Its choice for "assignedTo" (workflow/team). 2. How the "durationDays" was estimated based on AI AGENT execution speed. 3. If `selectedWorkflowDetail` was used, how its node structure influenced the `suggestedSubTasks` (agent types and sequence). If modifying a previous plan, explain the changes made based on feedback.'),
+  reasoning: z.string().describe('A CONCISE (2-5 sentences max) explanation from the AI on how it derived the task plan. This MUST include: 1. Its choice for "assignedTo" (workflow/team). 2. How the "durationDays" was estimated based on AI AGENT execution speed. 3. If `selectedWorkflowDetail` was used, how its node structure influenced the `suggestedSubTasks` (agent types and sequence). If modifying a previous plan, explain the changes made based on feedback.'),
 });
 export type PlanProjectTaskOutput = z.infer<typeof PlanProjectTaskOutputSchema>;
 
@@ -64,6 +65,7 @@ const PlanProjectTaskInputSchema = z.object({
   projectId: z.string().describe('The ID of the project for which the task is being planned.'),
   projectWorkflows: z.array(WorkflowInfoSchema).describe('A list of ALL existing workflows in the project, providing general context on established processes.'),
   selectedWorkflowDetail: SelectedWorkflowDetailSchema.optional().describe("Details of a specific project workflow explicitly selected by the user to guide the task planning. If provided, the AI should try to align its plan with this workflow's structure, especially its agent nodes."),
+  sourceTicketAssignee: z.string().optional().describe("The assignee of the source ticket, if this task is being planned from a ticket. This provides a hint for the task's 'assignedTo' field."),
   modificationRequest: z.string().optional().describe("User's feedback or request to modify a previous plan."),
   previousPlan: PlanProjectTaskOutputSchema.optional().describe("The previous plan (including its plannedTask and reasoning) that the user wants to modify."),
 });
@@ -86,6 +88,9 @@ Project ID: {{{projectId}}}
 {{#if modificationRequest}}
 You are refining a PREVIOUS PLAN based on user feedback.
 Original User's Goal: "{{{userGoal}}}"
+{{#if sourceTicketAssignee}}
+This task originated from a ticket assigned to: "{{sourceTicketAssignee}}". Consider this for the refined assignment.
+{{/if}}
 
 Previous AI Plan was:
 Title: "{{{previousPlan.plannedTask.title}}}"
@@ -117,6 +122,9 @@ Your NEW 'reasoning' (2-5 sentences max) MUST explain the changes made to the pl
 Your role is to help plan a new main task for a project based on a user's stated goal and available project context.
 User's Goal:
 "{{{userGoal}}}"
+{{#if sourceTicketAssignee}}
+This task is being planned based on a ticket originally assigned to: "{{sourceTicketAssignee}}". Consider this assignee when determining the 'assignedTo' field for the task.
+{{/if}}
 {{/if}}
 
 {{#if selectedWorkflowDetail}}
@@ -152,15 +160,18 @@ Main Task Details to Generate (plannedTask object):
 - assignedTo:
   {{#if selectedWorkflowDetail}}
     {{#if modificationRequest}}
-    - Re-evaluate based on feedback. If still appropriate, use "{{selectedWorkflowDetail.name}}". If feedback suggests a different assignment or if the original plan didn't use this workflow and feedback doesn't point to it, determine the most appropriate 'Agent Workflow' or 'Agent Team' (existing or conceptual).
+    - Re-evaluate based on feedback. If still appropriate, use "{{selectedWorkflowDetail.name}}". If feedback suggests a different assignment or if the original plan didn't use this workflow and feedback doesn't point to it, determine the most appropriate 'Agent Workflow' or 'Agent Team' (existing or conceptual), considering the 'sourceTicketAssignee' if provided.
     {{else}}
     - **MUST be "{{selectedWorkflowDetail.name}}"** as per the user's selection to guide initial planning.
     {{/if}}
   {{else}}
   {{! When no specific workflow is selected by user }}
   - Determine the most appropriate 'Agent Workflow' or 'Agent Team' for this task based on the user's goal and general project workflows.
-  - If the user's goal strongly aligns with one of the 'Available Project Workflows' (general list), assign the task directly to the **name of that existing project workflow**.
-  - If the user's goal does NOT clearly align with an existing workflow, suggest a **conceptual name for a new workflow or an agent team** (e.g., "Urgent Bugfix Team", "New Feature Rollout Workflow").
+  {{#if sourceTicketAssignee}}
+  - **Consider the 'sourceTicketAssignee' ("{{sourceTicketAssignee}}") strongly.** If it refers to an existing workflow name, use that. If it refers to a team or agent type, try to map it to an existing project workflow or suggest a conceptual workflow/team name.
+  {{/if}}
+  - If the user's goal (and potentially 'sourceTicketAssignee') strongly aligns with one of the 'Available Project Workflows' (general list), assign the task directly to the **name of that existing project workflow**.
+  - If the user's goal does NOT clearly align with an existing workflow, suggest a **conceptual name for a new workflow or an agent team** (e.g., "Urgent Bugfix Team", "New Feature Rollout Workflow", "SDP Generation Workflow").
   - **IMPORTANT: Do NOT assign this task to an individual agent type (like 'Analysis Agent'). Always assign to a workflow name (existing or conceptual) or a conceptual team name.** Use "AI Assistant to determine" ONLY as a last resort if no specific workflow or team concept fits.
   {{/if}}
 - startDate: Suggest a start date. Default to today's date: ${format(new Date(), 'yyyy-MM-dd')}.
@@ -185,6 +196,8 @@ Provide a **CONCISE (2-5 sentences max) explanation** of your thought process fo
     {{#if selectedWorkflowDetail}}
     - If the plan uses '{{selectedWorkflowDetail.name}}', explain how the user's goal was mapped to this workflow.
     - **Crucially, explain how its nodes (if provided and used) influenced the 'suggestedSubTasks' (agent types and sequence).**
+    {{else if sourceTicketAssignee}}
+    - Explain how '{{sourceTicketAssignee}}' influenced your 'assignedTo' choice. If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit. If a new conceptual workflow/team name was suggested, explain the rationale.
     {{else}}
     - If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit.
     - If a new conceptual workflow/team name was suggested, explain the rationale for the name and its suitability for the user's goal.
@@ -217,11 +230,10 @@ const planProjectTaskFlow = ai.defineFlow(
   },
   async (input) => {
     console.log("PLAN_PROJECT_TASK_FLOW: Received input:", JSON.stringify(input, null, 2));
-    const { output } = await prompt(input);
+    const {output} = await prompt(input);
     
     if (!output || !output.plannedTask) { 
       console.error("PLAN_PROJECT_TASK_FLOW: AI output was null or plannedTask was missing. Input:", input);
-      // Construct a fallback error response that matches the schema
       return {
         plannedTask: {
           title: "Error: AI Planning Failed",
@@ -248,6 +260,14 @@ const planProjectTaskFlow = ai.defineFlow(
     if (!plannedTask.assignedTo || plannedTask.assignedTo.trim() === "") {
         if (input.selectedWorkflowDetail && input.selectedWorkflowDetail.name) {
             plannedTask.assignedTo = input.selectedWorkflowDetail.name;
+        } else if (input.sourceTicketAssignee && input.sourceTicketAssignee.trim() !== "" && input.sourceTicketAssignee.trim().toLowerCase() !== "unassigned") {
+            // Attempt to map ticket assignee to a workflow or use it as a conceptual team
+            const matchingWorkflow = input.projectWorkflows.find(wf => wf.name.toLowerCase() === input.sourceTicketAssignee!.toLowerCase());
+            if (matchingWorkflow) {
+                plannedTask.assignedTo = matchingWorkflow.name;
+            } else {
+                plannedTask.assignedTo = `${input.sourceTicketAssignee} Team`; // Conceptual team
+            }
         } else {
             plannedTask.assignedTo = 'AI Assistant to determine';
         }
@@ -255,11 +275,11 @@ const planProjectTaskFlow = ai.defineFlow(
     
     plannedTask.startDate = plannedTask.startDate || format(new Date(), 'yyyy-MM-dd');
     try {
-        if (!isValid(parseISO(plannedTask.startDate))) {
+        const parsedDate = parseISO(plannedTask.startDate);
+        if (!isValid(parsedDate)) {
             plannedTask.startDate = format(new Date(), 'yyyy-MM-dd');
         } else {
-           // Ensure it's formatted correctly if it was valid
-           plannedTask.startDate = format(parseISO(plannedTask.startDate), 'yyyy-MM-dd');
+           plannedTask.startDate = format(parsedDate, 'yyyy-MM-dd');
         }
     } catch (e) {
         plannedTask.startDate = format(new Date(), 'yyyy-MM-dd');
@@ -272,7 +292,7 @@ const planProjectTaskFlow = ai.defineFlow(
         plannedTask.progress = plannedTask.status === 'Done' ? 100 : 0;
     } else {
         plannedTask.durationDays = (plannedTask.durationDays === undefined || plannedTask.durationDays < 1) ? 1 : Math.max(1, plannedTask.durationDays);
-        plannedTask.progress = plannedTask.progress !== undefined ? Math.min(100, Math.max(0, plannedTask.progress)) : 0;
+        plannedTask.progress = plannedTask.progress !== undefined ? Math.min(100, Math.max(0, Number(plannedTask.progress) || 0 )) : 0;
     }
     
     if (plannedTask.parentId === "null" || plannedTask.parentId === "") {
@@ -298,4 +318,3 @@ const planProjectTaskFlow = ai.defineFlow(
     return output!;
   }
 );
-
