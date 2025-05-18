@@ -24,6 +24,158 @@ model User {
   updatedAt DateTime @updatedAt
   isDeleted Boolean  @default(false)
   deletedAt DateTime?
+  projects  Project[]
+  tasks     Task[]
+  files     File[]
 
   @@map("users")
+}
+
+model Project {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  status      String     @default("PLANNING")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  isDeleted   Boolean    @default(false)
+  deletedAt   DateTime?
+  owner       User       @relation(fields: [ownerId], references: [id])
+  ownerId     String
+  tasks       Task[]
+  workflows   Workflow[]
+  files       File[]
+
+  @@map("projects")
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String?
+  status      String     @default("TODO") @validate(regex: "TODO|IN_PROGRESS|BLOCKED|DONE|ARCHIVED")
+  priority    Int        @default(3)
+  dueDate     DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  isDeleted   Boolean    @default(false)
+  deletedAt   DateTime?
+  project     Project    @relation(fields: [projectId], references: [id])
+  projectId   String
+  assignee    User?      @relation(fields: [assigneeId], references: [id])
+  assigneeId  String?
+  workflow    Workflow?  @relation(fields: [workflowId], references: [id])
+  workflowId  String?
+  agent       Agent?     @relation(fields: [agentId], references: [id])
+  agentId     String?
+  logs        TaskLog[]
+
+  @@map("tasks")
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([workflowId])
+  @@index([status])
+  @@index([isDeleted])
+}
+
+model Workflow {
+  id          String     @id @default(cuid())
+  name        String
+  description String?
+  status      String     @default("DRAFT")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  isDeleted   Boolean    @default(false)
+  deletedAt   DateTime?
+  project     Project    @relation(fields: [projectId], references: [id])
+  projectId   String
+  tasks       Task[]
+  nodes       WorkflowNode[]
+  edges       WorkflowEdge[]
+
+  @@map("workflows")
+}
+
+model WorkflowNode {
+  id        String   @id @default(cuid())
+  type      String
+  config    Json
+  workflow  Workflow @relation(fields: [workflowId], references: [id])
+  workflowId String
+  edgesOut  WorkflowEdge[] @relation("edgesOut")
+  edgesIn   WorkflowEdge[] @relation("edgesIn")
+
+  @@map("workflow_nodes")
+}
+
+model WorkflowEdge {
+  id        String   @id @default(cuid())
+  condition String?
+  fromNode  WorkflowNode @relation("edgesOut", fields: [fromNodeId], references: [id])
+  fromNodeId String
+  toNode    WorkflowNode @relation("edgesIn", fields: [toNodeId], references: [id])
+  toNodeId   String
+  workflow  Workflow @relation(fields: [workflowId], references: [id])
+  workflowId String
+
+  @@map("workflow_edges")
+}
+
+model File {
+  id        String   @id @default(cuid())
+  name      String
+  path      String
+  size      Int
+  type      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+  deletedAt DateTime?
+  project   Project? @relation(fields: [projectId], references: [id])
+  projectId String?
+  owner     User     @relation(fields: [ownerId], references: [id])
+  ownerId   String
+
+  @@map("files")
+}
+
+model TaskLog {
+  id        String   @id @default(cuid())
+  message   String
+  level     String
+  data      Json?
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    String
+
+  @@map("task_logs")
+}
+
+model Agent {
+  id          String     @id @default(cuid())
+  name        String
+  type        String
+  config      Json
+  status      String     @default("INACTIVE")
+  lastPing    DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  isDeleted   Boolean    @default(false)
+  deletedAt   DateTime?
+  tasks       Task[]
+  logs        AgentLog[]
+
+  @@map("agents")
+}
+
+model AgentLog {
+  id        String   @id @default(cuid())
+  message   String
+  level     String
+  data      Json?
+  createdAt DateTime @default(now())
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  agentId   String
+
+  @@map("agent_logs")
 }
