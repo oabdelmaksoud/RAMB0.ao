@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, Calendar, Briefcase, Sparkles, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, Calendar, Briefcase, Sparkles, ExternalLink, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface MockItem {
@@ -232,9 +232,9 @@ export default function PersonalAssistantPage() {
                       <p className="text-xs text-muted-foreground mt-1">
                         Related to: <span className="italic">"{action.relatedItem}"</span>
                       </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                      <div className="text-xs text-muted-foreground mt-0.5">
                         Priority: <Badge variant={action.priority === 'High' ? 'destructive' : 'secondary'} className="text-xs">{action.priority}</Badge>
-                      </p>
+                      </div>
                       <Button size="xs" variant="outline" className="mt-2 text-xs" onClick={() => handleCreateTaskFromAction(action)}>
                         <ExternalLink className="mr-1 h-3 w-3" /> Create Task (Planner)
                       </Button>
