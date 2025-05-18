@@ -25,14 +25,15 @@ export const mockProjectTemplates: ProjectTemplate[] = [
     ],
     initialFiles: [
       { name: 'docs', type: 'folder', children: [
-        { name: 'README.md', type: 'file' },
-        { name: 'CONTRIBUTING.md', type: 'file' },
+        { name: 'README.md', type: 'file', content: '# Project Readme\n\nThis is a placeholder README file.' },
+        { name: 'CONTRIBUTING.md', type: 'file', content: '# Contributing Guidelines\n\n...' },
       ]},
       { name: 'src', type: 'folder', children: [
-        { name: 'main.ts', type: 'file' },
+        { name: 'main.ts', type: 'file', content: '// Main application entry point\nconsole.log("Hello, World!");' },
+        { name: 'utils.ts', type: 'file', content: '// Utility functions\nexport const greet = (name: string) => `Hello, ${name}!`;' },
       ]},
       { name: 'tests', type: 'folder', children: [] },
-      { name: '.gitignore', type: 'file' },
+      { name: '.gitignore', type: 'file', content: 'node_modules\n.env\n.next\nout\n*.log' },
     ],
   },
   {
@@ -48,13 +49,16 @@ export const mockProjectTemplates: ProjectTemplate[] = [
     ],
     initialFiles: [
       { name: 'strategy', type: 'folder', children: [
-        { name: 'CampaignBrief.docx', type: 'file' },
+        { name: 'CampaignBrief.docx', type: 'file', content: 'This is a mock campaign brief document.' },
       ]},
       { name: 'assets', type: 'folder', children: [
         { name: 'images', type: 'folder', children: [] },
         { name: 'videos', type: 'folder', children: [] },
+        { name: 'copywriting', type: 'folder', children: [
+            { name: 'social_media_posts.txt', type: 'file', content: 'Draft posts for social media.'}
+        ] },
       ]},
-      { name: 'reports', type: 'folder', children: [] },
-    ],
-  },
-];
+      { name: 'reports', type: 'folder', children: [] }, // Completed the 'reports' folder object
+    ], // Closes initialFiles array for marketing campaign
+  }, // Closes marketing campaign template object
+]; // Closes mockProjectTemplates array

@@ -69,6 +69,7 @@ export interface ProjectFile {
   name: string;
   type: 'file' | 'folder';
   path: string; // e.g., "/" or "/documents/"
+  content?: string; // For file content
   size?: string; // e.g., "1.2 MB", "500 KB"
   lastModified?: string; // ISO date string or human-readable
   children?: ProjectFile[];
@@ -91,7 +92,7 @@ export interface Requirement {
 
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
 export type TicketPriority = 'High' | 'Medium' | 'Low';
-export type TicketType = 'Bug' | 'Feature Request' | 'Support Request' | 'Change Request'; // Changed 'Task' to 'Change Request'
+export type TicketType = 'Bug' | 'Feature Request' | 'Support Request' | 'Change Request';
 
 export interface Ticket {
   id: string;
@@ -112,5 +113,5 @@ export interface ProjectTemplate {
   name: string;
   description: string;
   initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId'>>>;
-  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' > & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>> }>;
+  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' > & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content?: string }>;
 }

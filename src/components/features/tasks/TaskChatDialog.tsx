@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Task } from '@/types';
 import {
   Dialog,
@@ -14,8 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Bot, User, Loader2, Paperclip, FileText, Code } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Added Card imports
+import { Bot, User, Loader2, FileText, Code, Paperclip } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { taskChatFlow, type TaskChatInput, type TaskChatOutput } from '@/ai/flows/task-chat-flow';
 import { useToast } from '@/hooks/use-toast';
@@ -58,7 +59,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
         {
           id: `agent-plan-review-${Date.now() + 1}`,
           sender: 'agent',
-          text: `I'm reviewing the plan:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions?`,
+          text: `I'm reviewing the plan, which includes:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions?`,
           timestamp: new Date(Date.now() + 1),
           simulatedAction: "Reviewing task plan...",
         }
@@ -84,7 +85,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
     }
   }, [messages]);
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() || !task || isAgentReplying) return;
 
     const userMessageText = newMessage.trim();
@@ -98,20 +99,19 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
     setMessages((prevMessages) => [...prevMessages, userMessage]);
     setNewMessage('');
     setIsAgentReplying(true);
-    setCurrentSimulatedAction("Agent is thinking...");
-    // Keep previous file context unless explicitly cleared or updated by AI
-    // setCurrentFileContext(null); 
+    setCurrentSimulatedAction("Agent is thinking..."); // Default action while waiting
+    setCurrentFileContext(null); // Clear previous file context
 
     try {
       const flowInput: TaskChatInput = {
         taskId: task.id,
-        taskTitle: task.title,
+        taskTitle: task.title || "Untitled Task",
         taskDescription: task.description || "No description provided.",
         taskStatus: task.status,
         userMessage: userMessageText,
       };
       
-      console.log("TASK_CHAT_DIALOG: Sending to taskChatFlow:", JSON.stringify(flowInput, null, 2));
+      console.log("TASK_CHAT_DIALOG: Sending to taskChatFlow with input:", JSON.stringify(flowInput, null, 2));
       const result: TaskChatOutput = await taskChatFlow(flowInput);
       console.log("TASK_CHAT_DIALOG: Received from taskChatFlow:", JSON.stringify(result, null, 2));
       
@@ -127,6 +127,13 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
       setCurrentSimulatedAction(result.simulatedAction || "Awaiting your input...");
       if (result.fileContextUpdate) {
         setCurrentFileContext(result.fileContextUpdate);
+      } else {
+        // If no specific file update, decide if we should clear the file viewer
+        // For now, let's not clear it automatically unless the action implies it.
+        // Or, we could clear it if the simulated action isn't file-related.
+        if (result.simulatedAction && !result.simulatedAction.toLowerCase().includes('file') && !result.simulatedAction.toLowerCase().includes('code')) {
+          // setCurrentFileContext(null); // Optional: clear file viewer if action is unrelated
+        }
       }
 
     } catch (error) {
@@ -146,62 +153,28 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
       });
     } finally {
       setIsAgentReplying(false);
-      if(currentSimulatedAction?.startsWith("Agent is thinking...")) {
-         setCurrentSimulatedAction(prev => (prev && prev.startsWith("Agent is thinking...")) ? "Awaiting your input..." : prev);
+      // Only update simulatedAction if it was "Agent is thinking..." to avoid overwriting specific actions
+      if (currentSimulatedAction?.includes("Agent is thinking...")) {
+         setCurrentSimulatedAction(prev => (prev && prev.includes("Agent is thinking...")) ? "Awaiting your input..." : prev);
       }
     }
-  };
+  }, [newMessage, task, isAgentReplying, toast, currentSimulatedAction]); // Added currentSimulatedAction
 
   if (!task) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[900px] flex flex-col h-[85vh] max-h-[700px]">
+      <DialogContent className="sm:max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[1000px] flex flex-col h-[85vh] max-h-[750px]">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Agent Workspace: {task.title || "Untitled Task"}</DialogTitle>
           <DialogDescription>
-            Task Status: {task.status}. Assigned to: {task.assignedTo}.
+            Task Status: {task.status}. Assigned to: {task.assignedTo}. Interact with the AI agent below.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-grow grid grid-cols-1 md:grid-cols-3 gap-4 overflow-hidden p-1">
-          {/* Left Pane: Mock File Explorer & Editor */}
-          <div className="md:col-span-1 flex flex-col gap-4 overflow-y-auto border-r pr-2">
-            <Card className="flex-shrink-0">
-              <CardHeader className="p-3">
-                <CardTitle className="text-sm flex items-center"><Paperclip className="mr-2 h-4 w-4" /> Project Files (Mock)</CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 text-xs text-muted-foreground min-h-[100px]">
-                <p>_src/</p>
-                <p className="pl-4">_components/</p>
-                <p className="pl-4">_main_controller.py</p>
-                <p>_docs/</p>
-                <p className="pl-4">_requirements.md</p>
-                <p className="pl-4">_sdp_document.md {currentFileContext?.fileName === 'sdp_document.md (Draft)' || currentFileContext?.fileName === 'sdp_document.md' ? <Badge variant="outline" className="ml-1 text-green-600 border-green-500">Active</Badge> : ''}</p>
-                <p>_README.md</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="flex-grow flex flex-col min-h-[200px]">
-              <CardHeader className="p-3">
-                <CardTitle className="text-sm flex items-center">
-                  {currentFileContext?.fileName ? <FileText className="mr-2 h-4 w-4" /> : <Code className="mr-2 h-4 w-4" />}
-                  {currentFileContext?.fileName || "Simulated File Viewer"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0 flex-grow">
-                <Textarea
-                  readOnly
-                  value={currentFileContext?.content || "// AI can simulate opening/editing files here.\n// Example: 'Show me the sdp_document.md' or 'Draft the API specification.'"}
-                  className="h-full w-full resize-none border-0 rounded-none font-mono text-xs bg-muted/30"
-                  placeholder="File content will appear here..."
-                />
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Right Pane: Chat Area */}
-          <div className="md:col-span-2 flex flex-col overflow-hidden">
+          {/* Chat Area (Left or Main on mobile) */}
+          <div className="md:col-span-2 flex flex-col overflow-hidden h-full">
             <ScrollArea className="flex-grow border rounded-md p-0" ref={scrollAreaRef}>
               <div className="p-4 space-y-4">
                 {messages.map((msg) => (
@@ -262,7 +235,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
 
             <div className="mt-2 pt-2 flex items-center gap-2 border-t">
               <Textarea
-                placeholder="Type your message or command..."
+                placeholder="Type your message or command (e.g., 'start', 'generate code for X')..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={(e) => {
@@ -271,8 +244,8 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
                     handleSendMessage();
                   }
                 }}
-                rows={1}
-                className="min-h-[40px] resize-none flex-grow"
+                rows={2}
+                className="min-h-[60px] resize-none flex-grow"
                 disabled={isAgentReplying}
               />
               <Button onClick={handleSendMessage} disabled={!newMessage.trim() || isAgentReplying}>
@@ -280,10 +253,30 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
               </Button>
             </div>
           </div>
+
+          {/* Simulated File Viewer (Right or Below on mobile) */}
+          <div className="md:col-span-1 flex flex-col min-h-0 h-full">
+            <Card className="flex-grow flex flex-col">
+              <CardHeader className="p-3">
+                <CardTitle className="text-sm flex items-center">
+                  {currentFileContext?.fileName ? <FileText className="mr-2 h-4 w-4" /> : <Code className="mr-2 h-4 w-4" />}
+                  {currentFileContext?.fileName || "Simulated File Viewer"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 flex-grow">
+                <Textarea
+                  readOnly
+                  value={currentFileContext?.content || "// AI can simulate opening/editing/generating files here.\n// Example: 'Show me the sdp_document.md' or 'Generate a Python function to add two numbers.'"}
+                  className="h-full w-full resize-none border-0 rounded-none font-mono text-xs bg-muted/30"
+                  placeholder="File content or generated code will appear here..."
+                />
+              </CardContent>
+            </Card>
+          </div>
         </div>
         
         <DialogFooter className="mt-2 pt-3 border-t flex-shrink-0">
-          <div className="text-xs text-muted-foreground w-full">
+          <div className="text-xs text-muted-foreground w-full flex-grow mr-auto">
             Agent Status: <span className="font-medium text-foreground">{currentSimulatedAction || "Awaiting your input..."}</span>
           </div>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close Workspace</Button>
