@@ -8,17 +8,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter, // Added DialogFooter
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Bot, User, Loader2, Paperclip, FileText, Code } from 'lucide-react'; // Added icons
+import { Bot, User, Loader2, Paperclip, FileText, Code } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Added Card imports
 import { cn } from '@/lib/utils';
 import { taskChatFlow, type TaskChatInput, type TaskChatOutput } from '@/ai/flows/task-chat-flow';
 import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
 
 interface TaskChatDialogProps {
   open: boolean;
@@ -58,7 +58,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
         {
           id: `agent-plan-review-${Date.now() + 1}`,
           sender: 'agent',
-          text: `I'm reviewing the plan:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions or questions?`,
+          text: `I'm reviewing the plan:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions?`,
           timestamp: new Date(Date.now() + 1),
           simulatedAction: "Reviewing task plan...",
         }
@@ -98,8 +98,9 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
     setMessages((prevMessages) => [...prevMessages, userMessage]);
     setNewMessage('');
     setIsAgentReplying(true);
-    setCurrentSimulatedAction("Agent is thinking..."); // Update status bar
-    setCurrentFileContext(null); // Clear previous file context
+    setCurrentSimulatedAction("Agent is thinking...");
+    // Keep previous file context unless explicitly cleared or updated by AI
+    // setCurrentFileContext(null); 
 
     try {
       const flowInput: TaskChatInput = {
@@ -110,12 +111,14 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
         userMessage: userMessageText,
       };
       
+      console.log("TASK_CHAT_DIALOG: Sending to taskChatFlow:", JSON.stringify(flowInput, null, 2));
       const result: TaskChatOutput = await taskChatFlow(flowInput);
+      console.log("TASK_CHAT_DIALOG: Received from taskChatFlow:", JSON.stringify(result, null, 2));
       
       const agentReply: ChatMessage = {
         id: `agent-${Date.now()}`,
         sender: 'agent',
-        text: result.agentResponse,
+        text: result.agentResponse || "I'm not sure how to respond to that.",
         timestamp: new Date(),
         simulatedAction: result.simulatedAction,
         thinkingProcess: result.thinkingProcess,
@@ -143,9 +146,8 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
       });
     } finally {
       setIsAgentReplying(false);
-      if(!currentSimulatedAction?.startsWith("Agent is thinking...")) {
-        // If AI didn't provide a new action, revert to a waiting state message
-         setCurrentSimulatedAction(prev => prev && prev.startsWith("Agent is thinking...") ? "Awaiting your input..." : prev);
+      if(currentSimulatedAction?.startsWith("Agent is thinking...")) {
+         setCurrentSimulatedAction(prev => (prev && prev.startsWith("Agent is thinking...")) ? "Awaiting your input..." : prev);
       }
     }
   };
@@ -156,7 +158,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] md:max-w-[750px] lg:max-w-[900px] flex flex-col h-[85vh] max-h-[700px]">
         <DialogHeader className="flex-shrink-0">
-          <DialogTitle>Agent Workspace: {task.title}</DialogTitle>
+          <DialogTitle>Agent Workspace: {task.title || "Untitled Task"}</DialogTitle>
           <DialogDescription>
             Task Status: {task.status}. Assigned to: {task.assignedTo}.
           </DialogDescription>
@@ -175,7 +177,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
                 <p className="pl-4">_main_controller.py</p>
                 <p>_docs/</p>
                 <p className="pl-4">_requirements.md</p>
-                <p className="pl-4">_sdp_document.md {currentFileContext?.fileName === 'sdp_document.md (Draft)' ? <Badge variant="outline" className="ml-1 text-green-600 border-green-500">Drafting</Badge> : ''}</p>
+                <p className="pl-4">_sdp_document.md {currentFileContext?.fileName === 'sdp_document.md (Draft)' || currentFileContext?.fileName === 'sdp_document.md' ? <Badge variant="outline" className="ml-1 text-green-600 border-green-500">Active</Badge> : ''}</p>
                 <p>_README.md</p>
               </CardContent>
             </Card>
@@ -190,7 +192,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
               <CardContent className="p-0 flex-grow">
                 <Textarea
                   readOnly
-                  value={currentFileContext?.content || "// Click on a file or ask AI to open/edit one (simulated).\n// Example: 'Show me the sdp_document.md'"}
+                  value={currentFileContext?.content || "// AI can simulate opening/editing files here.\n// Example: 'Show me the sdp_document.md' or 'Draft the API specification.'"}
                   className="h-full w-full resize-none border-0 rounded-none font-mono text-xs bg-muted/30"
                   placeholder="File content will appear here..."
                 />
