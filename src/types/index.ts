@@ -96,25 +96,23 @@ export interface ProjectFile {
   children?: ProjectFile[];
 }
 
-// Requirements are now managed as ProjectFile objects within a specific structure
-// The old Requirement type is removed to avoid confusion.
-// export type RequirementStatus = 'Draft' | 'Under Review' | 'Approved' | 'Implemented' | 'Obsolete' | 'Rejected';
-// export const requirementStatuses: RequirementStatus[] = ['Draft', 'Under Review', 'Approved', 'Implemented', 'Obsolete', 'Rejected'];
+export type RequirementStatus = 'Draft' | 'Under Review' | 'Approved' | 'Implemented' | 'Obsolete' | 'Rejected';
+export const requirementStatuses: RequirementStatus[] = ['Draft', 'Under Review', 'Approved', 'Implemented', 'Obsolete', 'Rejected'];
 
-// export type RequirementPriority = 'High' | 'Medium' | 'Low';
-// export const requirementPriorities: RequirementPriority[] = ['High', 'Medium', 'Low'];
+export type RequirementPriority = 'High' | 'Medium' | 'Low';
+export const requirementPriorities: RequirementPriority[] = ['High', 'Medium', 'Low'];
 
-// export interface Requirement {
-//   id: string;
-//   projectId: string;
-//   title: string;
-//   description: string;
-//   status: RequirementStatus;
-//   priority: RequirementPriority;
-//   version: string;
-//   createdDate: string; // ISO date string
-//   updatedDate: string; // ISO date string
-// }
+export interface Requirement {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  status: RequirementStatus;
+  priority: RequirementPriority;
+  version: string;
+  createdDate: string; // ISO date string
+  updatedDate: string; // ISO date string
+}
 
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
 export const ticketStatuses: TicketStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
