@@ -2,9 +2,9 @@
 /**
  * @fileOverview An AI agent that analyzes a ticket and suggests resolutions, next steps, and potential impact.
  *
- * - analyzeTicketFlow - A function that handles the ticket analysis process.
- * - AnalyzeTicketInput - The input type for the analyzeTicketFlow function.
- * - AnalyzeTicketOutput - The return type for the analyzeTicketFlow function.
+ * - analyzeTicket - A function that handles the ticket analysis process.
+ * - AnalyzeTicketInput - The input type for the analyzeTicket function.
+ * - AnalyzeTicketOutput - The return type for the analyzeTicket function.
  */
 
 import { ai } from '@/ai/genkit';
@@ -17,7 +17,7 @@ const TicketTypeSchema = z.string().describe("The type of the ticket (e.g., Bug,
 const TicketPrioritySchema = z.string().describe("The priority of the ticket (e.g., High, Medium, Low).");
 
 
-export const AnalyzeTicketInputSchema = z.object({
+const AnalyzeTicketInputSchema = z.object({
   ticketTitle: z.string().describe('The title of the ticket.'),
   ticketDescription: z.string().describe('The detailed description of the ticket.'),
   currentType: TicketTypeSchema.describe('The current type of the ticket.'),
@@ -25,7 +25,7 @@ export const AnalyzeTicketInputSchema = z.object({
 });
 export type AnalyzeTicketInput = z.infer<typeof AnalyzeTicketInputSchema>;
 
-export const AnalyzeTicketOutputSchema = z.object({
+const AnalyzeTicketOutputSchema = z.object({
   suggestedResolution: z.string().describe('A concise suggested resolution or primary approach to investigate the ticket (1-3 sentences).'),
   suggestedNextSteps: z.string().describe('2-3 concrete next actionable steps to take regarding the ticket (bullet points or short sentences).'),
   potentialImpact: z.string().describe('An assessment of the potential impact if this ticket is not addressed (e.g., Low, Medium, High, Critical).'),
