@@ -4,12 +4,12 @@
 import { useEffect, useState } from 'react';
 import type { Project, Task } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'; // Added CardFooter
 import { BarChart3, Briefcase, ListChecks, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
 import { PROJECTS_STORAGE_KEY, getTasksStorageKey, initialMockProjects } from '@/app/projects/page';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge'; // Added Badge import
+import { Badge } from '@/components/ui/badge'; 
 
 interface AggregatedMetrics {
   totalProjects: number;
