@@ -1,22 +1,26 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
+  BarChart3, // Changed from LayoutDashboard for the main dashboard/project overview
   Briefcase,
   Activity,
   Users,
   Mail,
-  Settings,
-  UserCircle,
+  // Settings and UserCircle are handled directly in AppHeader
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
+// Updated navItems to reflect current page structure
+// '/' is the main dashboard/project list page
+// '/projects' redirects to '/' but kept for direct access if needed (could be removed if strictly /)
 const navItems = [
-  { href: '/', label: 'Projects', icon: Briefcase }, // Changed Dashboard to Projects, points to root
+  { href: '/', label: 'Dashboard', icon: BarChart3 },
+  { href: '/projects', label: 'Projects List', icon: Briefcase }, // Explicitly for the /projects redirector page
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
   { href: '/resource-allocation', label: 'Resources', icon: Users },
   { href: '/personal-assistant', label: 'Assistant', icon: Mail },
@@ -31,12 +35,13 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              <Link href={item.href} passHref>
+              <Link href={item.href} passHref asChild>
                 <Button
                   variant="ghost"
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
+                    // Highlight '/' for both '/' and '/projects' due to redirect
+                    (pathname === item.href || (item.href === '/' && pathname === '/projects') || (item.href !== '/' && pathname.startsWith(item.href)))
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
