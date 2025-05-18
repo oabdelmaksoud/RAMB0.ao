@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Ticket, TicketStatus, TicketPriority, TicketType } from '@/types';
 
@@ -31,17 +31,18 @@ const ticketSchema = z.object({
 
 type TicketFormData = z.infer<typeof ticketSchema>;
 
-interface AddTicketDialogProps {
+interface EditTicketDialogProps {
+  ticketToEdit: Ticket | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddTicket: (ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'>) => void;
+  onUpdateTicket: (ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'>) => void;
 }
 
-const ticketTypes: TicketType[] = ['Bug', 'Feature Request', 'Support Request', 'Change Request']; // Updated 'Task' to 'Change Request'
+const ticketTypes: TicketType[] = ['Bug', 'Feature Request', 'Support Request', 'Change Request'];
 const ticketPriorities: TicketPriority[] = ['High', 'Medium', 'Low'];
 const ticketStatuses: TicketStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
-export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: AddTicketDialogProps) {
+export default function EditTicketDialog({ ticketToEdit, open, onOpenChange, onUpdateTicket }: EditTicketDialogProps) {
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketSchema),
     defaultValues: {
@@ -54,18 +55,18 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
     },
   });
 
-  const onSubmit: SubmitHandler<TicketFormData> = (data) => {
-    const ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'> = {
-      ...data,
-      assignee: data.assignee || undefined, 
-    };
-    onAddTicket(ticketData);
-    form.reset(); 
-  };
-
   React.useEffect(() => {
-    if (open) {
-      form.reset({ 
+    if (ticketToEdit && open) {
+      form.reset({
+        title: ticketToEdit.title,
+        description: ticketToEdit.description,
+        type: ticketToEdit.type,
+        priority: ticketToEdit.priority,
+        status: ticketToEdit.status,
+        assignee: ticketToEdit.assignee || "",
+      });
+    } else if (!open && !form.formState.isSubmitSuccessful) {
+      form.reset({
         title: "",
         description: "",
         type: 'Bug',
@@ -74,19 +75,31 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
         assignee: "",
       });
     }
-  }, [open, form]);
+  }, [open, ticketToEdit, form]);
+
+  const onSubmit: SubmitHandler<TicketFormData> = (data) => {
+    if (!ticketToEdit) return;
+    const ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'> = {
+      ...data,
+      assignee: data.assignee || undefined,
+    };
+    onUpdateTicket(ticketData);
+    // form.reset(); // Let parent handle closing and resetting editingTicket state
+  };
+
+  if (!ticketToEdit && open) return null; // Should not happen if open is true and ticketToEdit is null, but good practice
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px] max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Add New Ticket</DialogTitle>
+          <DialogTitle>Edit Ticket: {ticketToEdit?.title}</DialogTitle>
           <DialogDescription>
-            Fill in the details for the new ticket. Click save when you're done.
+            Update the details for this ticket. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} id="addTicketForm" className="space-y-3 py-2 flex-grow overflow-y-auto pr-3">
+          <form onSubmit={form.handleSubmit(onSubmit)} id="editTicketForm" className="space-y-3 py-2 flex-grow overflow-y-auto pr-3">
             <FormField
               control={form.control}
               name="title"
@@ -124,7 +137,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
                       </FormControl>
@@ -142,7 +155,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger><SelectValue placeholder="Select priority" /></SelectTrigger>
                       </FormControl>
@@ -161,7 +174,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                       </FormControl>
@@ -190,7 +203,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
         </Form>
         <DialogFooter className="pt-4 border-t mt-auto">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="submit" form="addTicketForm">Add Ticket</Button>
+          <Button type="submit" form="editTicketForm">Save Changes</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

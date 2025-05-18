@@ -51,7 +51,7 @@ export interface Project {
 
 export interface Task {
   id: string;
-  projectId: string; // Added projectId for better context if tasks are ever global
+  projectId: string;
   title: string;
   status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
   assignedTo: string;
@@ -91,7 +91,7 @@ export interface Requirement {
 
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
 export type TicketPriority = 'High' | 'Medium' | 'Low';
-export type TicketType = 'Bug' | 'Feature Request' | 'Support Request' | 'Task';
+export type TicketType = 'Bug' | 'Feature Request' | 'Support Request' | 'Change Request'; // Changed 'Task' to 'Change Request'
 
 export interface Ticket {
   id: string;
@@ -101,11 +101,10 @@ export interface Ticket {
   status: TicketStatus;
   priority: TicketPriority;
   type: TicketType;
-  assignee?: string; // Optional for now
+  assignee?: string;
   createdDate: string; // ISO date string
   updatedDate: string; // ISO date string
-  aiMetadata?: Record<string, any>; // For storing model insights
-  // Relationships to users/comments would be part of a backend implementation
+  aiMetadata?: Record<string, any>;
 }
 
 export interface ProjectTemplate {
@@ -113,5 +112,5 @@ export interface ProjectTemplate {
   name: string;
   description: string;
   initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId'>>>;
-  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>>;
+  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' > & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>> }>;
 }
