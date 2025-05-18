@@ -1,26 +1,12 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import ProjectCard from '@/components/features/projects/ProjectCard';
+import { useEffect } from 'react';
 import type { Project, Task, ProjectFile } from '@/types';
-import { Briefcase, PlusCircle } from 'lucide-react';
-import AddProjectDialog from '@/components/features/projects/AddProjectDialog';
-import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from '@/components/ui/button';
-import { mockProjectTemplates } from '@/lib/project-templates';
-import { format } from 'date-fns';
+import { PageHeader, PageHeaderHeading } from '@/components/layout/PageHeader';
+// useRouter will be imported from 'next/navigation' in the actual component code
+import { useRouter } from 'next/navigation';
+
 
 // These are EXPORTED so they can be used by other pages like the main page and project detail page
 export const initialMockProjects: Project[] = [
@@ -56,12 +42,13 @@ export const initialMockProjects: Project[] = [
   },
 ];
 
-export const PROJECTS_STORAGE_KEY = 'ramboAgentProjects'; // Changed from agentFlowProjects
+export const PROJECTS_STORAGE_KEY = 'ramboAgentProjects';
 export const getTasksStorageKey = (projectId: string) => `ramboAgentTasks_project_${projectId}`;
 export const getAgentsStorageKey = (projectId: string) => `ramboAgentAgents_project_${projectId}`;
 export const getWorkflowsStorageKey = (projectId: string) => `ramboAgentWorkflows_project_${projectId}`;
 export const getFilesStorageKey = (projectId: string) => `ramboAgentFiles_project_${projectId}`;
 export const getRequirementsStorageKey = (projectId: string) => `ramboAgentRequirements_project_${projectId}`;
+export const getTicketsStorageKey = (projectId: string) => `ramboAgentTickets_project_${projectId}`;
 
 
 export default function ProjectsRedirectPage() {
@@ -82,6 +69,3 @@ export default function ProjectsRedirectPage() {
     </div>
   );
 }
-
-// Need to re-import useRouter for the redirect page
-import { useRouter } from 'next/navigation';
