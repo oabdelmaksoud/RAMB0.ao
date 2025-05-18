@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Task, TaskStatus } from '@/types'; // Import TaskStatus
+import type { Task, TaskStatus } from '@/types';
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,7 @@ interface TaskChatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task: Task | null;
-  onTaskStatusChangeByAI?: (taskId: string, newStatus: TaskStatus) => void; // New prop
+  onTaskStatusChangeByAI?: (taskId: string, newStatus: TaskStatus) => void;
 }
 
 interface ChatMessage {
@@ -60,7 +60,7 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
         {
           id: `agent-plan-review-${Date.now() + 1}`,
           sender: 'agent',
-          text: `I'm reviewing the plan:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions or questions?`,
+          text: `I'm reviewing the plan, which includes:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions?`,
           timestamp: new Date(Date.now() + 1),
           simulatedAction: "Reviewing task plan...",
         }
@@ -101,7 +101,7 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
     setNewMessage('');
     setIsAgentReplying(true);
     setCurrentSimulatedAction("Agent is thinking...");
-    setCurrentFileContext(null);
+    // Keep currentFileContext until AI response might change it
 
     try {
       const flowInput: TaskChatInput = {
@@ -114,7 +114,7 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
       
       console.log("TASK_CHAT_DIALOG: Sending to taskChatFlow with input:", JSON.stringify(flowInput, null, 2));
       const result: TaskChatOutput = await taskChatFlow(flowInput);
-      console.log("TASK_CHAT_DIALOG: Received from taskChatFlow:", JSON.stringify(result, null, 2));
+      console.log("TASK_CHAT_DIALOG: AI Output from taskChatFlow:", JSON.stringify(result, null, 2));
       
       const agentReply: ChatMessage = {
         id: `agent-${Date.now()}`,
@@ -129,6 +129,9 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
       
       if (result.fileContextUpdate) {
         setCurrentFileContext(result.fileContextUpdate);
+      } else if (result.simulatedAction && !result.simulatedAction.toLowerCase().includes('file') && !result.simulatedAction.toLowerCase().includes('generating')) {
+        // Heuristic: If the action doesn't seem file-related, and no new file context is provided, clear the old one.
+        setCurrentFileContext(null);
       }
       
       if (result.suggestedNextStatus && result.suggestedNextStatus !== task.status && onTaskStatusChangeByAI) {
@@ -156,11 +159,16 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
       });
     } finally {
       setIsAgentReplying(false);
-      if (currentSimulatedAction?.includes("Agent is thinking...")) {
-         setCurrentSimulatedAction(prev => (prev && prev.includes("Agent is thinking...")) ? "Awaiting your input..." : prev);
+      // Smartly update simulated action to the last agent's action if the current one is generic 'thinking'
+      // Only update if the last message was from an agent and had a specific action.
+      const lastMessage = messages[messages.length - 1]; // This will be the user's message, need to check previous one
+      const lastAgentMessage = messages.filter(m => m.sender === 'agent').pop();
+
+      if (currentSimulatedAction === "Agent is thinking...") {
+         setCurrentSimulatedAction(lastAgentMessage?.simulatedAction || "Awaiting your input...");
       }
     }
-  }, [newMessage, task, isAgentReplying, toast, onTaskStatusChangeByAI, currentSimulatedAction]);
+  }, [newMessage, task, isAgentReplying, toast, onTaskStatusChangeByAI]); // Removed messages & currentSimulatedAction from deps for stability
 
   if (!task) return null;
 
@@ -204,7 +212,7 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
                       {msg.simulatedAction && msg.sender === 'agent' && (
                         <p className="text-xs italic opacity-70 mt-1">(Action: {msg.simulatedAction})</p>
                       )}
-                      {msg.thinkingProcess && (
+                      {msg.thinkingProcess && msg.sender === 'agent' && (
                         <p className="text-xs italic opacity-70 mt-1">(Thinking: {msg.thinkingProcess})</p>
                       )}
                       <p className={cn(
@@ -238,7 +246,7 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
               </div>
             </ScrollArea>
 
-            <div className="mt-2 pt-2 flex items-center gap-2 border-t">
+            <div className="mt-2 pt-2 flex items-center gap-2 border-t flex-shrink-0">
               <Textarea
                 placeholder="Type your message or command (e.g., 'start', 'generate code for X')..."
                 value={newMessage}
@@ -261,18 +269,18 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
 
           {/* Simulated File Viewer (Right or Below on mobile) */}
           <div className="md:col-span-1 flex flex-col min-h-0 h-full">
-            <Card className="flex-grow flex flex-col">
-              <CardHeader className="p-3">
+            <Card className="flex-grow flex flex-col overflow-hidden">
+              <CardHeader className="p-3 flex-shrink-0">
                 <CardTitle className="text-sm flex items-center">
                   {currentFileContext?.fileName ? <FileText className="mr-2 h-4 w-4" /> : <Code className="mr-2 h-4 w-4" />}
                   {currentFileContext?.fileName || "Simulated File Viewer"}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-0 flex-grow">
+              <CardContent className="p-0 flex-grow overflow-hidden">
                 <Textarea
                   readOnly
-                  value={currentFileContext?.content || "// AI can simulate opening/editing/generating files here.\n// Example: 'Show me the sdp_document.md' or 'Generate a Python function to add two numbers.'"}
-                  className="h-full w-full resize-none border-0 rounded-none font-mono text-xs bg-muted/30"
+                  value={currentFileContext?.content || "// AI can simulate opening/editing/generating files here based on your chat.\n// Example: 'Generate a Python function to add two numbers.'"}
+                  className="h-full w-full resize-none border-0 rounded-none font-mono text-xs bg-muted/30 focus-visible:ring-0 focus-visible:ring-offset-0"
                   placeholder="File content or generated code will appear here..."
                 />
               </CardContent>
@@ -281,8 +289,12 @@ export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusC
         </div>
         
         <DialogFooter className="mt-2 pt-3 border-t flex-shrink-0">
-          <div className="text-xs text-muted-foreground w-full flex-grow mr-auto">
+          <div className="text-xs text-muted-foreground w-full flex-grow mr-auto truncate" title={currentSimulatedAction || "Awaiting your input..."}>
             Agent Status: <span className="font-medium text-foreground">{currentSimulatedAction || "Awaiting your input..."}</span>
           </div>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close Workspace</Button>
-        </DialogFooter
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

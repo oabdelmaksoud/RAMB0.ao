@@ -150,4 +150,7 @@ const performTaskChatFlow = ai.defineFlow(
     output.suggestedNextStatus = output.suggestedNextStatus || undefined;
     // fileContextUpdate can remain optional
 
-    console.log("TASK_CHAT_DIALOG: AI Output from taskChatFlow:", JSON.stringify(output
+    console.log("TASK_CHAT_DIALOG: AI Output from taskChatFlow:", JSON.stringify(output));
+    return output!;
+  }
+);
