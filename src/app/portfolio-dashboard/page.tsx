@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import type { Project, Task } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; // Added CardDescription
 import { BarChart3, Briefcase, ListChecks, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
 import { PROJECTS_STORAGE_KEY, getTasksStorageKey, initialMockProjects } from '@/app/projects/page';
 import Link from 'next/link';
@@ -50,25 +50,30 @@ export default function PortfolioDashboardPage() {
       const tasksStorageKey = getTasksStorageKey(project.id);
       const storedTasksJson = localStorage.getItem(tasksStorageKey);
       if (storedTasksJson) {
-        const projectTasks: Task[] = JSON.parse(storedTasksJson);
-        totalTasks += projectTasks.length;
-        projectTasks.forEach(task => {
-          if (task.isMilestone) return; // Optionally exclude milestones from task counts
-          switch (task.status) {
-            case 'To Do':
-              todoTasks++;
-              break;
-            case 'In Progress':
-              inProgressTasks++;
-              break;
-            case 'Done':
-              doneTasks++;
-              break;
-            case 'Blocked':
-              blockedTasks++;
-              break;
-          }
-        });
+        try {
+          const projectTasks: Task[] = JSON.parse(storedTasksJson);
+          totalTasks += projectTasks.length;
+          projectTasks.forEach(task => {
+            if (task.isMilestone) return; // Optionally exclude milestones from task counts
+            switch (task.status) {
+              case 'To Do':
+                todoTasks++;
+                break;
+              case 'In Progress':
+                inProgressTasks++;
+                break;
+              case 'Done':
+                doneTasks++;
+                break;
+              case 'Blocked':
+                blockedTasks++;
+                break;
+            }
+          });
+        } catch (e) {
+          console.error(`Error parsing tasks for project ${project.id}:`, e);
+          // Optionally, handle this error, e.g., by setting task counts to 0 for this project
+        }
       }
     });
 
