@@ -48,6 +48,7 @@ export default function AppHeader() {
           <Logo className="h-8 w-8 text-primary" />
           <h1 className="text-xl font-bold text-foreground hidden sm:block">RamBo Agent</h1>
         </Link>
+        {/* SidebarNav is rendered here */}
         <SidebarNav />
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
@@ -55,7 +56,7 @@ export default function AppHeader() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/admin/settings" passHref>
+              <Link href="/admin/settings" passHref asChild>
                 <Button variant="ghost" size="icon" aria-label="Admin Settings">
                   <Settings className="h-5 w-5" />
                 </Button>
@@ -69,7 +70,7 @@ export default function AppHeader() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/profile" passHref>
+              <Link href="/profile" passHref asChild>
                 <Button variant="ghost" size="icon" aria-label="Profile">
                   <UserCircle className="h-5 w-5" />
                 </Button>
