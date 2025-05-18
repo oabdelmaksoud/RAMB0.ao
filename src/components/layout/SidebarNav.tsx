@@ -6,22 +6,21 @@ import {
   LayoutDashboard,
   Briefcase,
   Activity,
-  SlidersHorizontal,
-  Lightbulb,
-  Users, // Added for Resource Allocation
+  Users, // Re-added for Resource Allocation
+  Settings, // For Admin Settings
+  UserCircle, // For Profile
+  Mail, // For Personal Assistant
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Projects', icon: Briefcase }, // Main page is now Projects Overview
-  { href: '/portfolio-dashboard', label: 'Portfolio', icon: LayoutDashboard },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard }, // Points to project overview
+  { href: '/projects', label: 'Projects', icon: Briefcase }, // Explicit projects management page
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
-  { href: '/resource-allocation', label: 'Resources', icon: Users }, // New Link
-  // Global agent management and AI suggestions are more admin-level or integrated into project details
-  // { href: '/agent-management', label: 'Agents', icon: SlidersHorizontal },
-  // { href: '/ai-suggestions', label: 'AI Suggestions', icon: Lightbulb },
+  { href: '/resource-allocation', label: 'Resources', icon: Users },
+  { href: '/personal-assistant', label: 'Assistant', icon: Mail },
 ];
 
 export default function SidebarNav() {
@@ -33,10 +32,9 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              <Link href={item.href} passHref legacyBehavior>
+              <Link href={item.href} passHref asChild>
                 <Button
                   variant="ghost"
-                  asChild
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
                     (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
@@ -44,10 +42,8 @@ export default function SidebarNav() {
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <a> {/* Link's child */}
-                    <item.icon className="h-5 w-5" />
-                    <span className="ml-2 hidden lg:inline">{item.label}</span>
-                  </a>
+                  <item.icon className="h-5 w-5" />
+                  <span className="ml-2 hidden lg:inline">{item.label}</span>
                 </Button>
               </Link>
             </TooltipTrigger>

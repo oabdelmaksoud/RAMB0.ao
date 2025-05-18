@@ -2,7 +2,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Sun, Moon, UserCircle, Settings } from 'lucide-react'; // Added Settings
+import { Sun, Moon, UserCircle, Settings } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -57,9 +57,9 @@ export default function AppHeader() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/admin/settings" passHref legacyBehavior>
+              <Link href="/admin/settings" passHref asChild>
                 <Button variant="ghost" size="icon" aria-label="Admin Settings">
-                  <a><Settings className="h-5 w-5" /></a>
+                  <Settings className="h-5 w-5" />
                 </Button>
               </Link>
             </TooltipTrigger>
@@ -71,9 +71,9 @@ export default function AppHeader() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/profile" passHref legacyBehavior>
+              <Link href="/profile" passHref asChild>
                 <Button variant="ghost" size="icon" aria-label="Profile">
-                  <a><UserCircle className="h-5 w-5" /></a>
+                  <UserCircle className="h-5 w-5" />
                 </Button>
               </Link>
             </TooltipTrigger>
@@ -81,7 +81,7 @@ export default function AppHeader() {
               <p>Profile</p>
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider> {/* Corrected closing tag */}
+        </TooltipProvider>
       </div>
     </header>
   );
