@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -6,7 +5,7 @@ import type { Task } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { GripVertical, FolderGit2, ListTree, Diamond, EyeIcon, Edit, MessageSquare, Trash2 } from 'lucide-react';
+import { GripVertical, FolderGit2, ListTree, Diamond, Eye, Edit2, MessageSquare, Trash2 } from 'lucide-react'; // Updated Edit to Edit2
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
@@ -58,18 +57,19 @@ const KanbanTaskCard = React.memo(function KanbanTaskCard({
       onDrop={(e) => onDropOnCard(e, task)}
     >
       <CardHeader className="p-3 flex items-start justify-between gap-2">
-        <div className={cn("flex items-center flex-grow", task.parentId ? "pl-2" : "")}>
+        <div className={cn("flex items-center flex-grow min-w-0", task.parentId ? "pl-2" : "")}> {/* Added min-w-0 for better truncation */}
           <GripVertical className="h-4 w-4 mr-1.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 cursor-grab flex-shrink-0 opacity-50 group-hover:opacity-100" />
           <CardTitle
             className={cn(
-              "text-sm font-medium leading-tight flex items-center truncate",
+              "text-sm font-medium leading-tight flex items-center min-w-0", // Added min-w-0
               isParentTask && "font-bold"
             )}
+            title={task.title} // Add title attribute for full text on hover
           >
             {task.parentId && <FolderGit2 className="mr-1.5 h-3 w-3 text-muted-foreground/70 flex-shrink-0" />}
             {isParentTask && !task.isMilestone && <ListTree className="mr-1.5 h-3 w-3 text-sky-600 flex-shrink-0" />}
             {task.isMilestone && <Diamond className="mr-1.5 h-3 w-3 text-amber-500 flex-shrink-0" />}
-            <span className="truncate">{task.title}</span>
+            <span className="truncate whitespace-normal break-words">{task.title}</span> {/* Allow wrapping and break words */}
           </CardTitle>
         </div>
       </CardHeader>
@@ -88,10 +88,10 @@ const KanbanTaskCard = React.memo(function KanbanTaskCard({
         }
       </CardContent>
       <CardFooter className="p-3 border-t grid grid-cols-4 gap-2">
-        <Button variant="outline" size="sm" className="text-xs" onClick={() => onViewTask(task)}><EyeIcon className="mr-1 h-3 w-3" /> View</Button>
-        <Button variant="outline" size="sm" className="text-xs" onClick={() => onEditTask(task)}><Edit className="mr-1 h-3 w-3" /> Edit</Button>
-        <Button variant="outline" size="sm" className="text-xs" onClick={() => onChatTask(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
-        <Button variant="destructive" size="sm" className="text-xs" onClick={() => onDeleteTask(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
+        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => onViewTask(task)}><Eye className="mr-1 h-3 w-3" /> View</Button>
+        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => onEditTask(task)}><Edit2 className="mr-1 h-3 w-3" /> Edit</Button>
+        <Button variant="outline" size="sm" className="text-xs flex-1" onClick={() => onChatTask(task)}><MessageSquare className="mr-1 h-3 w-3" /> Chat</Button>
+        <Button variant="destructive" size="sm" className="text-xs flex-1" onClick={() => onDeleteTask(task)}><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
       </CardFooter>
     </Card>
   );

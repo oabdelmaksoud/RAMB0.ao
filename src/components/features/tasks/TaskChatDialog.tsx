@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Task } from '@/types';
+import type { Task, TaskStatus } from '@/types'; // Import TaskStatus
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Bot, User, Loader2, FileText, Code, Paperclip } from 'lucide-react';
+import { Bot, User, Loader2, FileText, Code } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { taskChatFlow, type TaskChatInput, type TaskChatOutput } from '@/ai/flows/task-chat-flow';
@@ -25,6 +25,7 @@ interface TaskChatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task: Task | null;
+  onTaskStatusChangeByAI?: (taskId: string, newStatus: TaskStatus) => void; // New prop
 }
 
 interface ChatMessage {
@@ -36,7 +37,7 @@ interface ChatMessage {
   thinkingProcess?: string;
 }
 
-export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDialogProps) {
+export default function TaskChatDialog({ open, onOpenChange, task, onTaskStatusChangeByAI }: TaskChatDialogProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isAgentReplying, setIsAgentReplying] = useState(false);
@@ -59,7 +60,7 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
         {
           id: `agent-plan-review-${Date.now() + 1}`,
           sender: 'agent',
-          text: `I'm reviewing the plan, which includes:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions?`,
+          text: `I'm reviewing the plan:\n${task.description || "No detailed plan available."}\n\nI'm ready to proceed or discuss further. What are your instructions or questions?`,
           timestamp: new Date(Date.now() + 1),
           simulatedAction: "Reviewing task plan...",
         }
@@ -99,8 +100,8 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
     setMessages((prevMessages) => [...prevMessages, userMessage]);
     setNewMessage('');
     setIsAgentReplying(true);
-    setCurrentSimulatedAction("Agent is thinking..."); // Default action while waiting
-    setCurrentFileContext(null); // Clear previous file context
+    setCurrentSimulatedAction("Agent is thinking...");
+    setCurrentFileContext(null);
 
     try {
       const flowInput: TaskChatInput = {
@@ -125,15 +126,17 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
       };
       setMessages((prevMessages) => [...prevMessages, agentReply]);
       setCurrentSimulatedAction(result.simulatedAction || "Awaiting your input...");
+      
       if (result.fileContextUpdate) {
         setCurrentFileContext(result.fileContextUpdate);
-      } else {
-        // If no specific file update, decide if we should clear the file viewer
-        // For now, let's not clear it automatically unless the action implies it.
-        // Or, we could clear it if the simulated action isn't file-related.
-        if (result.simulatedAction && !result.simulatedAction.toLowerCase().includes('file') && !result.simulatedAction.toLowerCase().includes('code')) {
-          // setCurrentFileContext(null); // Optional: clear file viewer if action is unrelated
-        }
+      }
+      
+      if (result.suggestedNextStatus && result.suggestedNextStatus !== task.status && onTaskStatusChangeByAI) {
+        onTaskStatusChangeByAI(task.id, result.suggestedNextStatus as TaskStatus);
+        toast({
+          title: "Task Status Update Suggested",
+          description: `Agent suggested changing status of "${task.title}" to "${result.suggestedNextStatus}". This has been applied.`,
+        });
       }
 
     } catch (error) {
@@ -153,18 +156,17 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
       });
     } finally {
       setIsAgentReplying(false);
-      // Only update simulatedAction if it was "Agent is thinking..." to avoid overwriting specific actions
       if (currentSimulatedAction?.includes("Agent is thinking...")) {
          setCurrentSimulatedAction(prev => (prev && prev.includes("Agent is thinking...")) ? "Awaiting your input..." : prev);
       }
     }
-  }, [newMessage, task, isAgentReplying, toast, currentSimulatedAction]); // Added currentSimulatedAction
+  }, [newMessage, task, isAgentReplying, toast, onTaskStatusChangeByAI, currentSimulatedAction]);
 
   if (!task) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[1000px] flex flex-col h-[85vh] max-h-[750px]">
+      <DialogContent className="sm:max-w-[90%] md:max-w-[80%] lg:max-w-[70%] xl:max-w-[1000px] flex flex-col h-[85vh] max-h-[750px] overflow-hidden">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>Agent Workspace: {task.title || "Untitled Task"}</DialogTitle>
           <DialogDescription>
@@ -199,6 +201,9 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
                       )}
                     >
                       <p className="whitespace-pre-wrap">{msg.text}</p>
+                      {msg.simulatedAction && msg.sender === 'agent' && (
+                        <p className="text-xs italic opacity-70 mt-1">(Action: {msg.simulatedAction})</p>
+                      )}
                       {msg.thinkingProcess && (
                         <p className="text-xs italic opacity-70 mt-1">(Thinking: {msg.thinkingProcess})</p>
                       )}
@@ -280,8 +285,4 @@ export default function TaskChatDialog({ open, onOpenChange, task }: TaskChatDia
             Agent Status: <span className="font-medium text-foreground">{currentSimulatedAction || "Awaiting your input..."}</span>
           </div>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Close Workspace</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+        </DialogFooter
