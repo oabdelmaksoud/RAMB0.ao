@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -6,7 +5,10 @@ import { usePathname } from 'next/navigation';
 import {
   Briefcase,
   Activity,
+  Settings,
   LayoutGrid,
+  UserCircle,
+  Mail, // Added Mail icon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -16,6 +18,7 @@ const navItems = [
   { href: '/', label: 'Projects', icon: Briefcase },
   { href: '/portfolio-dashboard', label: 'Portfolio', icon: LayoutGrid },
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
+  { href: '/personal-assistant', label: 'Assistant', icon: Mail }, // New Personal Assistant Link
 ];
 
 export default function SidebarNav() {
@@ -33,19 +36,19 @@ export default function SidebarNav() {
                   asChild
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    (pathname === item.href || (item.href === '/' && pathname.startsWith('/projects/')) || (item.href !== '/' && pathname.startsWith(item.href)))
+                    (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
                   <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2">{item.label}</span> {/* Always show label */}
+                    <span className="ml-2 hidden lg:inline">{item.label}</span> {/* Label hidden until lg */}
                   </a>
                 </Button>
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="bottom" align="center">
+            <TooltipContent side="bottom" align="center" className="lg:hidden">
               <p>{item.label}</p>
             </TooltipContent>
           </Tooltip>
