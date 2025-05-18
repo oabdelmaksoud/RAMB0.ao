@@ -13,18 +13,21 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useForm, SubmitHandler } from "react-hook-form";
+import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import type { Project, ProjectStatus } from '@/types';
-import { projectStatuses } from '@/types';
+import { projectStatuses } from '@/types'; // Ensure this exports `projectStatuses` as a const array
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Explicitly type for Zod enum if projectStatuses is just ProjectStatus[]
+const statusEnumValues: [ProjectStatus, ...ProjectStatus[]] = [...projectStatuses] as [ProjectStatus, ...ProjectStatus[]];
 
 const projectEditSchema = z.object({
   name: z.string().min(3, "Project name must be at least 3 characters").max(100, "Name must be 100 characters or less"),
   description: z.string().min(10, "Description must be at least 10 characters").max(500, "Description must be 500 characters or less"),
-  status: z.enum(projectStatuses as [ProjectStatus, ...ProjectStatus[]]),
+  status: z.enum(statusEnumValues, { required_error: "Status is required" }),
   thumbnailUrl: z.string().url({ message: "Please enter a valid URL for the thumbnail." }).optional().or(z.literal("")),
 });
 
@@ -40,11 +43,11 @@ interface EditProjectDialogProps {
 export default function EditProjectDialog({ project, open, onOpenChange, onUpdateProject }: EditProjectDialogProps) {
   const form = useForm<ProjectEditFormData>({
     resolver: zodResolver(projectEditSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      status: "Active",
-      thumbnailUrl: "",
+    defaultValues: { // Initial defaults, will be overridden by useEffect if project exists
+      name: project?.name || "",
+      description: project?.description || "",
+      status: project?.status || projectStatuses[0], // Default to first status if project is null initially
+      thumbnailUrl: project?.thumbnailUrl || "",
     },
   });
 
@@ -56,29 +59,32 @@ export default function EditProjectDialog({ project, open, onOpenChange, onUpdat
         status: project.status,
         thumbnailUrl: project.thumbnailUrl || "",
       });
-    } else if (!open) {
-      form.reset({ name: "", description: "", status: "Active", thumbnailUrl: "" });
     }
+    // No need to reset if !open and not submitted, as the form re-initializes on next open
   }, [project, open, form]);
 
   const onSubmit: SubmitHandler<ProjectEditFormData> = (data) => {
-    if (!project) return;
+    if (!project) {
+      return;
+    }
     onUpdateProject({
       name: data.name,
       description: data.description,
       status: data.status,
-      thumbnailUrl: data.thumbnailUrl || undefined, // Ensure empty string becomes undefined
+      thumbnailUrl: data.thumbnailUrl || undefined,
     });
     onOpenChange(false);
-  };
+  }; // End of onSubmit function
 
-  if (!project && open) return null; // Should not happen if project is set before opening
+  if (!open || !project) {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Edit Project: {project?.name}</DialogTitle>
+          <DialogTitle>Edit Project: {project?.name || 'Project'}</DialogTitle>
           <DialogDescription>
             Update the details for your project.
           </DialogDescription>
@@ -128,8 +134,8 @@ export default function EditProjectDialog({ project, open, onOpenChange, onUpdat
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {projectStatuses.map(status => (
-                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      {projectStatuses.map(statusValue => (
+                        <SelectItem key={statusValue} value={statusValue}>{statusValue}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -158,3 +164,5 @@ export default function EditProjectDialog({ project, open, onOpenChange, onUpdat
         </Form>
       </DialogContent>
     </Dialog>
+  );
+}
