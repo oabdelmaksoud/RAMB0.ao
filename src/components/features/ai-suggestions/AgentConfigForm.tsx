@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -23,7 +24,7 @@ const formSchema = z.object({
 type AgentConfigFormData = z.infer<typeof formSchema>;
 
 interface AgentConfigFormProps {
-  projectId?: string; // Optional: if provided, suggestions are for this project
+  projectId?: string;
   onSuggestionAccepted?: (agentData: Omit<Agent, 'id' | 'status' | 'lastActivity'>) => void;
 }
 
@@ -57,7 +58,7 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
     } catch (error) {
       console.error('Error getting suggestion:', error);
       toast({
-        title: 'Error',
+        title: 'Error Generating Suggestion',
         description: `Failed to get AI suggestion: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         variant: 'destructive',
       });
@@ -67,28 +68,24 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
   }
 
   const handleUseConfiguration = () => {
-    if (suggestion?.suggestedAgent && onSuggestionAccepted) {
+    if (suggestion?.suggestedAgent) {
       const { name, type, config } = suggestion.suggestedAgent;
-      onSuggestionAccepted({ name, type, config });
-      toast({
-        title: 'AI Suggestion Applied!',
-        description: `Agent "${name}" has been added to your project agents.`,
-      });
+      const agentDataToPass = { name, type, config };
+
+      if (onSuggestionAccepted) { // This prop is passed by ProjectDetailPage
+        onSuggestionAccepted(agentDataToPass);
+        // The parent (ProjectDetailPage) will show a toast: "AI-suggested agent added to project agents."
+      } else {
+        // Fallback: if used in a context without onSuggestionAccepted (e.g., global AI suggestions page, which is currently not linked)
+        const storageKey = projectId ? `aiSuggestedAgentConfig_project_${projectId}` : 'aiSuggestedAgentConfig_GLOBAL';
+        localStorage.setItem(storageKey, JSON.stringify({ name, type, configString: JSON.stringify(config, null, 2) }));
+        toast({
+          title: 'Configuration Copied!',
+          description: "This configuration has been copied to localStorage. You can manually create an agent using it.",
+        });
+      }
       setSuggestion(null); // Clear suggestion after use
-    } else if (suggestion?.suggestedAgent) {
-      // Fallback for global context (if onSuggestionAccepted is not provided)
-      const { name, type, config } = suggestion.suggestedAgent;
-      const storedConfig = {
-        name,
-        type,
-        configString: JSON.stringify(config, null, 2)
-      };
-      const storageKey = 'aiSuggestedAgentConfig'; // Global key
-      localStorage.setItem(storageKey, JSON.stringify(storedConfig));
-      toast({
-        title: 'Configuration Copied!',
-        description: "Go to 'Agent Management' and click 'Add New Agent' to use this configuration.",
-      });
+      form.reset(); // Reset the form fields
     }
   };
 
@@ -158,11 +155,11 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
       </Card>
 
       {isLoading && (
-        <Card className="mt-6 bg-muted/30 border-dashed border-muted-foreground/50 animate-pulse">
-          <CardContent className="p-6 text-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary mb-3" />
-            <p className="text-muted-foreground">AI is generating your configuration suggestion...</p>
-            <p className="text-xs text-muted-foreground mt-1">This may take a moment.</p>
+        <Card className="mt-6 bg-muted/30 border-dashed border-muted-foreground/50">
+          <CardContent className="p-6 text-center flex flex-col items-center justify-center min-h-[200px]">
+            <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary mb-4" />
+            <p className="text-lg font-semibold text-muted-foreground">AI is working on your suggestion...</p>
+            <p className="text-sm text-muted-foreground mt-1">This may take a few moments.</p>
           </CardContent>
         </Card>
       )}
@@ -174,9 +171,12 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
               <Sparkles className="w-5 h-5 mr-2 text-primary" />
               AI Configuration Suggestion
             </CardTitle>
-            <CardDescription>Review the AI-generated suggestion below. {onSuggestionAccepted && "You can add this directly to your project agents."}</CardDescription>
+            <CardDescription>
+              Review the AI-generated suggestion below. 
+              {onSuggestionAccepted && " You can add this directly to your project agents using the button below."}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 pt-4">
+          <CardContent className="space-y-3 pt-4">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Suggested Agent Name</Label>
               <p className="text-sm p-2 bg-background/70 rounded-md border font-medium">{suggestion.suggestedAgent.name}</p>
@@ -207,9 +207,4 @@ export default function AgentConfigForm({ projectId, onSuggestionAccepted }: Age
             <Button onClick={handleUseConfiguration} disabled={!onSuggestionAccepted}>
               <Send className="mr-2 h-4 w-4" /> Use this Configuration
             </Button>
-          </CardFooter>
-        </Card>
-      )}
-    </>
-  );
-}
+          </
