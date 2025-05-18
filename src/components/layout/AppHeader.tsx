@@ -1,7 +1,8 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Sun, Moon, UserCircle, Settings, LayoutDashboard } from 'lucide-react';
+import { Sun, Moon, UserCircle, Settings } from 'lucide-react'; // Removed LayoutDashboard as it's in SidebarNav now
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -43,7 +44,7 @@ export default function AppHeader() {
   return (
     <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b bg-background/95 px-4 shadow-sm backdrop-blur md:px-6">
       <div className="flex items-center gap-2 md:gap-4">
-        <Link href="/portfolio-dashboard" className="flex items-center gap-2">
+        <Link href="/portfolio-dashboard" className="flex items-center gap-2"> {/* Points to Portfolio Dashboard */}
           <Logo className="h-8 w-8 text-primary" />
           <h1 className="text-xl font-bold text-foreground hidden sm:block">RamBo Agent</h1>
         </Link>
@@ -51,14 +52,14 @@ export default function AppHeader() {
             <SidebarNav />
         </nav>
       </div>
-      <div className="flex items-center gap-2 sm:gap-3"> {/* Reduced gap slightly */}
+      <div className="flex items-center gap-2 sm:gap-3">
         {themeToggle}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/admin/settings" passHref legacyBehavior>
-                <Button variant="ghost" size="icon" asChild aria-label="Admin Settings">
-                  <a><Settings className="h-5 w-5" /></a>
+              <Link href="/admin/settings" passHref> {/* No asChild */}
+                <Button variant="ghost" size="icon" aria-label="Admin Settings">
+                  <Settings className="h-5 w-5" />
                 </Button>
               </Link>
             </TooltipTrigger>
@@ -70,9 +71,9 @@ export default function AppHeader() {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Link href="/profile" passHref legacyBehavior>
-                <Button variant="ghost" size="icon" asChild aria-label="Profile">
-                  <a><UserCircle className="h-5 w-5" /></a>
+              <Link href="/profile" passHref> {/* No asChild */}
+                <Button variant="ghost" size="icon" aria-label="Profile">
+                  <UserCircle className="h-5 w-5" />
                 </Button>
               </Link>
             </TooltipTrigger>
