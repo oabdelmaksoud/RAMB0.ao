@@ -12,15 +12,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useForm, SubmitHandler, Controller } from "react-hook-form";
+import { Textarea } from "@/components/ui/textarea";
+import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Task } from '@/types';
 import { format, isValid, parseISO } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area"; // Added for dependency list
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Label } from "@/components/ui/label";
 
 const taskSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title must be 100 characters or less"),
@@ -34,7 +36,7 @@ const taskSchema = z.object({
   isMilestone: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
   dependencies: z.array(z.string()).optional(),
-  description: z.string().optional(),
+  description: z.string().max(500, "Description must be 500 characters or less").optional(),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -45,7 +47,7 @@ interface EditTaskDialogProps {
   taskToEdit: Task | null;
   onUpdateTask: (taskData: Task) => void;
   isReadOnly?: boolean;
-  projectTasks: Task[]; // To list potential parent tasks and dependencies
+  projectTasks: Task[];
 }
 
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
@@ -116,7 +118,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
         }
       }
     }
-  }, [isMilestoneWatch, form, isReadOnly]);
+  }, [isMilestoneWatch, form, isReadOnly, statusWatch]);
 
   React.useEffect(() => {
     if (!isReadOnly && isMilestoneWatch && statusWatch === 'Done') {
@@ -125,7 +127,6 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
         form.setValue("progress", 0, { shouldValidate: true });
     }
   }, [statusWatch, isMilestoneWatch, form, isReadOnly]);
-
 
   const onSubmit: SubmitHandler<TaskFormData> = (data) => {
     if (!taskToEdit || isReadOnly) return;
@@ -145,8 +146,20 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
 
   if (!taskToEdit && open) return null;
 
-  const availableParentTasks = projectTasks.filter(pt => pt.id !== taskToEdit?.id && !pt.isMilestone);
-  const availableDependencies = projectTasks.filter(pt => pt.id !== taskToEdit?.id && !pt.isMilestone);
+  const currentTaskId = taskToEdit?.id;
+  const currentParentId = form.watch('parentId');
+
+  const availableParentTasks = projectTasks.filter(pt => 
+    pt.id !== currentTaskId && 
+    !pt.isMilestone && 
+    pt.id !== currentParentId
+  );
+  
+  const availableDependencies = projectTasks.filter(pt => 
+    pt.id !== currentTaskId && 
+    !pt.isMilestone && 
+    pt.id !== currentParentId
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,7 +177,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Title</FormLabel>
+                  <RHFFormLabel>Title</RHFFormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Implement user authentication" {...field} disabled={isReadOnly} />
                   </FormControl>
@@ -172,7 +185,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                 </FormItem>
               )}
             />
-            <FormField
+             <FormField
               control={form.control}
               name="isMilestone"
               render={({ field }) => (
@@ -184,7 +197,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                       disabled={isReadOnly}
                     />
                   </FormControl>
-                  <FormLabel className="font-normal cursor-pointer">Mark as Milestone</FormLabel>
+                  <Label className="font-normal cursor-pointer">Mark as Milestone</Label>
                 </FormItem>
               )}
             />
@@ -193,7 +206,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               name="status"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Status</FormLabel>
+                  <RHFFormLabel>Status</RHFFormLabel>
                   <Select
                     onValueChange={field.onChange}
                     value={field.value}
@@ -226,7 +239,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               name="assignedTo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assigned To</FormLabel>
+                  <RHFFormLabel>Assigned To</RHFFormLabel>
                   <FormControl>
                     <Input placeholder="e.g., AI Agent X or Team Member" {...field} disabled={isReadOnly} />
                   </FormControl>
@@ -239,9 +252,14 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
+                  <RHFFormLabel>Description (Optional)</RHFFormLabel>
                   <FormControl>
-                    <Input placeholder="Add a brief description..." {...field} disabled={isReadOnly} />
+                    <Textarea 
+                      placeholder="Add a brief description or details..." 
+                      {...field} 
+                      disabled={isReadOnly} 
+                      className="min-h-[80px] resize-y"
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -252,7 +270,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               name="parentId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Parent Task (Optional)</FormLabel>
+                  <RHFFormLabel>Parent Task (Optional)</RHFFormLabel>
                   <Select
                     onValueChange={(value) => field.onChange(value === NO_PARENT_VALUE ? null : value)}
                     value={field.value ?? NO_PARENT_VALUE}
@@ -281,7 +299,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                 name="startDate"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{isMilestoneWatch ? 'Milestone Date' : 'Start Date'}</FormLabel>
+                    <RHFFormLabel>{isMilestoneWatch ? 'Milestone Date' : 'Start Date'}</RHFFormLabel>
                     <FormControl>
                       <Input type="date" {...field} value={field.value || ''} disabled={isReadOnly} />
                     </FormControl>
@@ -295,7 +313,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                 name="durationDays"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Duration (Days)</FormLabel>
+                    <RHFFormLabel>Duration (Days)</RHFFormLabel>
                     <FormControl>
                       <Input type="number" placeholder="e.g., 5" {...field} value={field.value ?? (isMilestoneWatch ? 0 : 1)} disabled={isReadOnly || isMilestoneWatch}/>
                     </FormControl>
@@ -310,7 +328,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
               name="progress"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Progress (%)</FormLabel>
+                  <RHFFormLabel>Progress (%)</RHFFormLabel>
                   <FormControl>
                     <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} value={field.value ?? (isMilestoneWatch && form.getValues("status") === 'Done' ? 100 : 0)} disabled={isReadOnly || (isMilestoneWatch && !(form.getValues("status") === 'Done'))} />
                   </FormControl>
@@ -327,53 +345,52 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
             <FormField
               control={form.control}
               name="dependencies"
-              render={({ field }) => (
+              render={() => (
                 <FormItem>
                   <div className="mb-2">
-                    <FormLabel>Dependencies (Prerequisites)</FormLabel>
+                    <RHFFormLabel>Dependencies (Prerequisites)</RHFFormLabel>
                     <FormDescription className="text-xs">
                       Select tasks that must be completed before this {isMilestoneWatch ? 'milestone' : 'task'} can start.
                     </FormDescription>
                   </div>
                   <ScrollArea className="h-32 w-full rounded-md border p-2 bg-muted/30">
-                    {availableDependencies.length > 0 ? (
-                      availableDependencies.map((item) => (
-                        <FormField
-                          key={item.id}
-                          control={form.control}
-                          name="dependencies"
-                          render={({ field: checkboxField }) => { // Renamed to avoid conflict with outer field
-                            return (
-                              <FormItem
-                                key={item.id}
-                                className="flex flex-row items-center space-x-2 space-y-0 py-1.5"
-                              >
-                                <FormControl>
-                                  <Checkbox
-                                    checked={checkboxField.value?.includes(item.id)}
-                                    onCheckedChange={(checked) => {
-                                      const currentDeps = checkboxField.value || [];
-                                      const newDeps = checked
-                                        ? [...currentDeps, item.id]
-                                        : currentDeps.filter(
-                                            (value) => value !== item.id
-                                          );
-                                      checkboxField.onChange(newDeps);
-                                    }}
-                                    disabled={isReadOnly}
-                                  />
-                                </FormControl>
-                                <FormLabel className="text-xs font-normal cursor-pointer">
-                                  {item.title}
-                                </FormLabel>
-                              </FormItem>
-                            )
-                          }}
-                        />
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground text-center py-4">No other tasks available to set as dependencies.</p>
-                    )}
+                  {availableDependencies.length > 0 ? (
+                    availableDependencies.map((item) => (
+                      <FormField
+                        key={item.id}
+                        control={form.control}
+                        name="dependencies"
+                        render={({ field: checkboxField }) => {
+                          return (
+                            <FormItem
+                              className="flex flex-row items-center space-x-2 space-y-0 py-1.5"
+                            >
+                              <FormControl>
+                                <Checkbox
+                                  checked={checkboxField.value?.includes(item.id)}
+                                  onCheckedChange={(checked) => {
+                                    const currentDeps = checkboxField.value || [];
+                                    const newDeps = checked
+                                      ? [...currentDeps, item.id]
+                                      : currentDeps.filter(
+                                          (value) => value !== item.id
+                                        );
+                                    checkboxField.onChange(newDeps);
+                                  }}
+                                  disabled={isReadOnly}
+                                />
+                              </FormControl>
+                              <Label className="text-xs font-normal cursor-pointer">
+                                {item.title}
+                              </Label>
+                            </FormItem>
+                          );
+                        }}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-4">No other non-milestone tasks available to set as dependencies.</p>
+                  )}
                   </ScrollArea>
                   <FormMessage />
                 </FormItem>
@@ -381,7 +398,11 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
             />
           </form>
         </Form>
-        <DialogFooter className="pt-4 border-t"> {/* Ensure footer is not part of the scrollable form */}
+        <DialogFooter className="pt-4 border-t">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
           {!isReadOnly && <Button type="submit" form="editTaskFormInternal">Save Changes</Button>}
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
