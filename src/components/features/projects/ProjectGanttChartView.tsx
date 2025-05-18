@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 
 const DAY_WIDTH_PX = 35;
 const ROW_HEIGHT_PX = 40;
-const TIMELINE_HEADER_ROW_HEIGHT_PX = 30;
+const TIMELINE_HEADER_ROW_HEIGHT_PX = 30; // Adjusted for "Today" label
 
 const TASK_TITLE_COL_WIDTH_PX = 200;
 const START_DATE_COL_WIDTH_PX = 80;
@@ -37,7 +37,12 @@ const getProgressFillColor = (baseColor: string): string => {
   if (baseColor.includes('blue')) return 'bg-blue-700 dark:bg-blue-600';
   if (baseColor.includes('green')) return 'bg-green-700 dark:bg-green-600';
   if (baseColor.includes('red')) return 'bg-red-700 dark:bg-red-600';
-  return 'bg-gray-700 dark:bg-gray-600'; 
+  // Default fallback, though ideally, parent tasks wouldn't show progress fill directly
+  if (baseColor.includes('border-slate')) return 'bg-slate-300 dark:bg-slate-700';
+  if (baseColor.includes('border-blue')) return 'bg-blue-300 dark:bg-blue-700';
+  if (baseColor.includes('border-green')) return 'bg-green-300 dark:bg-green-700';
+  if (baseColor.includes('border-red')) return 'bg-red-300 dark:bg-red-700';
+  return 'bg-gray-700 dark:bg-gray-600';
 };
 
 
@@ -79,7 +84,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
   };
 
   const processedTasks = useMemo(() => {
-    // console.log("[GanttChartView] Input 'tasks' prop (IDs & order):", tasks.map(t => ({id: t.id, title: t.title.substring(0,10)})));
     type TaskWithHierarchy = Task & { children: TaskWithHierarchy[]; level: number; isParent: boolean };
 
     const taskMap = new Map<string, TaskWithHierarchy>();
@@ -91,27 +95,25 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
         if (task.parentId && taskMap.has(task.parentId)) {
             const parentNode = taskMap.get(task.parentId)!;
             parentNode.children.push(currentTaskNode);
-            parentNode.isParent = true; // Mark as parent
         } else {
             rootTasks.push(currentTaskNode);
         }
     });
     
-    // Sort root tasks based on their order in the original `tasks` array
     const orderedRootTasks = rootTasks.sort((a,b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
 
-    // Sort children for each parent task as well
     taskMap.forEach(node => {
-        if (node.isParent) { // This check is now redundant if children were populated above, but good for clarity
+        node.isParent = node.children.length > 0;
+        if (node.isParent) {
             node.children.sort((a, b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
         }
     });
-    
+        
     const flattenTasks = (tasksToFlatten: TaskWithHierarchy[], currentLevel: number): (Task & { level: number; isParent: boolean })[] => {
       let result: (Task & { level: number; isParent: boolean })[] = [];
       for (const taskNode of tasksToFlatten) {
-        result.push({ ...taskNode, level: currentLevel, isParent: taskNode.children.length > 0 }); // isParent is now based on children array
-        if (taskNode.children.length > 0 && !collapsedTaskIds.has(taskNode.id)) { // Check if not collapsed
+        result.push({ ...taskNode, level: currentLevel, isParent: taskNode.children.length > 0 });
+        if (taskNode.children.length > 0 && !collapsedTaskIds.has(taskNode.id)) {
            result = result.concat(flattenTasks(taskNode.children, currentLevel + 1));
         }
       }
@@ -119,6 +121,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     };
 
     const finalFlattenedTasks = flattenTasks(orderedRootTasks, 0);
+    // console.log("[GanttChartView] Input 'tasks' prop (IDs & order):", tasks.map(t => ({id: t.id, title: t.title.substring(0,10)})));
     // console.log("[GanttChartView] Output 'processedTasks' (IDs, order, level, isParent):", finalFlattenedTasks.map(t => ({id: t.id, title: t.title.substring(0,10), level: t.level, isParent: t.isParent, collapsed: collapsedTaskIds.has(t.id) })));
     return finalFlattenedTasks;
   }, [tasks, collapsedTaskIds]);
@@ -128,7 +131,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     if (!processedTasks.length) {
       const today = startOfDay(new Date());
       const defaultStartDate = addDays(today, -15);
-      const defaultEndDate = addDays(today, 45); // Ensure at least ~60 days
+      const defaultEndDate = addDays(today, 45);
       return {
         chartStartDate: defaultStartDate,
         chartEndDate: defaultEndDate,
@@ -176,7 +179,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     overallMinDate = addDays(overallMinDate, -paddingDaysStart);
     overallMaxDate = addDays(overallMaxDate, paddingDaysEnd);
 
-    // Ensure a minimum visible range, e.g., 60 days
     if (differenceInCalendarDays(overallMaxDate, overallMinDate) < 60) {
        overallMaxDate = addDays(overallMinDate, Math.max(59, differenceInCalendarDays(overallMaxDate, overallMinDate)));
     }
@@ -203,15 +205,14 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
         top: taskIndex * ROW_HEIGHT_PX,
       };
     } catch (e) {
-      // Fallback if date parsing fails
       return { left: 0, width: DAY_WIDTH_PX, top: taskIndex * ROW_HEIGHT_PX };
     }
   };
 
   const handleTaskBarMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
-    event.stopPropagation(); // Important to prevent row drag start
-    if (!task.startDate || resizingTaskDetails || task.isMilestone) return;
+    event.stopPropagation();
+    if (!task.startDate || resizingTaskDetails || task.isMilestone || task.isParent) return;
 
     try {
       setDraggingTaskDetails({
@@ -236,12 +237,11 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
         ...draggingTaskDetails.task,
         startDate: format(newStartDate, 'yyyy-MM-dd'),
       };
-      onUpdateTask(updatedTask); // Update parent state directly for live feedback
+      onUpdateTask(updatedTask);
     };
 
     const handleDocumentMouseUp = () => {
       if (!draggingTaskDetails) return;
-      // Final update logic is already handled by onUpdateTask in mousemove
       setDraggingTaskDetails(null);
     };
 
@@ -258,8 +258,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
 
   const handleResizeMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task) => {
     event.preventDefault();
-    event.stopPropagation(); // Important to prevent row drag start
-    if (task.isMilestone || draggingTaskDetails) return;
+    event.stopPropagation(); 
+    if (task.isMilestone || draggingTaskDetails || task.isParent) return;
 
     setResizingTaskDetails({
       task,
@@ -280,7 +280,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
         ...resizingTaskDetails.task,
         durationDays: newDurationDays,
       };
-      onUpdateTask(updatedTask); // Update parent state directly
+      onUpdateTask(updatedTask);
     };
 
     const handleDocumentMouseUpForResize = () => {
@@ -299,7 +299,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     };
   }, [resizingTaskDetails, onUpdateTask]);
 
-  // Row Drag & Drop for reordering
   const handleRowDragStart = (event: ReactDragEvent<HTMLDivElement>, taskId: string) => {
     event.dataTransfer.setData('taskId', taskId);
     event.dataTransfer.effectAllowed = 'move';
@@ -323,6 +322,14 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     }
   };
 
+  const handleDeleteDependency = (dependentTaskId: string, prerequisiteTaskId: string) => {
+    const dependentTask = tasks.find(t => t.id === dependentTaskId);
+    if (dependentTask && dependentTask.dependencies) {
+      const updatedDependencies = dependentTask.dependencies.filter(depId => depId !== prerequisiteTaskId);
+      onUpdateTask({ ...dependentTask, dependencies: updatedDependencies });
+    }
+  };
+
 
   if (!isClient) {
     return <div className="p-4 text-muted-foreground">Loading Gantt chart...</div>;
@@ -337,7 +344,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     let tooltip = `Task: ${task.title}`;
     if (task.isMilestone) tooltip += ` (Milestone)`;
     tooltip += `\nStatus: ${task.status}`;
-    tooltip += `\nAssigned To: ${task.assignedTo}`;
+    if (task.assignedTo) tooltip += `\nAssigned To: ${task.assignedTo}`;
     if (task.startDate) {
       tooltip += `\n${task.isMilestone ? 'Date' : 'Start'}: ${format(parseISO(task.startDate), 'MMM d, yyyy')}`;
     }
@@ -381,7 +388,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
           {/* Task Details Header */}
           <div
             style={{ width: `${TASK_DETAILS_AREA_WIDTH_PX}px`, minWidth: `${TASK_DETAILS_AREA_WIDTH_PX}px`, height: `${2 * TIMELINE_HEADER_ROW_HEIGHT_PX}px` }}
-            className="p-0 border-r font-semibold flex items-stretch sticky left-0 bg-card z-20" // z-index to be above grid lines but below "Today"
+            className="p-0 border-r font-semibold flex items-stretch sticky left-0 bg-card z-40"
           >
             <div style={{ width: `${TASK_TITLE_COL_WIDTH_PX}px` }} className="p-2 flex items-center border-r">Task Name</div>
             <div style={{ width: `${START_DATE_COL_WIDTH_PX}px` }} className="p-2 flex items-center justify-center border-r text-xs">Start</div>
@@ -504,14 +511,12 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
 
                 const prereqBarPos = getTaskBarPositionAndStyle(prereqTask, prereqTaskIndex);
 
-                // Calculate end of prereq bar and start of dependent bar
                 const x1 = prereqBarPos.left + (prereqTask.isMilestone ? MILESTONE_SIZE_PX / 2 : prereqBarPos.width);
                 const y1 = prereqBarPos.top + ROW_HEIGHT_PX / 2;
                 
-                const x2 = dependentBarPos.left + (task.isMilestone ? MILESTONE_SIZE_PX / 2 : 0) - (task.isMilestone ? 0 : 5) ; // Small gap before task bar
+                const x2 = dependentBarPos.left + (task.isMilestone ? MILESTONE_SIZE_PX / 2 : 0) - (task.isMilestone ? 0 : 5) ;
                 const y2 = dependentBarPos.top + ROW_HEIGHT_PX / 2;
 
-                // Avoid drawing lines that go backwards (unless one is a milestone)
                 if (x1 >= x2 && !prereqTask.isMilestone && !task.isMilestone) return null;
 
 
@@ -526,6 +531,10 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                     strokeOpacity="0.6"
                     strokeWidth="1.5"
                     markerEnd="url(#arrowhead)"
+                    className="cursor-pointer hover:stroke-red-500 hover:stroke-[2.5px]"
+                    onClick={() => handleDeleteDependency(task.id, depId)}
+                    style={{ pointerEvents: 'stroke' }}
+                    title={`Dependency: ${prereqTask.title} -> ${task.title}. Click to remove.`}
                   />
                 );
               });
@@ -535,7 +544,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
           {/* Task Rows */}
           {processedTasks.map((task, taskIndex) => {
             const { left: barLeftOffset, width: barWidth, top: barTopOffset } = getTaskBarPositionAndStyle(task, taskIndex);
-            // console.log(`Rendering bar for ${task.title} (ID: ${task.id}) at index ${taskIndex}, calculated top: ${barTopOffset}`);
             const isDraggingThisTask = draggingTaskDetails?.task.id === task.id;
             const isResizingThisTask = resizingTaskDetails?.task.id === task.id;
             
@@ -547,11 +555,11 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
               barBaseClasses = cn(barBaseClasses, milestoneColor, "justify-center");
             } else if (task.isParent) {
               const statusColorClass = statusGanttBarColors[task.status] || 'border-gray-500';
-              barBaseClasses = cn(barBaseClasses, `border-2 ${statusColorClass.replace('bg-', 'border-').replace('hover:bg-', 'hover:border-')}`, 'bg-card dark:bg-muted/30');
-              barTextClasses = "truncate pointer-events-none relative z-[5] flex items-center text-card-foreground dark:text-gray-200 text-[11px] px-2";
+              barBaseClasses = cn(barBaseClasses, `border-2 ${statusColorClass.replace('bg-', 'border-').replace('hover:bg-', 'hover:border-')}`, 'bg-background');
+              barTextClasses = "truncate pointer-events-none relative z-[5] flex items-center text-foreground dark:text-gray-200 text-[11px] px-2";
             } else { 
               const statusColorClass = statusGanttBarColors[task.status] || 'bg-gray-500 hover:bg-gray-600';
-              barBaseClasses = cn(barBaseClasses, statusColorClass.replace(/hover:bg-\S+\s*/, '')); // Remove hover from base
+              barBaseClasses = cn(barBaseClasses, statusColorClass.replace(/hover:bg-\S+\s*/, ''));
               
               const progressPercent = task.progress !== undefined ? Math.max(0, Math.min(100, task.progress)) : 0;
               const progressFillColor = getProgressFillColor(statusColorClass.replace(/hover:bg-\S+\s*/, ''));
@@ -632,7 +640,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                 {/* Task Bar/Milestone on Timeline Part */}
                 {task.startDate && (
                   <div
-                    key={`bar-${task.id}`} // Added key here
+                    key={`bar-${task.id}`}
                     onMouseDown={(e) => task.isMilestone || task.isParent ? null : handleTaskBarMouseDown(e, task)}
                     title={getTaskTooltip(task)}
                     className={cn(
@@ -644,14 +652,14 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                       left: `${TASK_DETAILS_AREA_WIDTH_PX + barLeftOffset + (task.isMilestone ? (DAY_WIDTH_PX / 2 - MILESTONE_SIZE_PX / 2) : 0)}px`,
                       width: task.isMilestone ? `${MILESTONE_SIZE_PX}px` : `${barWidth}px`,
                       height: task.isMilestone ? `${MILESTONE_SIZE_PX}px` : `${ROW_HEIGHT_PX - 10}px`,
-                      top: `${barTopOffset + (task.isMilestone ? (ROW_HEIGHT_PX / 2 - MILESTONE_SIZE_PX / 2 -5 /* Adjusted for overall bar margin */) : 0)}px`, 
+                      top: `${barTopOffset + (task.isMilestone ? (ROW_HEIGHT_PX / 2 - MILESTONE_SIZE_PX / 2 -5 ) : 0)}px`, 
                       lineHeight: task.isMilestone ? `${MILESTONE_SIZE_PX}px` : `${ROW_HEIGHT_PX - 10}px`,
                       zIndex: isDraggingThisTask || isResizingThisTask ? 50 : 30, 
                       transform: task.isMilestone ? 'rotate(45deg)' : 'none',
                     }}
                   >
                     {progressFillElement}
-                    <span className={cn(barTextClasses, 'relative z-10')}> {/* Text on top of progress */}
+                    <span className={cn(barTextClasses, 'relative z-10')}>
                         {!task.isMilestone && !task.isParent && (
                            <>
                              <span className="truncate">{task.title}</span>
@@ -661,13 +669,13 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                            </>
                         )}
                         {task.isParent && !task.isMilestone && (
-                           <span className="truncate font-medium">{task.title}</span>
+                           <span className="truncate font-medium text-foreground dark:text-foreground">{task.title}</span>
                         )}
                     </span>
                     {(!task.isMilestone && !task.isParent) && (
                       <div
                         onMouseDown={(e) => handleResizeMouseDown(e, task)}
-                        className="absolute top-0 right-0 h-full cursor-col-resize group-hover/taskbar:bg-black/10 dark:group-hover/taskbar:bg-white/10 transition-colors z-20"
+                        className="absolute top-0 right-0 h-full cursor-col-resize group-hover/taskbar:bg-black/20 dark:group-hover/taskbar:bg-white/20 transition-colors z-20"
                         style={{ width: `${RESIZE_HANDLE_WIDTH_PX}px` }}
                         title={`Resize ${task.title}`}
                       >
@@ -698,3 +706,4 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     </ScrollArea>
   );
 }
+
