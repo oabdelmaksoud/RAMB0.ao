@@ -43,8 +43,8 @@ ASPICE Process Area Focus: "{{aspiceProcessArea}}"
 {{/if}}
 
 Instructions:
-1.  **Generate a `suggestedFileName`**: Create a suitable filename for this document (e.g., "User_Authentication_Requirements.md", "{{aspiceProcessArea}}_System_Requirements.md"). Use underscores for spaces.
-2.  **Generate `documentContent`**:
+1.  Generate a suggestedFileName: Create a suitable filename for this document (e.g., "User_Authentication_Requirements.md", "{{aspiceProcessArea}}_System_Requirements.md"). Use underscores for spaces.
+2.  Generate documentContent:
     *   Create a comprehensive, well-organized draft of the requirements document. Use Markdown format.
     *   Include standard sections like:
         *   Introduction / Purpose
@@ -54,10 +54,10 @@ Instructions:
         *   Non-Functional Requirements (e.g., Performance, Security, Usability, Reliability, Maintainability)
         *   Interface Requirements (if applicable)
         *   Data Requirements (if applicable)
-    *   If an `aspiceProcessArea` is provided, ensure the content and structure reflect the typical work products and information items associated with that process area. For example, for SYS.2 (System Requirements Analysis), focus on system-level functional and non-functional requirements. For SWE.1 (Software Requirements Analysis), focus on software-specific requirements derived from system requirements.
+    *   If an aspiceProcessArea is provided, ensure the content and structure reflect the typical work products and information items associated with that process area. For example, for SYS.2 (System Requirements Analysis), focus on system-level functional and non-functional requirements. For SWE.1 (Software Requirements Analysis), focus on software-specific requirements derived from system requirements.
     *   The content should be a solid starting point for human engineers to review and elaborate upon.
     *   Aim for 3-5 specific functional requirements and 2-3 non-functional requirements as examples, tailored to the document title.
-3.  **Generate `aiReasoning`**: Provide a very concise (1-3 sentences) explanation of the document structure you chose and why.
+3.  Generate aiReasoning: Provide a very concise (1-3 sentences) explanation of the document structure you chose and why.
 
 Output ONLY the JSON object adhering to the GenerateRequirementDocOutputSchema.
 `,
