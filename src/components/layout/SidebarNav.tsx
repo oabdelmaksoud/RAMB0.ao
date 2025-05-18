@@ -1,21 +1,21 @@
-
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Briefcase, // For Projects
-  Activity,  // For Monitoring
-  Users,     // For Resources
-  Mail,      // For Assistant
-  // LayoutDashboard, Settings, UserCircle are no longer used here
+  Briefcase,
+  Activity,
+  Users,
+  Mail,
+  LayoutDashboard, // Added for Dashboard/Portfolio
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Projects', icon: Briefcase },
+  { href: '/portfolio-dashboard', label: 'Dashboard', icon: LayoutDashboard }, // Points to portfolio
+  { href: '/', label: 'Projects', icon: Briefcase }, // Points to project list
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
   { href: '/resource-allocation', label: 'Resources', icon: Users },
   { href: '/personal-assistant', label: 'Assistant', icon: Mail },
@@ -30,14 +30,12 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
-              {/* Using Link asChild and Button as direct child for modern Next.js Link behavior */}
               <Link href={item.href} passHref asChild>
                 <Button
                   variant="ghost"
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    // Highlight '/' for both '/' and if pathname starts with /projects (due to potential redirects)
-                    (pathname === item.href || (item.href === '/' && pathname.startsWith('/projects')))
+                    (pathname === item.href || (item.href === '/' && pathname.startsWith('/projects') && pathname.length > 1)) // Highlight '/' only if it's exactly '/' or a project detail page
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
