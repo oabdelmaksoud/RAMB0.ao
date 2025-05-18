@@ -4,12 +4,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
   Briefcase,
   Activity,
-  Settings, 
-  Users,
-  LayoutGrid, 
+  LayoutGrid,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -36,14 +33,14 @@ export default function SidebarNav() {
                   asChild
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
+                    (pathname === item.href || (item.href === '/' && pathname.startsWith('/projects/')) || (item.href !== '/' && pathname.startsWith(item.href)))
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <a> 
+                  <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2">{item.label}</span>
+                    <span className="ml-2">{item.label}</span> {/* Always show label */}
                   </a>
                 </Button>
               </Link>

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
@@ -251,6 +250,7 @@ export default function ProjectDetailPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isAITaskPlannerDialogOpen, setIsAITaskPlannerDialogOpen] = useState(false);
   const [aiPlannerPrefillGoal, setAiPlannerPrefillGoal] = useState<string | undefined>(undefined);
+
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isEditTaskDialogOpen, setIsEditTaskDialogOpen] = useState(false);
   const [isViewingTask, setIsViewingTask] = useState(false);
@@ -272,6 +272,9 @@ export default function ProjectDetailPage() {
   const designingWorkflowIdRef = useRef<string | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<ProjectWorkflow | null>(null);
   const [isDeleteWorkflowDialogOpen, setIsDeleteWorkflowDialogOpen] = useState(false);
+  const [viewEditWorkflowDetails, setViewEditWorkflowDetails] = useState<ProjectWorkflow | null>(null);
+  const [isViewEditWorkflowDialogOpen, setIsViewEditWorkflowDialogOpen] = useState(false);
+
 
   const [isChatDialogOpen, setIsChatDialogOpen] = useState(false);
   const [chattingTask, setChattingTask] = useState<Task | null>(null);
@@ -300,6 +303,7 @@ export default function ProjectDetailPage() {
   const [isDeleteTicketDialogOpen, setIsDeleteTicketDialogOpen] = useState(false);
   const [selectedTicketTypeFilter, setSelectedTicketTypeFilter] = useState<TicketType | 'All'>('All');
 
+
   useEffect(() => {
     setIsClient(true);
   }, []);
@@ -326,28 +330,27 @@ export default function ProjectDetailPage() {
   }, []);
 
   const initialProjectScopedMockAgents = useCallback((currentProjectId: string): Agent[] => {
-    // ASPICE V-Model Aligned Default Project-Specific Agents
     return [
       { id: uid(`proj-${currentProjectId.slice(-4)}-req`), name: 'Requirements Elicitation & Analysis Agent', type: 'Analysis Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SYS.1, SYS.2, SWE.1", methods: ["interviews", "workshops"], outputs: ["SRS", "SystemRequirementsSpec"] } },
       { id: uid(`proj-${currentProjectId.slice(-4)}-sys-arch`), name: 'System Architectural Design Agent', type: 'Design Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SYS.3", inputs: ["SystemRequirementsSpec"], outputs: ["SystemArchitectureDesignDoc"], modeling: "SysML" } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-sw-req`), name: 'Software Requirements Analysis Agent', type: 'Analysis Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.1", inputs: ["SystemArchitectureDesignDoc"], outputs: ["SoftwareRequirementsSpec"] } },
       { id: uid(`proj-${currentProjectId.slice(-4)}-sw-arch`), name: 'Software Architectural Design Agent', type: 'Design Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.2", inputs: ["SoftwareRequirementsSpec"], outputs: ["SoftwareArchitectureDesignDoc"] } },
       { id: uid(`proj-${currentProjectId.slice(-4)}-sw-detail`), name: 'Software Detailed Design & Implementation Agent', type: 'Development Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.3, SWE.4 (Unit Const.)", inputs: ["SoftwareArchitectureDesignDoc"], outputs: ["SourceCode", "UnitTests"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-sw-unit-test`), name: 'Software Unit Verification Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.4 (Unit Verif.)", inputs: ["SourceCode", "UnitTests"], coverageGoal: "90%" } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-sw-int-test`), name: 'Software Integration Test Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.5", inputs: ["IntegratedSoftware", "SoftwareArchitectureDesignDoc"], outputs: ["IntegrationTestReport"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-sw-qual-test`), name: 'Software Qualification Test Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.6", inputs: ["SoftwareProduct", "SoftwareRequirementsSpec"], outputs: ["QualificationTestReport"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-sys-int-test`), name: 'System Integration Test Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SYS.4", inputs: ["IntegratedSystemComponents", "SystemArchitectureDesignDoc"], outputs: ["SystemIntegrationTestReport"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-sys-qual-test`), name: 'System Qualification Test Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SYS.5", inputs: ["SystemProduct", "SystemRequirementsSpec"], outputs: ["SystemQualificationTestReport"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-pm`), name: 'Project Management Support Agent (ASPICE)', type: 'Reporting Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "MAN.3, MAN.5", tasks: ["ProgressTracking", "RiskMonitoring", "StatusReporting"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-qa`), name: 'Quality Assurance Support Agent (ASPICE)', type: 'Custom Logic Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SUP.1, SUP.4", tasks: ["ProcessAudits", "VerificationSupport", "ProblemResolutionTracking"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-cm`), name: 'Configuration Management Support Agent (ASPICE)', type: 'CI/CD Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SUP.8, SUP.9, SUP.10", tools: ["Git", "BaselineManagement"] } },
-      { id: uid(`proj-${currentProjectId.slice(-4)}-doc`), name: 'Technical Documentation Agent (ASPICE)', type: 'Documentation Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SUP.9", documentTypes: ["RequirementsSpec", "DesignDoc", "TestPlan", "TestReport"], standard: "ASPICE Compliant" } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-unit-verif`), name: 'ASPICE Software Unit Verification Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.4 (Unit Verif.)", inputs: ["SourceCode", "UnitTests"], testFrameworks: ["Jest", "Pytest"], coverageGoal: "90%" } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-sw-int-test`), name: 'ASPICE Software Integration Testing Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.5", inputs: ["IntegratedSoftware", "SoftwareArchitectureDesignDocument"], outputs: ["IntegrationTestReport"], strategy: "Bottom-up" } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-sw-qual-test`), name: 'ASPICE Software Qualification Testing Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SWE.6", inputs: ["SoftwareProduct", "SoftwareRequirementsSpecification"], outputs: ["QualificationTestReport"], methods: ["BlackBox", "AlphaTesting"] } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-sys-int-test`), name: 'ASPICE System Integration Testing Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SYS.4", inputs: ["IntegratedSystemComponents", "SystemArchitectureDesignDocument"], outputs: ["SystemIntegrationTestReport"] } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-sys-qual-test`), name: 'ASPICE System Qualification Testing Agent', type: 'Testing Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SYS.5", inputs: ["SystemProduct", "SystemRequirementsSpecification"], outputs: ["SystemQualificationTestReport"], validationMethods: ["UserScenarios", "PerformanceTesting"] } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-pm`), name: 'ASPICE Project Management Support Agent', type: 'Reporting Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "MAN.3, MAN.5", tasks: ["ProgressTracking", "RiskMonitoring", "StatusReporting"], tools: ["Jira_Interface", "Gantt_Generator"] } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-qa`), name: 'ASPICE Quality Assurance Support Agent', type: 'Custom Logic Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SUP.1, SUP.4", tasks: ["ProcessAudits", "MetricCollection", "ComplianceChecks", "ProblemResolutionTracking"], standards: ["ASPICE", "ISO26262"] } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-cm`), name: 'ASPICE Configuration Management Support Agent', type: 'CI/CD Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SUP.8, SUP.9, SUP.10", tools: ["Git", "BaselineManagement"], tasks: ["BaselineCreation", "ChangeRequestProcessing", "VersionControlManagement"] } },
+      { id: uid(`proj-${currentProjectId.slice(-4)}-doc`), name: 'ASPICE Technical Documentation Agent', type: 'Documentation Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { focus: "SUP.9", documentTypes: ["RequirementsSpec", "ArchitectureDoc", "DesignDoc", "TestPlan", "TestReport", "UserManual"], outputFormats: ["PDF", "Markdown", "HTML"], standardCompliance: "ASPICE" },
+      }
     ];
   }, []);
 
 
   // Main data loading effect
- useEffect(() => {
+  useEffect(() => {
     if (!projectId || !isClient) return;
     console.log(`PROJECT_DETAIL_PAGE: Loading all data for project ID: ${projectId}`);
 
@@ -433,6 +436,7 @@ export default function ProjectDetailPage() {
             setProjectFiles(initialMockFilesData(projectId));
         }
     } else {
+        console.log(`PROJECT_DETAIL_PAGE: No files found in localStorage for project ${projectId}. Initializing with mocks.`);
         setProjectFiles(initialMockFilesData(projectId));
     }
     setCurrentFilePath('/');
@@ -448,6 +452,7 @@ export default function ProjectDetailPage() {
             setProjectRequirements([]);
         }
     } else {
+        console.log(`PROJECT_DETAIL_PAGE: No requirements found for project ${projectId}. Initializing with empty array.`);
         setProjectRequirements([]);
     }
 
@@ -462,6 +467,7 @@ export default function ProjectDetailPage() {
         setProjectTickets(initialMockTickets(projectId));
       }
     } else {
+      console.log(`PROJECT_DETAIL_PAGE: No tickets found for project ${projectId}. Initializing with mocks.`);
       setProjectTickets(initialMockTickets(projectId));
     }
 
@@ -479,7 +485,6 @@ export default function ProjectDetailPage() {
     const storageKey = getAgentsStorageKey(projectId);
     if (isClient && projectId && (projectAgents.length > 0 || localStorage.getItem(storageKey) !== null)) {
       localStorage.setItem(storageKey, JSON.stringify(projectAgents));
-      // console.log(`PROJECT_DETAIL_PAGE: Saved ${projectAgents.length} agents for project ${projectId} to localStorage.`);
     }
   }, [projectAgents, projectId, isClient]);
 
@@ -487,13 +492,13 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     const workflowsKey = getWorkflowsStorageKey(projectId);
     if (isClient && projectId && (projectWorkflows.length > 0 || localStorage.getItem(workflowsKey) !== null)) {
+      // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}:`, JSON.stringify(projectWorkflows.map(wf => ({id: wf.id, name: wf.name, nodes: wf.nodes?.length, edges: wf.edges?.length }))));
       localStorage.setItem(workflowsKey, JSON.stringify(projectWorkflows));
-      // console.log(`PROJECT_DETAIL_PAGE: Saving projectWorkflows to localStorage for project ${projectId}`, projectWorkflows.map(pw => ({id: pw.id, name: pw.name, nodes: pw.nodes?.length, edges: pw.edges?.length })));
     }
   }, [projectWorkflows, projectId, isClient]);
 
   // Effect to save project files
- useEffect(() => {
+  useEffect(() => {
     if (isClient && projectId && (projectFiles.length > 0 || localStorage.getItem(filesStorageKey) !== null)) {
         localStorage.setItem(filesStorageKey, JSON.stringify(projectFiles));
     }
@@ -512,26 +517,6 @@ export default function ProjectDetailPage() {
         localStorage.setItem(ticketsStorageKey, JSON.stringify(projectTickets));
     }
   }, [projectTickets, projectId, isClient, ticketsStorageKey]);
-
-  // Effect to sync designingWorkflow with the one from projectWorkflows list
-  useEffect(() => {
-    if (!designingWorkflow?.id || !projectWorkflows?.length || !isClient) return;
-    const currentId = designingWorkflow.id; // Use a stable ID for dependency
-
-    const currentDesigningWorkflowInState = projectWorkflows.find(wf => wf.id === currentId);
-
-    if (currentDesigningWorkflowInState) {
-      if (JSON.stringify(currentDesigningWorkflowInState) !== JSON.stringify(designingWorkflow)) {
-        // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow from projectWorkflows state. ID:", currentId, "Name:", currentDesigningWorkflowInState.name);
-        setDesigningWorkflow(JSON.parse(JSON.stringify(currentDesigningWorkflowInState))); // Deep clone
-      }
-    } else {
-      if (designingWorkflow) { // only if designingWorkflow was actually set
-        // console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer in projectWorkflows list. Closing designer. ID was:", currentId);
-        setDesigningWorkflow(null);
-      }
-    }
-  }, [projectWorkflows, designingWorkflow, isClient]); // Keep designingWorkflow itself to react to external changes if needed
 
 
   const updateWorkflowStatusBasedOnTasks = useCallback((
@@ -579,15 +564,14 @@ export default function ProjectDetailPage() {
       return newWorkflows;
     }
     return currentWorkflows;
-  }, []);
+  }, []); // Removed toast from dependencies
 
   useEffect(() => {
-    if (!isClient || !projectWorkflows || projectWorkflows.length === 0 || tasks.length === 0 ) return;
+    if (!isClient || projectWorkflows.length === 0 || tasks.length === 0 ) return;
     
     setProjectWorkflows(prevWorkflows => {
         const updated = updateWorkflowStatusBasedOnTasks(tasks, prevWorkflows);
         if (JSON.stringify(updated) !== JSON.stringify(prevWorkflows)) {
-          // console.log("PROJECT_DETAIL_PAGE: Workflow statuses updated based on tasks.");
           return updated;
         }
         return prevWorkflows;
@@ -619,7 +603,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     let mainTaskStartDateString = (plannedTaskDataFromAI.startDate && isValid(parseISO(plannedTaskDataFromAI.startDate)))
                                 ? plannedTaskDataFromAI.startDate
                                 : format(new Date(), 'yyyy-MM-dd');
-    // Ensure startDate is not in the past for new tasks, unless explicitly set to be a milestone that's already "Done"
+    
     if (!plannedTaskDataFromAI.isMilestone || plannedTaskDataFromAI.status !== 'Done') {
         try {
             if (parseISO(mainTaskStartDateString) < startOfDay(new Date())) {
@@ -674,12 +658,11 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
 
              if ((matchingWorkflow.status === 'Active' || workflowWasActivated) && mainTask.status !== 'Done') {
                mainTask = {...mainTask, status: 'In Progress', progress: (mainTask.progress === 0 || mainTask.progress === undefined) ? 10 : mainTask.progress };
-               newTasksList[0] = mainTask; // Update mainTask in the list
+               newTasksList[0] = mainTask;
                autoStarted = true;
                toastDescriptionText += ` Workflow is active. Main task set to 'In Progress'.`;
             }
         } else {
-            // This block is less likely to be hit if AI assigns to workflows, but kept for robustness
             const assignedAgentInstance = projectAgents.find(agent => agent.name === assignedToValue);
             if (assignedAgentInstance) {
                 if (assignedAgentInstance.status === 'Running' && mainTask.status !== 'Done') {
@@ -709,19 +692,17 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
         const createdSubTasks: Task[] = suggestedSubTasksFromAI.map((st, index) => {
             const subTaskId = uid(`subtask-${mainTaskId.slice(-5)}`);
             let subTaskStartDate = mainTask.startDate || format(new Date(), 'yyyy-MM-dd');
-            // Offset sub-task start dates based on main task or previous sub-task
+            
             if (index > 0) {
                 const previousSubTask = newTasksList[newTasksList.length -1];
                  try {
                     subTaskStartDate = format(addDays(parseISO(previousSubTask.startDate!), previousSubTask.durationDays || 1), 'yyyy-MM-dd');
                 } catch (e) { /* use main task's start date if parse fails */ }
-            } else if (newTasksList.length > 0 && newTasksList[0].id === mainTaskId) { // first sub-task
+            } else if (newTasksList.length > 0 && newTasksList[0].id === mainTaskId) {
                  try {
-                    // Start first sub-task on the same day as parent, or next day if parent has duration 0
                     subTaskStartDate = mainTask.durationDays === 0 ? format(addDays(parseISO(mainTask.startDate!), 1), 'yyyy-MM-dd') : mainTask.startDate!;
                 } catch (e) { /* use main task's start date if parse fails */ }
             }
-
 
             const newSubTask: Task = {
                 id: subTaskId,
@@ -734,7 +715,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
                 progress: 0,
                 isMilestone: false,
                 parentId: mainTaskId,
-                dependencies: index > 0 ? [newTasksList[newTasksList.length -1].id] : [], // Depend on previous sub-task in sequence
+                dependencies: index > 0 ? [newTasksList[newTasksList.length -1].id] : [],
                 description: st.description || "No description provided by AI for this sub-task.",
             };
             newTasksList.push(newSubTask);
@@ -745,7 +726,6 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
             toastDescriptionText += ` ${createdSubTasks.length} sub-task(s) also created and linked.`;
         }
     }
-    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): newTasksList to be added:", JSON.stringify(newTasksList.map(t=>({id:t.id, title:t.title, parentId: t.parentId, assignedTo: t.assignedTo, status: t.status, dependencies: t.dependencies, startDate: t.startDate, durationDays: t.durationDays})), null, 2));
     
     const finalMainTaskForChat = newTasksList.find(t => t.id === mainTaskId);
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed mainTask for chat:", JSON.stringify(finalMainTaskForChat, null, 2));
@@ -770,13 +750,14 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     setTimeout(() => toast({ title: toastTitle, description: toastDescriptionText.trim() }), 0);
 
     setIsAITaskPlannerDialogOpen(false);
+    setAiPlannerPrefillGoal(undefined); // Clear prefill goal
     if (finalMainTaskForChat) {
-        setTimeout(() => { // Defer opening chat dialog slightly
-          setChattingTask(JSON.parse(JSON.stringify(finalMainTaskForChat))); // Pass a deep copy
+        setTimeout(() => {
+          setChattingTask(JSON.parse(JSON.stringify(finalMainTaskForChat)));
           setIsChatDialogOpen(true);
         }, 100);
     }
-  }, [projectId, project?.name, projectWorkflows, projectAgents, toast, updateWorkflowStatusBasedOnTasks]);
+  }, [projectId, project?.name, projectWorkflows, projectAgents, toast, updateWorkflowStatusBasedOnTasks, setProjectWorkflows, setProjectAgents]);
 
 
   const handleOpenEditTaskDialog = (task: Task, isViewMode: boolean = false) => {
@@ -835,7 +816,6 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
       let remainingTasksArray: Task[] = [];
       setTasks(prevTasks => {
           remainingTasksArray = prevTasks.filter(task => !tasksToDeleteIds.has(task.id));
-          // Also remove dependencies on the deleted tasks
           remainingTasksArray = remainingTasksArray.map(task => ({
             ...task,
             dependencies: task.dependencies?.filter(depId => !tasksToDeleteIds.has(depId))
@@ -878,7 +858,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     if (taskToMoveIndex === -1) return;
     let taskToMove = { ...updatedTasksArray[taskToMoveIndex] };
 
-    if (sourceTaskStatus !== newStatus) { // Status change
+    if (sourceTaskStatus !== newStatus) { 
         taskToMove.status = newStatus;
         if (taskToMove.isMilestone) {
             taskToMove.progress = newStatus === 'Done' ? 100 : 0;
@@ -887,8 +867,23 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
             taskToMove.progress = newStatus === 'Done' ? 100 : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : (taskToMove.progress || 0));
         }
 
-        updatedTasksArray.splice(taskToMoveIndex, 1);
-        updatedTasksArray.push(taskToMove); // Add to the end of the array, sorting will handle visual grouping
+        updatedTasksArray.splice(taskToMoveIndex, 1); 
+        
+        const tasksInNewStatus = updatedTasksArray.filter(t => t.status === newStatus);
+        const lastTaskInNewStatusIndex = tasksInNewStatus.length > 0 
+            ? updatedTasksArray.lastIndexOf(tasksInNewStatus[tasksInNewStatus.length - 1])
+            : -1;
+
+        if (lastTaskInNewStatusIndex !== -1) {
+            updatedTasksArray.splice(lastTaskInNewStatusIndex + 1, 0, taskToMove);
+        } else {
+             const firstTaskOfAnyStatusIndex = updatedTasksArray.findIndex(t => t.status === newStatus);
+             if (firstTaskOfAnyStatusIndex !== -1) {
+                 updatedTasksArray.splice(firstTaskOfAnyStatusIndex, 0, taskToMove);
+             } else {
+                updatedTasksArray.push(taskToMove);
+             }
+        }
         
         setTimeout(() => toast({
             title: "Task Status Updated",
@@ -896,7 +891,6 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
         }),0);
 
     } else if (sourceTaskStatus === newStatus && draggedTaskId) {
-      // Dropped in empty space of the same column: move to end of that status group
       updatedTasksArray.splice(taskToMoveIndex, 1); 
       updatedTasksArray.push(taskToMove); 
       
@@ -905,7 +899,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
           description: `Task "${taskToMove.title}" moved to the end of "${sourceTaskStatus}".`,
       }),0);
     }
-    setTasks(updatedTasksArray.sort((a, b) => { // Re-sort after any modification
+    setTasks(updatedTasksArray.sort((a, b) => {
       if (a.parentId === b.id) return 1;
       if (b.parentId === a.id) return -1;
       if (a.parentId && !b.parentId) return 1;
@@ -920,6 +914,11 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     setProjectWorkflows(prevWorkflows => updateWorkflowStatusBasedOnTasks(updatedTasksArray, prevWorkflows));
   };
 
+
+  const handleTaskCardDragStart = (event: React.DragEvent<HTMLDivElement>, task: Task) => {
+    event.dataTransfer.setData('taskId', task.id);
+    event.dataTransfer.setData('taskStatus', task.status);
+  };
 
   const handleTaskCardDragOver = (event: React.DragEvent<HTMLDivElement>, targetTask: Task) => {
     event.preventDefault();
@@ -968,7 +967,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
   };
 
   const handleGanttTaskReorder = useCallback((draggedTaskId: string, targetTaskId: string) => {
-    setTimeout(() => { // Defer state update slightly
+    setTimeout(() => { 
       setTasks(prevTasks => {
         const draggedTaskIndex = prevTasks.findIndex(task => task.id === draggedTaskId);
         const targetTaskIndexInOriginal = prevTasks.findIndex(task => task.id === targetTaskId);
@@ -1103,7 +1102,6 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
-    console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", JSON.stringify(workflow, null, 2));
     setDesigningWorkflow(JSON.parse(JSON.stringify(workflow))); 
   };
 
@@ -1119,22 +1117,22 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
 
   const handleWorkflowNodesChange = useCallback((updatedNodes: WorkflowNode[]) => {
     const currentDesigningWfId = designingWorkflowIdRef.current;
-    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange (for nodes) received updatedNodes for wf ${currentDesigningWfId}. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
+    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowNodesChange (for nodes) received updatedNodes for wf ${currentDesigningWfId}. Length: ${updatedNodes.length}, IDs: ${updatedNodes.map(n=>n.id).join(', ')}`);
     if (currentDesigningWfId) {
       setProjectWorkflows(prevWorkflows => {
-        // console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for NODES. prevWorkflows length: ${prevWorkflows.length}`);
+        console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for NODES. prevWorkflows length: ${prevWorkflows.length}`);
         const newWorkflowsArray = prevWorkflows.map(wf => {
           if (wf.id === currentDesigningWfId) {
-            // console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. Old nodes count: ${(wf.nodes || []).length}. New nodes count: ${updatedNodes.length}. Nodes:`, JSON.stringify(updatedNodes.map(n=>({id: n.id, name: n.name.substring(0,10)}))));
-            return { ...wf, nodes: [...updatedNodes], lastRun: new Date().toISOString() }; // Ensure new array for nodes
+            console.log(`PROJECT_DETAIL_PAGE: Updating nodes for workflow ID: ${wf.id}. Old nodes count: ${(wf.nodes || []).length}. New nodes count: ${updatedNodes.length}.`);
+            return { ...wf, nodes: [...updatedNodes], lastRun: new Date().toISOString() };
           }
           return wf;
         });
-        //  newWorkflowsArray.forEach(wf => {
-        //   if(wf.id === currentDesigningWfId) {
-        //     console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map, for NODES). ID: ${wf.id}, Nodes count: ${wf.nodes?.length}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ')}`);
-        //   }
-        // });
+         newWorkflowsArray.forEach(wf => {
+          if(wf.id === currentDesigningWfId) {
+            console.log(`PROJECT_DETAIL_PAGE: Workflow in newWorkflows array (after map, for NODES). ID: ${wf.id}, Nodes count: ${wf.nodes?.length}, Nodes IDs: ${wf.nodes?.map(n=>n.id).join(', ')}`);
+          }
+        });
         return newWorkflowsArray;
       });
     }
@@ -1142,14 +1140,14 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
     const currentDesigningWfId = designingWorkflowIdRef.current;
-    // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange (for edges) received updatedEdges for wf ${currentDesigningWfId}. Length: ${updatedEdges.length}, IDs: ${updatedEdges.map(e=>e.id).join(', ')}`);
+    console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange (for edges) received updatedEdges for wf ${currentDesigningWfId}. Length: ${updatedEdges.length}`);
     if (currentDesigningWfId) {
       setProjectWorkflows(prevWorkflows => {
-        // console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for EDGES. prevWorkflows length: ${prevWorkflows.length}`);
+        console.log(`PROJECT_DETAIL_PAGE: Inside setProjectWorkflows for EDGES. prevWorkflows length: ${prevWorkflows.length}`);
         const newWorkflowsArray = prevWorkflows.map(wf => {
           if (wf.id === currentDesigningWfId) {
-            // console.log(`PROJECT_DETAIL_PAGE: Updating edges for workflow ID: ${wf.id}. Old edges count: ${(wf.edges || []).length}. New edges count: ${updatedEdges.length}`);
-            return { ...wf, edges: [...updatedEdges], lastRun: new Date().toISOString() }; // Ensure new array for edges
+            console.log(`PROJECT_DETAIL_PAGE: Updating edges for workflow ID: ${wf.id}. Old edges count: ${(wf.edges || []).length}. New edges count: ${updatedEdges.length}`);
+            return { ...wf, edges: [...updatedEdges], lastRun: new Date().toISOString() };
           }
           return wf;
         });
@@ -1158,6 +1156,10 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     }
   }, []);
 
+  const handleOpenViewEditWorkflowDialog = (workflow: ProjectWorkflow) => {
+    setViewEditWorkflowDetails(workflow);
+    setIsViewEditWorkflowDialogOpen(true);
+  };
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -1193,7 +1195,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
   };
 
   const handleOpenChatDialog = (task: Task) => {
-    // console.log("PROJECT_DETAIL_PAGE: Opening chat for task:", JSON.stringify(task, null, 2));
+    console.log("PROJECT_DETAIL_PAGE: Opening chat for task:", JSON.stringify(task, null, 2));
     setChattingTask(task);
     setIsChatDialogOpen(true);
   };
@@ -1202,15 +1204,15 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     currentItems: ProjectFile[],
     targetPathSegments: string[],
     itemToAdd: ProjectFile,
-    basePathForNewItem: string = '/'
+    currentBasePathForLookup: string = '/'
   ): ProjectFile[] => {
     if (targetPathSegments.length === 0) {
-      const itemExists = currentItems.some(item => item.name === itemToAdd.name && item.path === basePathForNewItem && item.type === itemToAdd.type);
+      const itemExists = currentItems.some(item => item.name === itemToAdd.name && item.path === currentBasePathForLookup && item.type === itemToAdd.type);
       if (itemExists) {
-        setTimeout(() => toast({ title: "Duplicate Item", description: `A ${itemToAdd.type} named "${itemToAdd.name}" already exists in ${basePathForNewItem}.`, variant: "destructive" }),0);
+        setTimeout(() => toast({ title: "Duplicate Item", description: `A ${itemToAdd.type} named "${itemToAdd.name}" already exists in ${currentBasePathForLookup}.`, variant: "destructive" }),0);
         return currentItems; 
       }
-      const newItemWithPath = { ...itemToAdd, path: basePathForNewItem };
+      const newItemWithPath = { ...itemToAdd, path: currentBasePathForLookup };
       return [...currentItems, newItemWithPath].sort((a, b) => {
         if (a.type === 'folder' && b.type === 'file') return -1;
         if (a.type === 'file' && b.type === 'folder') return 1;
@@ -1222,7 +1224,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     const tailSegments = targetPathSegments.slice(1);
 
     return currentItems.map(item => {
-      if (item.type === 'folder' && item.name === headSegment && item.path === basePathForNewItem.slice(0, -(headSegment.length + (basePathForNewItem.endsWith(`${headSegment}/`) ? 1:0) ) )) {
+      if (item.type === 'folder' && item.name === headSegment && item.path === currentBasePathForLookup) {
         return {
           ...item,
           children: addFileOrFolderRecursive(item.children || [], tailSegments, itemToAdd, `${item.path}${item.name}/`),
@@ -1440,7 +1442,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
       setProjectTickets(prevTickets => prevTickets.filter(t => t.id !== ticketToDelete.id));
       toast({
         title: "Ticket Deleted",
-        description: `Ticket "${ticketToDelete.title}" has been deleted.`,
+        description: `Ticket "${ticketToDelete.name}" has been deleted.`,
         variant: "destructive",
       });
       setTicketToDelete(null);
@@ -1518,6 +1520,23 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     designingWorkflowIdRef.current = designingWorkflow?.id ?? null;
   }, [designingWorkflow?.id]);
 
+  useEffect(() => {
+    if (!designingWorkflow?.id || !projectWorkflows || projectWorkflows.length === 0 || !isClient) return;
+    const currentId = designingWorkflow.id; 
+
+    const currentDesigningWorkflowInState = projectWorkflows.find(wf => wf.id === currentId);
+
+    if (currentDesigningWorkflowInState) {
+      if (JSON.stringify(currentDesigningWorkflowInState) !== JSON.stringify(designingWorkflow)) {
+        setDesigningWorkflow(JSON.parse(JSON.stringify(currentDesigningWorkflowInState)));
+      }
+    } else {
+      if (designingWorkflow) {
+        setDesigningWorkflow(null);
+      }
+    }
+  }, [projectWorkflows, designingWorkflow, isClient]);
+
 
   if (!isClient && !project) {
     return (
@@ -1544,7 +1563,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
     );
   }
 
-  if (!project) {
+  if (!project) { // Fallback for SSR or if project somehow becomes null after client-side checks
     return (
       <div className="container mx-auto">
         <PageHeader><PageHeaderHeading>Project data unavailable</PageHeaderHeading></PageHeader>
@@ -1633,7 +1652,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
       </div>
 
       <Tabs defaultValue="taskManagement" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:w-auto xl:inline-grid">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:w-auto xl:inline-grid">
             <TabsTrigger value="taskManagement"><ListChecks className="mr-2 h-4 w-4"/>Task Management</TabsTrigger>
             <TabsTrigger value="projectAssets"><FolderGit2 className="mr-2 h-4 w-4"/>Project Assets</TabsTrigger>
             <TabsTrigger value="tickets"><TicketIcon className="mr-2 h-4 w-4"/>Tickets</TabsTrigger>
@@ -1776,7 +1795,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
                                 </CardDescription>
                               </div>
                               <Button variant="outline" size="sm" onClick={() => {
-                                  setIsAddRequirementDialogOpen(true); // Open the dialog
+                                  setIsAddRequirementDialogOpen(true); 
                                 }} className="w-full mt-2 sm:w-auto sm:mt-0">
                                 <FilePlus2 className="mr-2 h-4 w-4" /> Add New Requirement
                               </Button>
@@ -2060,7 +2079,6 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
                               <PageHeaderHeading className="text-xl">Project Workflow Management</PageHeaderHeading>
                               <CardDescription className="text-xs sm:text-sm text-muted-foreground">
                                 Manage and design the sequence of agent operations for project "{project.name}".
-                                Select a workflow to design or view its current status.
                               </CardDescription>
                           </div>
                            <Button onClick={() => setIsAddWorkflowDialogOpen(true)}  className="w-full mt-4 sm:w-auto sm:mt-0">
@@ -2071,7 +2089,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
                           <CardHeader className="p-0 pb-4">
                               <CardTitle className="text-lg">Existing Workflows for "{project.name}" ({projectWorkflows.length})</CardTitle>
                               <CardDescription className="text-xs sm:text-sm text-muted-foreground">
-                                Click "Design" to open the visual editor for a workflow.
+                                Click "Design" to open the visual editor. Click "Activate/Deactivate" to toggle simulated workflow status.
                               </CardDescription>
                           </CardHeader>
                           <CardContent className="p-0">
@@ -2209,7 +2227,7 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure you want to delete this project agent?</AlertDialogTitle>
-              <AlertDialogDescription>This action cannot be undone. This will permanently delete the agent "{agentToDelete.name}" from project "{project.name}".</AlertDialogDescription>
+              <AlertDialogDescription>This action cannot be undone. This will permanently delete the agent "{agentToDelete.name}" from project "{project?.name}".</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel onClick={() => { setAgentToDelete(null); setIsDeleteAgentDialogOpen(false); }}>Cancel</AlertDialogCancel>
@@ -2255,6 +2273,35 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      )}
+      {isViewEditWorkflowDialogOpen && viewEditWorkflowDetails && (
+          <AlertDialog open={isViewEditWorkflowDialogOpen} onOpenChange={setIsViewEditWorkflowDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Workflow: {viewEditWorkflowDetails.name}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {viewEditWorkflowDetails.description || "No description."}
+                  <br />
+                  Status: {viewEditWorkflowDetails.status}
+                  <br />
+                  Nodes: {viewEditWorkflowDetails.nodes?.length || 0} | Edges: {viewEditWorkflowDetails.edges?.length || 0}
+                  <br />
+                  <br />
+                  Clicking this would normally open the workflow designer (palette and canvas) pre-loaded with the nodes and connections for '{viewEditWorkflowDetails.name}'. Currently, this step is a placeholder. The full implementation for saving and loading individual workflow designs is pending.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => {
+                  setViewEditWorkflowDetails(null);
+                  setIsViewEditWorkflowDialogOpen(false);
+                }}>Close</AlertDialogCancel>
+                 <AlertDialogAction onClick={() => {
+                  handleOpenWorkflowDesigner(viewEditWorkflowDetails);
+                  setIsViewEditWorkflowDialogOpen(false);
+                }}>Design this Workflow</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
       )}
       {chattingTask && project && (
         <TaskChatDialog
@@ -2366,4 +2413,3 @@ const handleTaskPlannedAndAccepted = useCallback((aiOutput: PlanProjectTaskOutpu
   );
   // End of file, ensuring no trailing characters or comments after this line
 }
-```
