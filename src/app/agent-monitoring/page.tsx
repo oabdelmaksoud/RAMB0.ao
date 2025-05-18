@@ -6,7 +6,7 @@ import type { Agent } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import { Activity } from 'lucide-react'; 
 import { useState, useEffect } from 'react';
-import { AGENTS_STORAGE_KEY, initialMockAgents as initialGlobalAgentsData } from '@/app/agent-management/page';
+import { AGENTS_STORAGE_KEY, initialGlobalAgentsData } from '@/app/agent-management/page'; // Corrected import
 
 // Default mock data for agents with performance and logs - used if localStorage for global agents is empty
 // and if the initialGlobalAgentsData itself doesn't have these richer fields.
@@ -82,7 +82,7 @@ export default function AgentMonitoringPage() {
       lastActivity: new Date(agent.lastActivity).toLocaleString() // Make dates more readable
     })));
 
-  }, []);
+  }, [isClient]);
 
 
   if (!isClient) {
