@@ -1,3 +1,4 @@
+
 // src/components/features/projects/EditTaskDialog.tsx
 'use client';
 
@@ -18,12 +19,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Task } from '@/types';
+import type { Task, Sprint } from '@/types'; // Added Sprint
 import { format, isValid, parseISO } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
-import { Brain, Hand } from "lucide-react"; // Icons for task type
+import { Brain, Hand } from "lucide-react"; 
+
+const NO_PARENT_VALUE = "__NO_PARENT_SELECTED__";
+const NO_SPRINT_VALUE = "__NO_SPRINT_SELECTED__";
 
 const taskSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title must be 100 characters or less"),
@@ -37,8 +41,9 @@ const taskSchema = z.object({
   isMilestone: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
   dependencies: z.array(z.string()).optional(),
-  description: z.string().max(1000, "Description must be 1000 characters or less").optional(), // Increased limit for AI reasoning
-  isAiPlanned: z.boolean().optional(), // Keep track of source
+  description: z.string().max(1000, "Description must be 1000 characters or less").optional(),
+  isAiPlanned: z.boolean().optional(), 
+  sprintId: z.string().nullable().optional(), // Added sprintId
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -50,12 +55,12 @@ interface EditTaskDialogProps {
   onUpdateTask: (taskData: Task) => void;
   isReadOnly?: boolean;
   projectTasks: Task[];
+  projectSprints: Sprint[]; // Added projectSprints
 }
 
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
-const NO_PARENT_VALUE = "__NO_PARENT_SELECTED__";
 
-export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdateTask, isReadOnly = false, projectTasks }: EditTaskDialogProps) {
+export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdateTask, isReadOnly = false, projectTasks, projectSprints }: EditTaskDialogProps) {
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
@@ -70,6 +75,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
       dependencies: [],
       description: "",
       isAiPlanned: false,
+      sprintId: NO_SPRINT_VALUE,
     },
   });
 
@@ -91,8 +97,9 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
         dependencies: taskToEdit.dependencies || [],
         description: taskToEdit.description || "",
         isAiPlanned: taskToEdit.isAiPlanned || false,
+        sprintId: taskToEdit.sprintId ?? NO_SPRINT_VALUE,
       });
-    } else if (!open && !form.formState.isSubmitSuccessful) { // Reset only if closed without successful submission
+    } else if (!open && !form.formState.isSubmitSuccessful) { 
       form.reset({
         title: "",
         status: "To Do",
@@ -105,6 +112,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
         dependencies: [],
         description: "",
         isAiPlanned: false,
+        sprintId: NO_SPRINT_VALUE,
       });
     }
   }, [open, taskToEdit, form]);
@@ -122,7 +130,6 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
             form.setValue("progress", 0, { shouldValidate: true });
         }
       } else {
-          // If not a milestone, ensure duration is at least 1 if it was 0
         if(form.getValues("durationDays") === 0) {
           form.setValue("durationDays", 1, { shouldValidate: true });
         }
@@ -149,12 +156,13 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
       parentId: data.parentId === NO_PARENT_VALUE ? null : data.parentId,
       dependencies: data.dependencies || [],
       description: data.description || "",
-      isAiPlanned: data.isAiPlanned || false, // Persist this
+      isAiPlanned: data.isAiPlanned || false, 
+      sprintId: data.sprintId === NO_SPRINT_VALUE ? null : data.sprintId,
     };
     onUpdateTask(updatedTask);
   };
 
-  if (!taskToEdit && open) return null; // Should not happen if open is true
+  if (!taskToEdit && open) return null; 
 
   const currentTaskId = taskToEdit?.id;
   const currentParentId = form.watch('parentId');
@@ -162,30 +170,30 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
   const availableParentTasks = projectTasks.filter(pt => 
     pt.id !== currentTaskId && 
     !pt.isMilestone && 
-    pt.id !== currentParentId // Avoid self-parenting if it's already the parent
+    pt.id !== currentParentId 
   );
   
   const availableDependencies = projectTasks.filter(pt => 
     pt.id !== currentTaskId && 
     !pt.isMilestone && 
-    pt.id !== currentParentId // Avoid depending on its own parent in a simple UI
+    pt.id !== currentParentId 
   );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px] max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{isReadOnly ? `View ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}` : `Edit ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}`}: {taskToEdit?.title}</DialogTitle>
+          <DialogTitle>{isReadOnly ? `View ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}` : `Edit ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}`}: {form.watch('title') || taskToEdit?.title}</DialogTitle>
           <DialogDescription>
             {isReadOnly ? `Viewing ${taskToEdit?.isMilestone ? 'milestone' : 'task'} details.` : `Update the details for this ${taskToEdit?.isMilestone ? 'milestone' : 'task'}. Click save when you're done.`}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow overflow-y-auto pr-3 -mr-3 py-2"> {/* Scrollable form area */}
+        <div className="flex-grow overflow-y-auto pr-3 -mr-3 py-2"> 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} id="editTaskForm" className="space-y-4">
               <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-3">
-                {taskToEdit?.isAiPlanned ? <Brain className="h-4 w-4 text-purple-500" /> : <Hand className="h-4 w-4 text-blue-500" />}
-                <span>Source: {taskToEdit?.isAiPlanned ? "AI Planned" : "Manually Created"}</span>
+                {form.watch('isAiPlanned') ? <Brain className="h-4 w-4 text-purple-500" /> : <Hand className="h-4 w-4 text-blue-500" />}
+                <span>Source: {form.watch('isAiPlanned') ? "AI Planned" : "Manually Created"}</span>
               </div>
               <FormField
                 control={form.control}
@@ -245,6 +253,34 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                       </SelectContent>
                     </Select>
                     {isMilestoneWatch && <FormDescription className="text-xs">Milestone status can be 'To Do', 'Done' or 'Blocked'.</FormDescription>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="sprintId"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>Sprint (Optional)</RHFFormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === NO_SPRINT_VALUE ? null : value)}
+                      value={field.value ?? NO_SPRINT_VALUE}
+                      disabled={isReadOnly}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Assign to a sprint" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_SPRINT_VALUE}>No Sprint</SelectItem>
+                        {projectSprints.map(sprint => (
+                          <SelectItem key={sprint.id} value={sprint.id}>{sprint.name} ({sprint.status})</SelectItem>
+                        ))}
+                        {projectSprints.length === 0 && <p className="p-2 text-xs text-muted-foreground text-center">No sprints defined for this project.</p>}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -396,9 +432,9 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
                                     disabled={isReadOnly}
                                   />
                                 </FormControl>
-                                <Label className="text-xs font-normal cursor-pointer">
+                                <RHFFormLabel className="text-xs font-normal cursor-pointer">
                                   {item.title}
-                                </Label>
+                                </RHFFormLabel>
                               </FormItem>
                             );
                           }}

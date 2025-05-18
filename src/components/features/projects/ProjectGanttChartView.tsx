@@ -1,12 +1,13 @@
+
 // src/components/features/projects/ProjectGanttChartView.tsx
 'use client';
 
-import type { Task } from '@/types';
-import { addDays, differenceInCalendarDays, format, parseISO, startOfDay, eachDayOfInterval, min, max, isToday as dateFnsIsToday } from 'date-fns';
+import type { Task, Sprint } from '@/types'; // Added Sprint
+import { addDays, differenceInCalendarDays, format, parseISO, startOfDay, eachDayOfInterval, min, max, isToday as dateFnsIsToday, isValid as isValidDate } from 'date-fns';
 import { useMemo, useState, useEffect, MouseEvent as ReactMouseEvent, DragEvent as ReactDragEvent, useCallback } from 'react';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Diamond, ChevronDown, ChevronRight, GripVertical, Brain, Hand } from 'lucide-react'; // Added Brain, Hand
+import { Diamond, ChevronDown, ChevronRight, GripVertical, Brain, Hand, Layers } from 'lucide-react'; 
 import { Button } from '@/components/ui/button';
 
 const DAY_WIDTH_PX = 35;
@@ -14,10 +15,11 @@ const ROW_HEIGHT_PX = 40;
 const TIMELINE_HEADER_ROW_HEIGHT_PX = 30;
 
 const TASK_TITLE_COL_WIDTH_PX = 250;
+const SPRINT_COL_WIDTH_PX = 120; // New column for Sprint
 const START_DATE_COL_WIDTH_PX = 80;
 const END_DATE_COL_WIDTH_PX = 80;
 const DURATION_COL_WIDTH_PX = 70;
-const TASK_DETAILS_AREA_WIDTH_PX = TASK_TITLE_COL_WIDTH_PX + START_DATE_COL_WIDTH_PX + END_DATE_COL_WIDTH_PX + DURATION_COL_WIDTH_PX;
+const TASK_DETAILS_AREA_WIDTH_PX = TASK_TITLE_COL_WIDTH_PX + SPRINT_COL_WIDTH_PX + START_DATE_COL_WIDTH_PX + END_DATE_COL_WIDTH_PX + DURATION_COL_WIDTH_PX;
 
 
 const RESIZE_HANDLE_WIDTH_PX = 10;
@@ -49,12 +51,13 @@ const getProgressFillColor = (baseColor: string): string => {
 
 interface ProjectGanttChartViewProps {
   tasks: Task[];
+  projectSprints: Sprint[]; // Added projectSprints
   onUpdateTask: (updatedTask: Task) => void;
-  onTasksReorder: (draggedTaskId: string, targetTaskId: string) => void;
+  onTasksReorder: (draggedTaskId: string, targetTaskId: string | null) => void;
   onViewTask: (task: Task) => void;
 }
 
-export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReorder, onViewTask }: ProjectGanttChartViewProps) {
+export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateTask, onTasksReorder, onViewTask }: ProjectGanttChartViewProps) {
   const [isClient, setIsClient] = useState(false);
   useEffect(() => setIsClient(true), []);
 
@@ -87,7 +90,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
   }, []);
 
   const processedTasks = useMemo(() => {
-    // console.log("[GanttChartView] Recalculating processedTasks. Input 'tasks' prop (IDs & order):", tasks.map(t => ({id: t.id, title: t.title.substring(0,10)})));
     type TaskWithHierarchy = Task & { children: TaskWithHierarchy[]; level: number; isParent: boolean };
 
     const taskMap = new Map<string, TaskWithHierarchy>();
@@ -105,13 +107,11 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
       }
     });
     
-    // Sort root tasks based on their order in the original tasks array
     const orderedRootTasks = rootTasks.sort((a,b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
 
-    // Sort children within each parent task
     taskMap.forEach(node => {
       if (node.children.length > 0) {
-        node.isParent = true; // Ensure isParent is true if children exist
+        node.isParent = true; 
         node.children.sort((a, b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
       }
     });
@@ -128,7 +128,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     };
 
     const finalFlattenedTasks = flattenTasks(orderedRootTasks, 0);
-    // console.log("[GanttChartView] Output 'processedTasks' (IDs, order, level, isParent):", finalFlattenedTasks.map(t => ({id: t.id, title: t.title.substring(0,10), level: t.level, isParent: t.isParent, collapsed: collapsedTaskIds.has(t.id) })));
     return finalFlattenedTasks;
   }, [tasks, collapsedTaskIds]);
 
@@ -146,17 +145,13 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     }
 
     const taskDates = tasks.reduce((acc, task) => {
-      if (task.startDate) {
-        try {
-          const start = startOfDay(parseISO(task.startDate));
-          acc.push(start);
-          if (!task.isMilestone && task.durationDays && task.durationDays > 0) {
-            acc.push(addDays(start, task.durationDays -1));
-          } else {
-            acc.push(start); 
-          }
-        } catch (e) {
-          // console.warn(`Invalid start date for task "${task.title}": ${task.startDate}`);
+      if (task.startDate && isValidDate(parseISO(task.startDate))) {
+        const start = startOfDay(parseISO(task.startDate));
+        acc.push(start);
+        if (!task.isMilestone && task.durationDays && task.durationDays > 0) {
+          acc.push(addDays(start, task.durationDays -1));
+        } else if (task.isMilestone || (task.durationDays !== undefined && task.durationDays === 0) ) {
+           acc.push(start); 
         }
       }
       return acc;
@@ -198,19 +193,16 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
   }, [tasks]);
 
   const getTaskBarPositionAndStyle = (task: Task & { level: number; isParent: boolean }, taskIndex: number) => {
-    if (!task.startDate) return { left: 0, width: DAY_WIDTH_PX, top: taskIndex * ROW_HEIGHT_PX };
-    try {
-      const taskStart = startOfDay(parseISO(task.startDate));
-      const offsetDays = differenceInCalendarDays(taskStart, chartStartDate);
-      const duration = task.isMilestone ? 1 : ((task.durationDays && task.durationDays > 0) ? task.durationDays : 1);
-      return {
-        left: Math.max(0, offsetDays * DAY_WIDTH_PX),
-        width: duration * DAY_WIDTH_PX,
-        top: taskIndex * ROW_HEIGHT_PX,
-      };
-    } catch (e) {
-      return { left: 0, width: DAY_WIDTH_PX, top: taskIndex * ROW_HEIGHT_PX };
-    }
+    if (!task.startDate || !isValidDate(parseISO(task.startDate))) return { left: 0, width: DAY_WIDTH_PX, top: taskIndex * ROW_HEIGHT_PX };
+    
+    const taskStart = startOfDay(parseISO(task.startDate));
+    const offsetDays = differenceInCalendarDays(taskStart, chartStartDate);
+    const duration = task.isMilestone ? 1 : ((task.durationDays && task.durationDays > 0) ? task.durationDays : 1);
+    return {
+      left: Math.max(0, offsetDays * DAY_WIDTH_PX),
+      width: duration * DAY_WIDTH_PX,
+      top: taskIndex * ROW_HEIGHT_PX,
+    };
   };
 
   const handleTaskBarMouseDown = (event: ReactMouseEvent<HTMLDivElement>, task: Task & { isParent: boolean }) => {
@@ -317,11 +309,11 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     setDragOverRowId(null);
   };
 
-  const handleRowDrop = (event: ReactDragEvent<HTMLDivElement>, targetTaskId: string) => {
+  const handleRowDrop = (event: ReactDragEvent<HTMLDivElement>, targetTaskId: string | null) => {
     event.preventDefault();
     const draggedTaskId = event.dataTransfer.getData('taskId');
     setDragOverRowId(null);
-    if (draggedTaskId && targetTaskId && draggedTaskId !== targetTaskId) {
+    if (draggedTaskId && draggedTaskId !== targetTaskId) {
       onTasksReorder(draggedTaskId, targetTaskId);
     }
   };
@@ -378,12 +370,16 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
     if (task.isMilestone) tooltip += ` (Milestone)`;
     tooltip += `\nStatus: ${task.status}`;
     if (task.assignedTo) tooltip += `\nAssigned To: ${task.assignedTo}`;
+    if (task.sprintId) {
+      const sprint = projectSprints.find(s => s.id === task.sprintId);
+      if (sprint) tooltip += `\nSprint: ${sprint.name}`;
+    }
     if (task.startDate) {
       tooltip += `\n${task.isMilestone ? 'Date' : 'Start'}: ${format(parseISO(task.startDate), 'MMM d, yyyy')}`;
     }
     if (!task.isMilestone && task.durationDays) {
       tooltip += `\nDuration: ${task.durationDays} day(s)`;
-      if (task.startDate) {
+      if (task.startDate && isValidDate(parseISO(task.startDate))) {
          tooltip += `\nEnd: ${format(addDays(parseISO(task.startDate), task.durationDays -1), 'MMM d, yyyy')}`;
       }
     }
@@ -394,7 +390,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
   };
 
   const getFormattedDate = (dateString: string | undefined, dateFormat = 'MMM d') => {
-    if (!dateString) return '-';
+    if (!dateString || !isValidDate(parseISO(dateString))) return '-';
     try {
       return format(parseISO(dateString), dateFormat);
     } catch {
@@ -403,7 +399,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
   };
 
   const getEndDate = (startDateString: string | undefined, duration?: number) => {
-    if (!startDateString || duration === undefined || duration < 1) return '-';
+    if (!startDateString || duration === undefined || duration < 1 || !isValidDate(parseISO(startDateString))) return '-';
     try {
       const startDate = parseISO(startDateString);
       return format(addDays(startDate, duration -1 ), 'MMM d');
@@ -420,16 +416,17 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
           {/* Task Details Header */}
           <div
             style={{ width: `${TASK_DETAILS_AREA_WIDTH_PX}px`, minWidth: `${TASK_DETAILS_AREA_WIDTH_PX}px`, height: `${2 * TIMELINE_HEADER_ROW_HEIGHT_PX}px` }}
-            className="p-0 border-r border-border/50 font-semibold flex items-stretch sticky left-0 bg-card z-40" // Increased z-index
+            className="p-0 border-r border-border/50 font-semibold flex items-stretch sticky left-0 bg-card z-40"
           >
-            <div style={{ width: `${TASK_TITLE_COL_WIDTH_PX}px` }} className="p-2 flex items-center border-r border-border/30">Task Name</div>
+            <div style={{ width: `${TASK_TITLE_COL_WIDTH_PX}px` }} className="p-2 flex items-center border-r border-border/30 text-xs">Task Name</div>
+            <div style={{ width: `${SPRINT_COL_WIDTH_PX}px` }} className="p-2 flex items-center justify-center border-r border-border/30 text-xs">Sprint</div>
             <div style={{ width: `${START_DATE_COL_WIDTH_PX}px` }} className="p-2 flex items-center justify-center border-r border-border/30 text-xs">Start</div>
             <div style={{ width: `${END_DATE_COL_WIDTH_PX}px` }} className="p-2 flex items-center justify-center border-r border-border/30 text-xs">End</div>
             <div style={{ width: `${DURATION_COL_WIDTH_PX}px` }} className="p-2 flex items-center justify-center text-xs">Dur.</div>
           </div>
 
           {/* Timeline Header - Month/Year and Day numbers */}
-          <div className="flex-grow overflow-x-hidden relative z-10"> {/* Lower z-index */}
+          <div className="flex-grow overflow-x-hidden relative z-10"> 
             <div className="flex border-b border-border/30" style={{ height: `${TIMELINE_HEADER_ROW_HEIGHT_PX}px` }}>
               {daysArray.reduce((acc, day, index) => {
                 const monthYear = format(day, 'MMM yyyy');
@@ -513,6 +510,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
           )}
           {/* Dependency Lines SVG Layer */}
           <svg
+            ref={svgRef}
             className="absolute top-0 left-0 w-full h-full pointer-events-none"
             style={{ marginLeft: `${TASK_DETAILS_AREA_WIDTH_PX}px`, width: `${totalChartWidth}px`, height: `${processedTasks.length * ROW_HEIGHT_PX}px`, zIndex: 20 }}
           >
@@ -563,8 +561,8 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                     strokeWidth="1.5"
                     markerEnd="url(#arrowhead)"
                     className="cursor-pointer hover:stroke-destructive hover:stroke-[2.5px] transition-all"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteDependency(task.id, depId); }}
-                    style={{ pointerEvents: 'stroke' }} // Make sure only stroke is clickable for lines
+                    onClick={(e: React.MouseEvent<SVGLineElement>) => { e.stopPropagation(); handleDeleteDependency(task.id, depId); }}
+                    style={{ pointerEvents: 'stroke' }} 
                     title={`Dependency: ${prereqTask.title} -> ${task.title}. Click to remove.`}
                   />
                 );
@@ -574,7 +572,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
 
           {/* Task Rows */}
           {processedTasks.map((task, taskIndex) => {
-            // console.log(`Rendering bar for ${task.title} (ID: ${task.id}) at index ${taskIndex}, calculated top: ${taskIndex * ROW_HEIGHT_PX}`);
             const { left: barLeftOffset, width: barWidth, top: barTopOffset } = getTaskBarPositionAndStyle(task, taskIndex);
             const isDraggingThisTask = draggingTaskDetails?.task.id === task.id;
             const isResizingThisTask = resizingTaskDetails?.task.id === task.id;
@@ -606,6 +603,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
             if (isDraggingThisTask || isResizingThisTask) {
                 barBaseClasses = cn(barBaseClasses, 'opacity-75 ring-2 ring-primary');
             }
+            const sprintName = task.sprintId ? projectSprints.find(s => s.id === task.sprintId)?.name : 'N/A';
 
             return (
               <div
@@ -618,7 +616,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                 onDragOver={(e) => handleRowDragOver(e, task.id)}
                 onDragLeave={handleRowDragLeave}
                 onDrop={(e) => handleRowDrop(e, task.id)}
-                onDoubleClick={() => onViewTask(task)} // Open View/Edit dialog on double click
+                onDoubleClick={() => onViewTask(task)} 
               >
                 {/* Task Details Part (Sticky Left) */}
                 <div
@@ -662,6 +660,9 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                     }
                     <span className="truncate">{task.title}</span>
                   </div>
+                  <div style={{ width: `${SPRINT_COL_WIDTH_PX}px` }} className="p-2 border-r border-border/30 flex items-center justify-start text-xs text-muted-foreground truncate" title={sprintName}>
+                     <Layers className="h-3.5 w-3.5 mr-1.5 text-indigo-500 flex-shrink-0"/> {sprintName}
+                  </div>
                   <div style={{ width: `${START_DATE_COL_WIDTH_PX}px` }} className="p-2 border-r border-border/30 flex items-center justify-center text-xs text-muted-foreground">
                      {getFormattedDate(task.startDate)}
                   </div>
@@ -674,7 +675,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                 </div>
 
                 {/* Task Bar/Milestone on Timeline Part */}
-                {task.startDate && (
+                {task.startDate && isValidDate(parseISO(task.startDate)) && (
                   <div
                     key={`bar-${task.id}`}
                     onMouseDown={(e) => task.isMilestone || task.isParent ? null : handleTaskBarMouseDown(e, task)}
@@ -692,7 +693,7 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                       height: task.isMilestone ? `${MILESTONE_SIZE_PX}px` : `${ROW_HEIGHT_PX - 10}px`,
                       top: `${barTopOffset + (task.isMilestone ? (ROW_HEIGHT_PX / 2 - MILESTONE_SIZE_PX / 2 -5 ) : 0)}px`, 
                       lineHeight: task.isMilestone ? `${MILESTONE_SIZE_PX}px` : `${ROW_HEIGHT_PX - 10}px`,
-                      zIndex: isDraggingThisTask || isResizingThisTask ? 50 : (task.isParent ? 29 : 30), // Ensure parents are behind children if overlap
+                      zIndex: isDraggingThisTask || isResizingThisTask ? 50 : (task.isParent ? 29 : 30), 
                       transform: task.isMilestone ? 'rotate(45deg)' : 'none',
                     }}
                   >
@@ -722,7 +723,6 @@ export default function ProjectGanttChartView({ tasks, onUpdateTask, onTasksReor
                     )}
                     {task.isMilestone && (
                       <div className="w-full h-full flex items-center justify-center" style={{ transform: 'rotate(-45deg)' }}>
-                        {/* Optional icon for milestone diamond */}
                       </div>
                     )}
                   </div>

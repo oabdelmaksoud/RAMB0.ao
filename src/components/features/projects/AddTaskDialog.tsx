@@ -1,3 +1,4 @@
+
 // src/components/features/projects/AddTaskDialog.tsx
 'use client';
 
@@ -17,11 +18,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Task } from '@/types';
+import type { Task, Sprint } from '@/types'; // Added Sprint
 import { format, isValid, parseISO } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea"; // Added Textarea import
+import { Textarea } from "@/components/ui/textarea"; 
+
+const NO_PARENT_VALUE = "__NO_PARENT_SELECTED__";
+const NO_SPRINT_VALUE = "__NO_SPRINT_SELECTED__";
 
 const taskSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title must be 100 characters or less"),
@@ -36,6 +40,7 @@ const taskSchema = z.object({
   parentId: z.string().nullable().optional(),
   dependencies: z.array(z.string()).optional(),
   description: z.string().max(500, "Description must be 500 characters or less").optional(),
+  sprintId: z.string().nullable().optional(), // Added sprintId
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -43,15 +48,15 @@ type TaskFormData = z.infer<typeof taskSchema>;
 interface AddTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddTask: (taskData: Omit<Task, 'id' | 'projectId' | 'isAiPlanned'>) => void; // isAiPlanned will be set by parent
+  onAddTask: (taskData: Omit<Task, 'id' | 'projectId' | 'isAiPlanned'>) => void;
   defaultStartDate?: string;
   projectTasks: Task[];
+  projectSprints: Sprint[]; // Added projectSprints
 }
 
 const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
-const NO_PARENT_VALUE = "__NO_PARENT_SELECTED__";
 
-export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultStartDate, projectTasks }: AddTaskDialogProps) {
+export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultStartDate, projectTasks, projectSprints }: AddTaskDialogProps) {
   const form = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
@@ -65,6 +70,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       parentId: NO_PARENT_VALUE,
       dependencies: [],
       description: "",
+      sprintId: NO_SPRINT_VALUE, // Default to no sprint
     },
   });
 
@@ -83,7 +89,6 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
         form.setValue("progress", 0, { shouldValidate: true });
       }
     } else {
-      // If not a milestone, ensure duration is at least 1 if it was 0
       if(form.getValues("durationDays") === 0) {
         form.setValue("durationDays", 1, { shouldValidate: true });
       }
@@ -93,9 +98,6 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
   React.useEffect(() => {
     if (!isMilestoneWatch && statusWatch === 'Done') {
         form.setValue("progress", 100, { shouldValidate: true });
-    } else if (!isMilestoneWatch && statusWatch !== 'Done' && form.getValues("progress") === 100) {
-      // If task is not done, progress shouldn't be 100 unless explicitly set
-      // This is a simple rule, could be more nuanced
     }
   }, [statusWatch, isMilestoneWatch, form]);
 
@@ -109,9 +111,10 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       parentId: data.parentId === NO_PARENT_VALUE ? null : data.parentId,
       dependencies: data.dependencies || [],
       description: data.description || "",
+      sprintId: data.sprintId === NO_SPRINT_VALUE ? null : data.sprintId, // Handle sprintId
     };
     onAddTask(taskData);
-    form.reset({ // Reset form to defaults after submission
+    form.reset({ 
       title: "",
       status: "To Do",
       assignedTo: "Unassigned",
@@ -122,8 +125,9 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       parentId: NO_PARENT_VALUE,
       dependencies: [],
       description: "",
+      sprintId: NO_SPRINT_VALUE,
     });
-    onOpenChange(false); // Close dialog after submission
+    onOpenChange(false); 
   };
 
   React.useEffect(() => {
@@ -139,6 +143,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
         parentId: NO_PARENT_VALUE,
         dependencies: [],
         description: "",
+        sprintId: NO_SPRINT_VALUE,
       });
     }
   }, [open, form, defaultStartDate]);
@@ -155,7 +160,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
             Fill in the details for the new {isMilestoneWatch ? 'milestone' : 'task'}. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex-grow overflow-y-auto pr-3 -mr-3 py-2"> {/* Scrollable form area */}
+        <div className="flex-grow overflow-y-auto pr-3 -mr-3 py-2"> 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} id="addTaskForm" className="space-y-4">
               <FormField
@@ -215,6 +220,33 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
                       </SelectContent>
                     </Select>
                     {isMilestoneWatch && <FormDescription className="text-xs">Milestone status can be 'To Do', 'Done' or 'Blocked'.</FormDescription>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="sprintId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sprint (Optional)</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === NO_SPRINT_VALUE ? null : value)}
+                      value={field.value ?? NO_SPRINT_VALUE}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Assign to a sprint" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_SPRINT_VALUE}>No Sprint</SelectItem>
+                        {projectSprints.map(sprint => (
+                          <SelectItem key={sprint.id} value={sprint.id}>{sprint.name} ({sprint.status})</SelectItem>
+                        ))}
+                         {projectSprints.length === 0 && <p className="p-2 text-xs text-muted-foreground text-center">No sprints defined for this project.</p>}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

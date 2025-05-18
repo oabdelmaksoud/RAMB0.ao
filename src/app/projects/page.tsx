@@ -62,13 +62,14 @@ export const getTasksStorageKey = (projectId: string) => `ramboAgentTasks_projec
 export const getAgentsStorageKey = (projectId: string) => `ramboAgentAgents_project_${projectId}`;
 export const getWorkflowsStorageKey = (projectId: string) => `ramboAgentWorkflows_project_${projectId}`;
 export const getFilesStorageKey = (projectId: string) => `ramboAgentFiles_project_${projectId}`;
-export const getRequirementsStorageKey = (projectId: string) => `ramboAgentRequirements_project_${projectId}`;
+export const getRequirementsStorageKey = (projectId: string) => `ramboAgentRequirementDocs_project_${projectId}`; // Changed from ramboAgentRequirements
 export const getTicketsStorageKey = (projectId: string) => `ramboAgentTickets_project_${projectId}`;
+export const getSprintsStorageKey = (projectId: string) => `ramboAgentSprints_project_${projectId}`;
 
 
 // This page is now the dedicated Projects Management Page
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<Project[]>(initialMockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
   const [isDeleteConfirmationDialogOpen, setIsDeleteConfirmationDialogOpen] = useState(false);
@@ -100,10 +101,12 @@ export default function ProjectsPage() {
   }, [isClient]);
 
   useEffect(() => {
-    if (isClient) {
+    if (isClient && projects.length > 0) { // Only save if there are projects to prevent overwriting with empty array on initial load before client check
       console.log("PROJECTS_MANAGEMENT_PAGE: Attempting to save projects to localStorage. Current projects count:", projects.length);
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
       console.log("PROJECTS_MANAGEMENT_PAGE: Successfully saved projects to localStorage.");
+    } else if (isClient && projects.length === 0 && localStorage.getItem(PROJECTS_STORAGE_KEY)) {
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify([])); // Save empty if all deleted
     }
   }, [projects, isClient]);
 
@@ -134,8 +137,8 @@ export default function ProjectsPage() {
       status: 'Active',
       lastUpdated: new Date().toISOString(),
       thumbnailUrl: `https://placehold.co/600x400.png?text=${encodeURIComponent(projectData.name.substring(0,20))}`,
-      agentCount: 0,
-      workflowCount: 0,
+      agentCount: 0, // Will be updated if template has agents
+      workflowCount: 0, // Will be updated if template has workflows
     };
 
     const selectedTemplate = mockProjectTemplates.find(t => t.id === templateId);
@@ -155,27 +158,33 @@ export default function ProjectsPage() {
             status: taskTemplate.status || 'To Do',
             assignedTo: taskTemplate.assignedTo || 'Unassigned',
             startDate: taskTemplate.startDate || format(new Date(), 'yyyy-MM-dd'),
-            durationDays: taskTemplate.isMilestone ? 0 : (taskTemplate.durationDays === undefined || taskTemplate.durationDays < 1 ? 1 : taskTemplate.durationDays),
+            durationDays: taskTemplate.isMilestone ? 0 : (taskTemplate.durationDays === undefined || taskTemplate.durationDays < 1 ? 1 : Math.max(1, taskTemplate.durationDays)),
             progress: taskTemplate.isMilestone ? (taskTemplate.status === 'Done' ? 100 : 0) : (taskTemplate.progress || 0),
             isMilestone: taskTemplate.isMilestone || false,
             parentId: taskTemplate.parentId || null,
             dependencies: taskTemplate.dependencies || [],
             description: taskTemplate.description || `Initial task from ${selectedTemplate.name} template.`,
             isAiPlanned: false,
+            sprintId: null, // Initialize sprintId
           });
         });
       }
       if (selectedTemplate.initialFiles && selectedTemplate.initialFiles.length > 0) {
         initialFilesForProject = createInitialFilesRecursive(selectedTemplate.initialFiles, '/', newProject.id);
       }
+      // Placeholder for initial agents/workflows from template if added to ProjectTemplate type
+      newProject.agentCount = 0; // Or count from template.initialAgents
+      newProject.workflowCount = 0; // Or count from template.initialWorkflows
     }
     
     localStorage.setItem(getTasksStorageKey(newProject.id), JSON.stringify(initialTasksForProject));
-    localStorage.setItem(getAgentsStorageKey(newProject.id), JSON.stringify([]));
-    localStorage.setItem(getWorkflowsStorageKey(newProject.id), JSON.stringify([]));
+    localStorage.setItem(getAgentsStorageKey(newProject.id), JSON.stringify([])); // Start with no project-specific agents, user can add
+    localStorage.setItem(getWorkflowsStorageKey(newProject.id), JSON.stringify([])); // Default workflows will be added by ProjectDetailPage if this is empty
     localStorage.setItem(getFilesStorageKey(newProject.id), JSON.stringify(initialFilesForProject));
-    localStorage.setItem(getRequirementsStorageKey(newProject.id), JSON.stringify([]));
-    localStorage.setItem(getTicketsStorageKey(newProject.id), JSON.stringify([]));
+    localStorage.setItem(getRequirementsStorageKey(newProject.id), JSON.stringify([])); // Start with empty ASPICE folder structure
+    localStorage.setItem(getTicketsStorageKey(newProject.id), JSON.stringify([])); // Start with no tickets
+    localStorage.setItem(getSprintsStorageKey(newProject.id), JSON.stringify([])); // Start with no sprints, ProjectDetailPage will add defaults
+
 
     setProjects(prevProjects => [newProject, ...prevProjects]);
     setIsAddProjectDialogOpen(false);
@@ -200,6 +209,8 @@ export default function ProjectsPage() {
       localStorage.removeItem(getFilesStorageKey(projectToDelete.id));
       localStorage.removeItem(getRequirementsStorageKey(projectToDelete.id));
       localStorage.removeItem(getTicketsStorageKey(projectToDelete.id));
+      localStorage.removeItem(getSprintsStorageKey(projectToDelete.id));
+
 
       toast({
         title: "Project Deleted",
@@ -266,7 +277,7 @@ export default function ProjectsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>Are you sure you want to delete "{projectToDelete.name}"?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the project and all its associated data (tasks, agents, workflows, files, requirements, tickets).
+                This action cannot be undone. This will permanently delete the project and all its associated data (tasks, agents, workflows, files, requirements, tickets, sprints).
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -52,6 +52,19 @@ export interface Project {
   workflowCount?: number;
 }
 
+export type SprintStatus = 'Planned' | 'Active' | 'Completed';
+export const sprintStatuses: SprintStatus[] = ['Planned', 'Active', 'Completed'];
+
+export interface Sprint {
+  id: string;
+  projectId: string;
+  name: string;
+  goal?: string;
+  startDate?: string; // ISO date string
+  endDate?: string;   // ISO date string
+  status: SprintStatus;
+}
+
 export type TaskStatus = 'To Do' | 'In Progress' | 'Done' | 'Blocked';
 
 export interface Task {
@@ -68,6 +81,7 @@ export interface Task {
   dependencies?: string[];
   description?: string;
   isAiPlanned?: boolean;
+  sprintId?: string | null; // Added for Sprint association
 }
 
 export interface ProjectFile {
@@ -121,6 +135,7 @@ export interface Ticket {
   createdDate: string; // ISO date string
   updatedDate: string; // ISO date string
   aiMetadata?: Record<string, any>;
+  sprintId?: string | null; // Added for Sprint association
 }
 
 export interface ProjectTemplate {

@@ -18,8 +18,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Ticket, TicketStatus, TicketPriority, TicketType } from '@/types';
-import { ticketTypes, ticketPriorities, ticketStatuses } from '@/types'; // Import enums
+import type { Ticket, TicketStatus, TicketPriority, TicketType, Sprint } from '@/types'; // Added Sprint
+import { ticketTypes, ticketPriorities, ticketStatuses } from '@/types'; 
+
+const NO_SPRINT_VALUE = "__NO_SPRINT_SELECTED__";
 
 const ticketSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters").max(100, "Title must be 100 characters or less"),
@@ -28,6 +30,7 @@ const ticketSchema = z.object({
   priority: z.enum(ticketPriorities as [TicketPriority, ...TicketPriority[]], { required_error: "Priority is required" }),
   status: z.enum(ticketStatuses as [TicketStatus, ...TicketStatus[]], { required_error: "Status is required" }),
   assignee: z.string().optional(),
+  sprintId: z.string().nullable().optional(), // Added sprintId
 });
 
 type TicketFormData = z.infer<typeof ticketSchema>;
@@ -36,9 +39,10 @@ interface AddTicketDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddTicket: (ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'>) => void;
+  projectSprints: Sprint[]; // Added projectSprints
 }
 
-export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: AddTicketDialogProps) {
+export default function AddTicketDialog({ open, onOpenChange, onAddTicket, projectSprints }: AddTicketDialogProps) {
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketSchema),
     defaultValues: {
@@ -48,6 +52,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
       priority: 'Medium',
       status: 'Open',
       assignee: "",
+      sprintId: NO_SPRINT_VALUE, // Default to no sprint
     },
   });
 
@@ -55,10 +60,11 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
     const ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'> = {
       ...data,
       assignee: data.assignee || undefined, 
+      sprintId: data.sprintId === NO_SPRINT_VALUE ? null : data.sprintId,
     };
     onAddTicket(ticketData);
     form.reset(); 
-    onOpenChange(false); // Close dialog after successful submission
+    onOpenChange(false); 
   };
 
   React.useEffect(() => {
@@ -70,6 +76,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
         priority: 'Medium',
         status: 'Open',
         assignee: "",
+        sprintId: NO_SPRINT_VALUE,
       });
     }
   }, [open, form]);
@@ -165,6 +172,33 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket }: Add
                       </FormControl>
                       <SelectContent>
                         {ticketStatuses.map(status => <SelectItem key={status} value={status}>{status}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+             <FormField
+                control={form.control}
+                name="sprintId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Sprint (Optional)</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === NO_SPRINT_VALUE ? null : value)}
+                      value={field.value ?? NO_SPRINT_VALUE}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Assign to a sprint" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_SPRINT_VALUE}>No Sprint</SelectItem>
+                        {projectSprints.map(sprint => (
+                          <SelectItem key={sprint.id} value={sprint.id}>{sprint.name} ({sprint.status})</SelectItem>
+                        ))}
+                        {projectSprints.length === 0 && <p className="p-2 text-xs text-muted-foreground text-center">No sprints defined for this project.</p>}
                       </SelectContent>
                     </Select>
                     <FormMessage />
