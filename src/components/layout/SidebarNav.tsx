@@ -1,24 +1,27 @@
-
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard, // Changed from Briefcase for the main link
+  LayoutDashboard,
+  Briefcase,
   Activity,
-  Mail,
   SlidersHorizontal,
   Lightbulb,
+  Users, // Added for Resource Allocation
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard }, // Points to the new main landing page (Portfolio Dashboard)
+  { href: '/', label: 'Projects', icon: Briefcase }, // Main page is now Projects Overview
+  { href: '/portfolio-dashboard', label: 'Portfolio', icon: LayoutDashboard },
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
-  { href: '/personal-assistant', label: 'Assistant', icon: Mail },
-  // Link to /agent-management (global agents) can be added to Admin Settings or kept here if frequently accessed
+  { href: '/resource-allocation', label: 'Resources', icon: Users }, // New Link
+  // Global agent management and AI suggestions are more admin-level or integrated into project details
+  // { href: '/agent-management', label: 'Agents', icon: SlidersHorizontal },
+  // { href: '/ai-suggestions', label: 'AI Suggestions', icon: Lightbulb },
 ];
 
 export default function SidebarNav() {
