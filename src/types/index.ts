@@ -38,11 +38,14 @@ export interface ProjectWorkflow {
   edges?: WorkflowEdge[];
 }
 
+export type ProjectStatus = 'Active' | 'On Hold' | 'Completed' | 'Archived';
+export const projectStatuses: ProjectStatus[] = ['Active', 'On Hold', 'Completed', 'Archived'];
+
 export interface Project {
   id: string;
   name: string;
   description: string;
-  status: 'Active' | 'On Hold' | 'Completed' | 'Archived';
+  status: ProjectStatus;
   lastUpdated: string; // ISO date string or human-readable
   thumbnailUrl?: string;
   agentCount?: number;
@@ -64,7 +67,7 @@ export interface Task {
   parentId?: string | null;
   dependencies?: string[];
   description?: string;
-  isAiPlanned?: boolean; // New field
+  isAiPlanned?: boolean;
 }
 
 export interface ProjectFile {
@@ -125,5 +128,4 @@ export interface ProjectTemplate {
   name: string;
   description: string;
   initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId'>>>;
-  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' | 'content'> & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content?: string; }>;
-}
+  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' | 'content'> & { children?: Array<Omit<ProjectFile, 'id' | 'path
