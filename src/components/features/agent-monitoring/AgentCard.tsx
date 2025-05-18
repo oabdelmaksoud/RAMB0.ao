@@ -1,6 +1,7 @@
 
-'use client'; // Required because we're adding useState for dialog
+'use client'; 
 
+import React from 'react'; // Import React
 import type { Agent } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +38,7 @@ const statusColors: { [key in Agent['status']]: string } = {
 };
 
 
-export default function AgentCard({ agent }: AgentCardProps) {
+const AgentCard = React.memo(function AgentCard({ agent }: AgentCardProps) {
   const [isLogsDialogOpen, setIsLogsDialogOpen] = useState(false);
 
   return (
@@ -102,4 +103,6 @@ export default function AgentCard({ agent }: AgentCardProps) {
       />
     </>
   );
-}
+});
+
+export default AgentCard;

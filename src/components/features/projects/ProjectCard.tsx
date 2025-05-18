@@ -1,6 +1,7 @@
 
 'use client';
 
+import React from 'react'; // Import React
 import type { Project } from '@/types';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -14,7 +15,7 @@ import { useState, useEffect } from 'react';
 
 interface ProjectCardProps {
   project: Project;
-  onDeleteProject?: (project: Project) => void; 
+  onDeleteProject?: (project: Project) => void;
 }
 
 const statusColors: { [key in Project['status']]: string } = {
@@ -24,7 +25,7 @@ const statusColors: { [key in Project['status']]: string } = {
   Archived: 'bg-gray-100 text-gray-800 dark:bg-gray-700/50 dark:text-gray-300 border-gray-300 dark:border-gray-600',
 };
 
-export default function ProjectCard({ project, onDeleteProject }: ProjectCardProps) {
+const ProjectCard = React.memo(function ProjectCard({ project, onDeleteProject }: ProjectCardProps) {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -33,11 +34,11 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
 
   const formatDate = (dateString: string) => {
     if (!isClient) {
-      return 'Loading date...'; 
+      return 'Loading date...';
     }
     try {
       if (!dateString || (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString))) {
-        return dateString; 
+        return dateString;
       }
       return format(parseISO(dateString), "MMM d, yyyy");
     } catch (error) {
@@ -54,7 +55,7 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
               src={project.thumbnailUrl}
               alt={`${project.name} thumbnail`}
               fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" 
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
               style={{ objectFit: 'cover' }}
               data-ai-hint="project abstract"
               priority
@@ -98,13 +99,13 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </Link>
-        {onDeleteProject && ( 
-          <Button 
-              variant="destructive" 
-              size="icon" 
-              className="h-9 w-9 shrink-0" 
+        {onDeleteProject && (
+          <Button
+              variant="destructive"
+              size="icon"
+              className="h-9 w-9 shrink-0"
               onClick={(e) => {
-                  e.stopPropagation(); 
+                  e.stopPropagation();
                   onDeleteProject(project);
               }}
               title="Delete Project"
@@ -116,4 +117,6 @@ export default function ProjectCard({ project, onDeleteProject }: ProjectCardPro
       </CardFooter>
     </Card>
   );
-}
+});
+
+export default ProjectCard;
