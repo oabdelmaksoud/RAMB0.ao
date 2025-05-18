@@ -1,7 +1,8 @@
+
 'use server';
 /**
  * @fileOverview An AI agent that plans a project task based on user goals and project context,
- * potentially guided by a selected project workflow.
+ * potentially guided by a selected project workflow, and allows for iterative refinement based on user feedback.
  *
  * - planProjectTask - A function that handles the task planning process.
  * - PlanProjectTaskInput - The input type for the planProjectTask function.
@@ -18,10 +19,8 @@ const WorkflowNodeSchema = z.object({
   id: z.string(),
   name: z.string(),
   type: z.string().describe("The type of agent defined for this node in the workflow."),
-  // other fields like x, y, config can be added if needed by the AI
 });
 export type WorkflowNode = z.infer<typeof WorkflowNodeSchema>;
-
 
 const WorkflowInfoSchema = z.object({
   name: z.string().describe('The name of an existing project workflow.'),
@@ -32,16 +31,7 @@ const SelectedWorkflowDetailSchema = z.object({
   name: z.string().describe('The name of the user-selected project workflow.'),
   description: z.string().describe('The description of the selected project workflow.'),
   nodes: z.array(WorkflowNodeSchema).optional().describe('The list of agent nodes in the selected workflow, defining its structure and agent types. This is crucial for aligning sub-tasks if provided.'),
-  // edges could be added here if the AI needs to understand connections explicitly
 });
-
-const PlanProjectTaskInputSchema = z.object({
-  userGoal: z.string().describe("The user's natural language description of the task or goal to be achieved."),
-  projectId: z.string().describe('The ID of the project for which the task is being planned.'),
-  projectWorkflows: z.array(WorkflowInfoSchema).describe('A list of ALL existing workflows in the project, providing general context on established processes.'),
-  selectedWorkflowDetail: SelectedWorkflowDetailSchema.optional().describe("Details of a specific project workflow explicitly selected by the user to guide the task planning. If provided, the AI should try to align its plan with this workflow's structure, especially its agent nodes."),
-});
-export type PlanProjectTaskInput = z.infer<typeof PlanProjectTaskInputSchema>;
 
 const SuggestedSubTaskSchema = z.object({
   title: z.string().describe("A concise title for this sub-task or step."),
@@ -62,11 +52,25 @@ const PlannedTaskSchema = z.object({
   suggestedSubTasks: z.array(SuggestedSubTaskSchema).optional().describe("A list of suggested sub-tasks or steps AI agents would perform to complete the main task. If `selectedWorkflowDetail` with nodes was provided, these sub-tasks MUST primarily use Agent Types from those nodes and reflect a logical sequence based on the workflow.")
 });
 
+// PlanProjectTaskOutputSchema defines the full output from the AI, including the plan and reasoning.
+// It's also used for the previousPlan input during modifications.
 const PlanProjectTaskOutputSchema = z.object({
   plannedTask: PlannedTaskSchema.describe('The structured task details planned by the AI.'),
-  reasoning: z.string().describe('A concise (2-5 sentences max) explanation from the AI on how it derived the task plan. This MUST include: 1. Its choice for "assignedTo" (workflow/team). 2. How the "durationDays" was estimated based on AI AGENT execution speed. 3. If `selectedWorkflowDetail` was used, how its node structure influenced the `suggestedSubTasks` (agent types and sequence).'),
+  reasoning: z.string().describe('A concise (2-5 sentences max) explanation from the AI on how it derived the task plan. This MUST include: 1. Its choice for "assignedTo" (workflow/team). 2. How the "durationDays" was estimated based on AI AGENT execution speed. 3. If `selectedWorkflowDetail` was used, how its node structure influenced the `suggestedSubTasks` (agent types and sequence). If modifying a previous plan, explain the changes made based on feedback.'),
 });
 export type PlanProjectTaskOutput = z.infer<typeof PlanProjectTaskOutputSchema>;
+
+
+const PlanProjectTaskInputSchema = z.object({
+  userGoal: z.string().describe("The user's natural language description of the task or goal to be achieved."),
+  projectId: z.string().describe('The ID of the project for which the task is being planned.'),
+  projectWorkflows: z.array(WorkflowInfoSchema).describe('A list of ALL existing workflows in the project, providing general context on established processes.'),
+  selectedWorkflowDetail: SelectedWorkflowDetailSchema.optional().describe("Details of a specific project workflow explicitly selected by the user to guide the task planning. If provided, the AI should try to align its plan with this workflow's structure, especially its agent nodes."),
+  modificationRequest: z.string().optional().describe("User's feedback or request to modify a previous plan."),
+  previousPlan: PlanProjectTaskOutputSchema.optional().describe("The previous plan (including its plannedTask and reasoning) that the user wants to modify."),
+});
+export type PlanProjectTaskInput = z.infer<typeof PlanProjectTaskInputSchema>;
+
 
 export async function planProjectTask(input: PlanProjectTaskInput): Promise<PlanProjectTaskOutput> {
   return planProjectTaskFlow(input);
@@ -76,26 +80,63 @@ const prompt = ai.definePrompt({
   name: 'planProjectTaskPrompt',
   input: { schema: PlanProjectTaskInputSchema },
   output: { schema: PlanProjectTaskOutputSchema },
-  prompt: `You are an expert project management assistant specializing in planning tasks for systems where tasks are **primarily executed by AI Agents**. Your role is to help plan a new main task for a project based on a user's stated goal and available project context.
+  prompt: `You are an expert project management assistant specializing in planning tasks for systems where tasks are **primarily executed by AI Agents**.
 
 Project Context:
 Project ID: {{{projectId}}}
 
+{{#if modificationRequest}}
+You are refining a PREVIOUS PLAN based on user feedback.
+Original User's Goal: "{{{userGoal}}}"
+
+Previous AI Plan was:
+Title: "{{{previousPlan.plannedTask.title}}}"
+Assigned To: "{{{previousPlan.plannedTask.assignedTo}}}"
+Status: "{{{previousPlan.plannedTask.status}}}"
+Start Date: "{{{previousPlan.plannedTask.startDate}}}"
+Duration: {{{previousPlan.plannedTask.durationDays}}} days
+Milestone: {{{previousPlan.plannedTask.isMilestone}}}
+{{#if previousPlan.plannedTask.suggestedSubTasks.length}}
+Previous Sub-Tasks:
+{{#each previousPlan.plannedTask.suggestedSubTasks}}
+- Title: {{title}}
+  Agent Type: {{assignedAgentType}}
+  Description: {{description}}
+{{/each}}
+{{else}}
+Previous Sub-Tasks: None specified.
+{{/if}}
+Previous Reasoning: "{{{previousPlan.reasoning}}}"
+
+User's Modification Request: "{{{modificationRequest}}}"
+
+Please carefully review the PREVIOUS PLAN and the user's MODIFICATION REQUEST.
+Generate a NEW, complete 'plannedTask' object that incorporates the user's feedback while still addressing the ORIGINAL USER'S GOAL.
+Your NEW 'reasoning' (2-5 sentences max) MUST explain the changes made to the plan based on the feedback and how it still fulfills the original goal.
+
+{{else}}
+{{! This is the original planning logic when no modificationRequest is present }}
+Your role is to help plan a new main task for a project based on a user's stated goal and available project context.
+User's Goal:
+"{{{userGoal}}}"
+{{/if}}
+
 {{#if selectedWorkflowDetail}}
-User has indicated this task MUST align with the following specific workflow:
+The plan SHOULD align with the following specific workflow if possible (unless modification feedback suggests otherwise):
 Selected Workflow Name: "{{selectedWorkflowDetail.name}}"
 Selected Workflow Description: "{{selectedWorkflowDetail.description}}"
 {{#if selectedWorkflowDetail.nodes.length}}
-Selected Workflow Agent Node Structure (Available Agent Types for sub-tasks - you MUST primarily use these):
+Selected Workflow Agent Node Structure (Available Agent Types for sub-tasks - you MUST primarily use these if this workflow is chosen for assignment):
 {{#each selectedWorkflowDetail.nodes}}
 - Node Name: "{{name}}", Agent Type: "{{type}}"
 {{/each}}
-Your plan for the main task's 'assignedTo' field MUST be "{{selectedWorkflowDetail.name}}".
+If this workflow is chosen for assignment, the main task's 'assignedTo' field MUST be "{{selectedWorkflowDetail.name}}".
 The 'suggestedSubTasks' MUST primarily use Agent Types from the 'Selected Workflow Agent Node Structure' listed above. Map each sub-task to the most relevant node's agent type from the selected workflow. Their sequence should be logical and reflect the steps in the selected workflow if possible.
 {{else}}
-- The selected workflow "{{selectedWorkflowDetail.name}}" does not have a detailed node structure provided. Base your plan on its name and description. The main task's 'assignedTo' field MUST be "{{selectedWorkflowDetail.name}}".
+- The selected workflow "{{selectedWorkflowDetail.name}}" does not have a detailed node structure provided. Base your plan on its name and description. If chosen, the main task's 'assignedTo' field MUST be "{{selectedWorkflowDetail.name}}".
 {{/if}}
 {{else}}
+{{! This part is for when no specific workflow is selected by the user initially, or when modifying and no specific workflow was part of the original plan context given to AI }}
 General Available Project Workflows (These are existing, defined processes for the project; use for general context if no specific workflow was selected by the user):
 {{#if projectWorkflows.length}}
 {{#each projectWorkflows}}
@@ -107,18 +148,18 @@ General Available Project Workflows (These are existing, defined processes for t
 {{/if}}
 {{/if}}
 
-User's Goal:
-"{{{userGoal}}}"
-
-Based on the user's goal and the provided project/workflow context, please generate a single, well-defined main task.
-
 Main Task Details to Generate (plannedTask object):
 - title: A clear, action-oriented title for the task.
 - status: Set to "To Do" by default, unless it's a milestone marked 'Done'.
 - assignedTo:
   {{#if selectedWorkflowDetail}}
-  - **MUST be "{{selectedWorkflowDetail.name}}"** as per the user's selection.
+    {{#if modificationRequest}}
+    - Re-evaluate based on feedback. If still appropriate, use "{{selectedWorkflowDetail.name}}". If feedback suggests a different assignment or if the original plan didn't use this workflow and feedback doesn't point to it, determine the most appropriate 'Agent Workflow' or 'Agent Team' (existing or conceptual).
+    {{else}}
+    - **MUST be "{{selectedWorkflowDetail.name}}"** as per the user's selection to guide initial planning.
+    {{/if}}
   {{else}}
+  {{! When no specific workflow is selected by user }}
   - Determine the most appropriate 'Agent Workflow' or 'Agent Team' for this task based on the user's goal and general project workflows.
   - If the user's goal strongly aligns with one of the 'Available Project Workflows' (general list), assign the task directly to the **name of that existing project workflow**.
   - If the user's goal does NOT clearly align with an existing workflow, suggest a **conceptual name for a new workflow or an agent team** (e.g., "Urgent Bugfix Team", "New Feature Rollout Workflow").
@@ -134,18 +175,18 @@ Main Task Details to Generate (plannedTask object):
     - title: A concise title for the sub-task.
     - assignedAgentType:
       {{#if selectedWorkflowDetail.nodes.length}}
-      - **MUST choose an Agent Type exclusively from the 'Selected Workflow Agent Node Structure'** listed above that best fits this sub-task. If no direct match is obvious for a necessary step, you may use a general agent type like 'Analysis Agent' or 'Documentation Agent' but clearly state this choice in the reasoning.
+      - **If the main task is assigned to "{{selectedWorkflowDetail.name}}", then choose an Agent Type exclusively from the 'Selected Workflow Agent Node Structure'** listed above that best fits this sub-task. If no direct match is obvious for a necessary step but the overall task still aligns with the workflow, you may use a general agent type like 'Analysis Agent' or 'Documentation Agent' but clearly state this choice in the reasoning.
       {{else}}
       - The type of AI agent best suited to perform this sub-task (e.g., 'Analysis Agent', 'Code Generation Agent', 'Documentation Agent', 'Deployment Agent').
       {{/if}}
     - description: A brief (1-2 sentences) description explaining the purpose or key activities of this sub-task.
 
 Reasoning (reasoning string):
-Provide a **concise yet detailed (2-5 sentences max) explanation** of your thought process for the 'plannedTask' object. Focus on these key points:
+Provide a **CONCISE (2-5 sentences max) explanation** of your thought process for the NEW 'plannedTask' object.
 1.  Explain your choice for 'assignedTo'.
     {{#if selectedWorkflowDetail}}
-    - Specifically explain how the user's goal was mapped to the '{{selectedWorkflowDetail.name}}' workflow.
-    - **Crucially, explain how its nodes (if provided) influenced the 'suggestedSubTasks' (agent types and sequence).**
+    - If the plan uses '{{selectedWorkflowDetail.name}}', explain how the user's goal was mapped to this workflow.
+    - **Crucially, explain how its nodes (if provided and used) influenced the 'suggestedSubTasks' (agent types and sequence).**
     {{else}}
     - If an existing 'Available Project Workflow' was chosen, state its name and why it's a good fit.
     - If a new conceptual workflow/team name was suggested, explain the rationale for the name and its suitability for the user's goal.
@@ -153,17 +194,20 @@ Provide a **concise yet detailed (2-5 sentences max) explanation** of your thoug
 2.  Explain your 'durationDays' estimate, **explicitly stating it's based on AI AGENT execution speed/capabilities.**
 3.  If you generated 'suggestedSubTasks':
     {{#if selectedWorkflowDetail.nodes.length}}
-    - Briefly confirm how the sub-tasks and their assigned agent types align with the specific nodes of the '{{selectedWorkflowDetail.name}}' workflow.
+    - Briefly confirm how the sub-tasks and their assigned agent types align with the specific nodes of the '{{selectedWorkflowDetail.name}}' workflow (if it was used).
     {{else}}
-    - Briefly explain why this sub-task breakdown is appropriate for AI agent execution if no specific workflow was selected.
+    - Briefly explain why this sub-task breakdown is appropriate for AI agent execution.
     {{/if}}
+{{#if modificationRequest}}
+4.  **Specifically address how the user's MODIFICATION REQUEST was incorporated into the NEW plan and reasoning.**
+{{/if}}
 Keep the reasoning focused and directly related to your plan. Avoid generic statements or filler text.
 
 Ensure 'plannedTask.startDate' is in YYYY-MM-DD format.
-Ensure 'plannedTask.durationDays' is an integer >= 0 (0 only for milestones).
+Ensure 'plannedTask.durationDays' is an integer >= 0 (0 only for milestones, otherwise >= 1).
 Ensure 'plannedTask.progress' is an integer 0-100.
-Each suggestedSubTask must have 'title', 'assignedAgentType', and 'description'.
-Do not add any comments or extraneous text outside the main JSON structure. Output ONLY the JSON.
+Each suggestedSubTask MUST have 'title', 'assignedAgentType', and 'description'.
+Output ONLY the JSON.
 `,
 });
 
@@ -197,8 +241,6 @@ const planProjectTaskFlow = ai.defineFlow(
       };
     }
 
-    console.log("PLAN_PROJECT_TASK_FLOW: Raw AI output.plannedTask:", JSON.stringify(output.plannedTask, null, 2));
-
     // Ensure defaults and constraints are applied if AI misses them
     const plannedTask = output.plannedTask;
 
@@ -214,6 +256,13 @@ const planProjectTaskFlow = ai.defineFlow(
     }
     
     plannedTask.startDate = plannedTask.startDate || format(new Date(), 'yyyy-MM-dd');
+    try {
+        if (!isValid(parseISO(plannedTask.startDate))) {
+            plannedTask.startDate = format(new Date(), 'yyyy-MM-dd');
+        }
+    } catch (e) {
+        plannedTask.startDate = format(new Date(), 'yyyy-MM-dd');
+    }
     
     plannedTask.isMilestone = plannedTask.isMilestone === undefined ? false : plannedTask.isMilestone;
 
@@ -238,7 +287,6 @@ const planProjectTaskFlow = ai.defineFlow(
         description: st.description || "No description provided."
     }));
 
-    // Reassign the potentially modified plannedTask back to the output object
     output.plannedTask = plannedTask; 
 
     if (!output.reasoning || output.reasoning.trim().length < 10) {
@@ -246,6 +294,4 @@ const planProjectTaskFlow = ai.defineFlow(
     }
     
     console.log("PLAN_PROJECT_TASK_FLOW: Processed and returning output:", JSON.stringify(output, null, 2));
-    return output;
-  }
-);
+    return
