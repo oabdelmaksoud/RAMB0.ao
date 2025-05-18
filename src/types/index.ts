@@ -73,14 +73,29 @@ export interface ProjectFile {
   children?: ProjectFile[];
 }
 
-// New type for Project Templates
+export type RequirementStatus = 'Draft' | 'Under Review' | 'Approved' | 'Implemented' | 'Obsolete' | 'Rejected';
+export type RequirementPriority = 'High' | 'Medium' | 'Low';
+
+export interface Requirement {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  status: RequirementStatus;
+  priority: RequirementPriority;
+  version: string;
+  createdDate: string; // ISO date string
+  updatedDate: string; // ISO date string
+  // For future traceability
+  // linkedTasks?: string[]; 
+  // linkedRequirements?: string[]; // For parent/child or related requirements
+}
+
 export interface ProjectTemplate {
   id: string;
   name: string;
   description: string;
-  // For simplicity, initialTasks will be partial Task objects excluding id, projectId
   initialTasks?: Array<Partial<Omit<Task, 'id'>>>;
-  // For simplicity, initialFiles won't have full path or ID, structure defined by nesting
   initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>>;
-  // We can extend this to include initialWorkflows, initialAgents later
+  // We can extend this to include initialWorkflows, initialAgents, initialRequirements later
 }
