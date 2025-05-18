@@ -4,17 +4,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Briefcase, // Changed from LayoutDashboard for "Projects"
+  Briefcase,
   Activity,
-  // Other icons removed as their global pages were integrated into project details
+  Settings,
+  UserCircle,
+  LayoutGrid, // For Portfolio Dashboard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
-// Updated navItems: "Dashboard" becomes "Projects" pointing to `/`, "Monitoring" remains.
 const navItems = [
   { href: '/', label: 'Projects', icon: Briefcase },
+  { href: '/portfolio-dashboard', label: 'Portfolio', icon: LayoutGrid },
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
 ];
 
@@ -33,8 +35,7 @@ export default function SidebarNav() {
                   asChild
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    // Exact match for root, startsWith for others to handle nested project routes
-                    (item.href === '/' && pathname === '/') || (item.href !== '/' && pathname.startsWith(item.href))
+                    (pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href)))
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}

@@ -1,3 +1,4 @@
+
 export interface Agent {
   id: string;
   name: string;
@@ -14,17 +15,17 @@ export interface Agent {
 
 export interface WorkflowNode {
   id: string;
-  name: string; // Typically the agent type or a user-defined name for the node
-  type: string; // Agent type from palette
+  name: string;
+  type: string;
   x: number;
   y: number;
-  config?: Record<string, any>; // For node-specific configurations later
+  config?: Record<string, any>;
 }
 
 export interface WorkflowEdge {
   id: string;
-  sourceNodeId: string; // ID of the source WorkflowNode
-  targetNodeId: string; // ID of the target WorkflowNode
+  sourceNodeId: string;
+  targetNodeId: string;
 }
 
 export interface ProjectWorkflow {
@@ -56,10 +57,10 @@ export interface Task {
   startDate?: string; // ISO date string e.g., "2024-07-01"
   durationDays?: number; // Duration in days
   progress?: number; // Percentage 0-100
-  isMilestone?: boolean; // New field for milestones
-  parentId?: string | null; // ID of the parent task
-  dependencies?: string[]; // Array of task IDs this task depends on
-  description?: string; // Optional detailed description for the task
+  isMilestone?: boolean;
+  parentId?: string | null;
+  dependencies?: string[];
+  description?: string;
 }
 
 export interface ProjectFile {
@@ -69,5 +70,17 @@ export interface ProjectFile {
   path: string; // e.g., "/" or "/documents/"
   size?: string; // e.g., "1.2 MB", "500 KB"
   lastModified?: string; // ISO date string or human-readable
-  children?: ProjectFile[]; // For folders, to represent hierarchy
+  children?: ProjectFile[];
+}
+
+// New type for Project Templates
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  // For simplicity, initialTasks will be partial Task objects excluding id, projectId
+  initialTasks?: Array<Partial<Omit<Task, 'id'>>>;
+  // For simplicity, initialFiles won't have full path or ID, structure defined by nesting
+  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>>;
+  // We can extend this to include initialWorkflows, initialAgents later
 }

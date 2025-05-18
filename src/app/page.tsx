@@ -1,10 +1,18 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
 import ProjectCard from '@/components/features/projects/ProjectCard';
-import type { Project } from '@/types';
-import { initialMockProjects, PROJECTS_STORAGE_KEY, getTasksStorageKey, getAgentsStorageKey, getWorkflowsStorageKey, getFilesStorageKey } from '@/app/projects/page'; // Import shared constants
+import type { Project, Task, ProjectFile } from '@/types'; // Added ProjectFile
+import { 
+  initialMockProjects, 
+  PROJECTS_STORAGE_KEY, 
+  getTasksStorageKey, 
+  getAgentsStorageKey, 
+  getWorkflowsStorageKey,
+  getFilesStorageKey // Added
+} from '@/app/projects/page'; 
 import { Briefcase, PlusCircle } from 'lucide-react';
 import AddProjectDialog from '@/components/features/projects/AddProjectDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -19,11 +27,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from '@/components/ui/button';
-import Link from 'next/link';
-
+import { mockProjectTemplates } from '@/lib/project-templates'; // Import templates
+import { format } from 'date-fns';
 
 export default function HomePage() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(initialMockProjects);
   const [isClient, setIsClient] = useState(false);
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
@@ -32,62 +40,116 @@ export default function HomePage() {
 
   useEffect(() => {
     setIsClient(true);
-    console.log("HOME_PAGE (formerly Projects): Attempting to load projects from localStorage.");
+    console.log("PROJECTS_PAGE: Attempting to load projects from localStorage.");
     const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
     if (storedProjectsJson) {
       try {
         const storedProjects = JSON.parse(storedProjectsJson);
-        if (Array.isArray(storedProjects) && storedProjects.length > 0) {
-          console.log("HOME_PAGE (formerly Projects): Loaded from localStorage:", storedProjects);
-          setProjects(storedProjects);
-        } else if (Array.isArray(storedProjects) && storedProjects.length === 0 && initialMockProjects.length > 0) {
-          console.log("HOME_PAGE (formerly Projects): localStorage empty, initializing with initialMockProjects and saving.");
-          setProjects(initialMockProjects);
-          // localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects)); // Let the save effect handle this
-        } else {
-          console.log("HOME_PAGE (formerly Projects): Invalid or empty data in localStorage, using initialMockProjects.");
-          setProjects(initialMockProjects);
-          // localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects)); // Let the save effect handle this
-        }
+        setProjects(storedProjects);
+        console.log("PROJECTS_PAGE: Loaded from localStorage:", storedProjects);
       } catch (e) {
-        console.error("HOME_PAGE (formerly Projects): Error parsing projects from localStorage. Initial mocks will be used.", e);
-        setProjects(initialMockProjects);
-        // localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects)); // Let the save effect handle this
+        console.error("PROJECTS_PAGE: Error parsing projects from localStorage. Initial mocks will be used.", e);
+        setProjects(initialMockProjects); // Fallback to initial mocks
       }
     } else {
-      console.log("HOME_PAGE (formerly Projects): No projects found in localStorage. Initial mocks will be used.");
-      setProjects(initialMockProjects);
-      // localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(initialMockProjects)); // Let the save effect handle this
+      console.log("PROJECTS_PAGE: No projects found in localStorage. Initial mocks will be used and saved.");
+      // No need to setProjects(initialMockProjects) as it's the default state
+      // The save effect below will save the initialMockProjects if localStorage was empty
     }
   }, []);
 
   useEffect(() => {
-    if (isClient && (projects.length > 0 || localStorage.getItem(PROJECTS_STORAGE_KEY) !== null)) {
-      console.log("HOME_PAGE (formerly Projects): Saving projects to localStorage. Current projects state:", projects);
+    if (isClient) {
+      console.log("PROJECTS_PAGE: Attempting to save projects to localStorage. Current projects state:", projects);
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-      console.log("HOME_PAGE (formerly Projects): Successfully saved projects to localStorage.");
+      console.log("PROJECTS_PAGE: Successfully saved projects to localStorage.");
     }
   }, [projects, isClient]);
 
-  const handleAddProject = (projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'agentCount' | 'workflowCount'>) => {
+  const createInitialFiles = (projectId: string, templateFiles: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>>, currentPath: string = '/'): ProjectFile[] => {
+    return templateFiles.map((fileTemplate, index) => {
+      const fileId = `file-${projectId}-${currentPath.replace(/\//g, '-')}${fileTemplate.name.replace(/\s+/g, '-')}-${Date.now()}-${index}`;
+      const newFile: ProjectFile = {
+        id: fileId,
+        name: fileTemplate.name,
+        type: fileTemplate.type,
+        path: currentPath,
+        lastModified: new Date().toISOString(),
+        size: fileTemplate.type === 'file' ? `${Math.floor(Math.random() * 500) + 10}KB` : undefined, // Mock size for files
+        children: fileTemplate.type === 'folder' ? createInitialFiles(projectId, fileTemplate.children || [], `${currentPath}${fileTemplate.name}/`) : undefined,
+      };
+      return newFile;
+    });
+  };
+
+
+  const handleAddProject = (
+    projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'agentCount' | 'workflowCount'>,
+    templateId?: string
+  ) => {
+    const newProjectId = `proj-${Date.now().toString().slice(-5)}-${Math.random().toString(36).substring(2, 7)}`;
     const newProject: Project = {
-      id: `proj-${Date.now().toString().slice(-5)}-${Math.random().toString(36).substring(2, 7)}`,
+      id: newProjectId,
       ...projectData,
       status: 'Active',
       lastUpdated: new Date().toISOString(),
       thumbnailUrl: projectData.thumbnailUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(projectData.name.substring(0,20))}`,
-      agentCount: 0,
-      workflowCount: 0,
+      agentCount: 0, // Will be based on template or default
+      workflowCount: 0, // Will be based on template or default
     };
-    console.log("HOME_PAGE (formerly Projects): handleAddProject - Adding new project:", newProject);
+
+    let initialTasksForProject: Task[] = [];
+    let initialFilesForProject: ProjectFile[] = [];
+    // For now, initial agents and workflows from templates are not implemented to keep this step focused.
+    // They would be handled similarly to tasks and files.
+
+    if (templateId) {
+      const selectedTemplate = mockProjectTemplates.find(t => t.id === templateId);
+      if (selectedTemplate) {
+        console.log(`PROJECTS_PAGE: Using template "${selectedTemplate.name}" for new project "${newProject.name}"`);
+        // Initialize tasks from template
+        if (selectedTemplate.initialTasks) {
+          initialTasksForProject = selectedTemplate.initialTasks.map((taskTemplate, index) => ({
+            id: `task-${newProjectId}-${index}-${Date.now().toString().slice(-3)}`,
+            projectId: newProjectId, // Associate with the new project
+            title: taskTemplate.title || "Untitled Task",
+            status: taskTemplate.status || 'To Do',
+            assignedTo: taskTemplate.assignedTo || 'Unassigned',
+            startDate: taskTemplate.startDate || format(new Date(), 'yyyy-MM-dd'),
+            durationDays: taskTemplate.durationDays === undefined ? 1 : taskTemplate.durationDays,
+            progress: taskTemplate.progress === undefined ? 0 : taskTemplate.progress,
+            isMilestone: taskTemplate.isMilestone || false,
+            parentId: taskTemplate.parentId || null,
+            dependencies: taskTemplate.dependencies || [],
+            description: taskTemplate.description || "",
+          }));
+          localStorage.setItem(getTasksStorageKey(newProjectId), JSON.stringify(initialTasksForProject));
+          console.log(`PROJECTS_PAGE: Initialized ${initialTasksForProject.length} tasks for project ${newProjectId} from template.`);
+        }
+
+        // Initialize files from template
+        if (selectedTemplate.initialFiles) {
+          initialFilesForProject = createInitialFiles(newProjectId, selectedTemplate.initialFiles);
+          localStorage.setItem(getFilesStorageKey(newProjectId), JSON.stringify(initialFilesForProject));
+           console.log(`PROJECTS_PAGE: Initialized file structure for project ${newProjectId} from template.`);
+        }
+        
+        // Placeholder for initializing agents and workflows if templates define them
+        // newProject.agentCount = selectedTemplate.initialAgents?.length || 0;
+        // newProject.workflowCount = selectedTemplate.initialWorkflows?.length || 0;
+      }
+    }
+    
+    console.log("PROJECTS_PAGE: handleAddProject - Adding new project:", newProject);
     setProjects(prevProjects => {
       const updatedProjects = [newProject, ...prevProjects];
-      console.log("HOME_PAGE (formerly Projects): handleAddProject - State updated. New projects list:", updatedProjects);
+      console.log("PROJECTS_PAGE: handleAddProject - State updated. New projects list:", updatedProjects);
       return updatedProjects;
     });
+
     toast({
       title: 'Project Created',
-      description: `Project "${newProject.name}" has been successfully created.`,
+      description: `Project "${newProject.name}" has been successfully created ${templateId && templateId !== 'template-blank' ? 'using the "' + mockProjectTemplates.find(t => t.id === templateId)?.name + '" template' : ''}.`,
     });
   };
 
@@ -98,7 +160,7 @@ export default function HomePage() {
 
   const confirmDeleteProject = () => {
     if (projectToDelete) {
-      console.log("HOME_PAGE (formerly Projects): confirmDeleteProject - Deleting project:", projectToDelete);
+      console.log("PROJECTS_PAGE: confirmDeleteProject - Deleting project:", projectToDelete);
       // Clean up project-specific data from localStorage
       localStorage.removeItem(getTasksStorageKey(projectToDelete.id));
       localStorage.removeItem(getAgentsStorageKey(projectToDelete.id));
@@ -107,7 +169,7 @@ export default function HomePage() {
       
       setProjects(prevProjects => {
         const updatedProjects = prevProjects.filter(p => p.id !== projectToDelete.id);
-        console.log("HOME_PAGE (formerly Projects): confirmDeleteProject - State updated. New projects list:", updatedProjects);
+        console.log("PROJECTS_PAGE: confirmDeleteProject - State updated. New projects list:", updatedProjects);
         return updatedProjects;
       });
       toast({
@@ -120,7 +182,7 @@ export default function HomePage() {
     }
   };
 
-  if (!isClient && projects.length === 0) { // Show loading state only if projects haven't been populated from localStorage yet
+  if (!isClient && projects.length === 0) {
     return (
        <div className="container mx-auto">
         <PageHeader className="items-start justify-between sm:flex-row sm:items-center">
@@ -147,7 +209,7 @@ export default function HomePage() {
         <div>
           <PageHeaderHeading>
             <Briefcase className="mr-2 inline-block h-6 w-6" />
-            Projects
+            Projects Overview
           </PageHeaderHeading>
           <PageHeaderDescription>
             Manage your ongoing and completed projects. Track progress and access project-specific resources and agents.
