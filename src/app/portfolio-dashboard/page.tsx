@@ -4,11 +4,12 @@
 import { useEffect, useState } from 'react';
 import type { Project, Task } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; // Added CardDescription
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart3, Briefcase, ListChecks, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
 import { PROJECTS_STORAGE_KEY, getTasksStorageKey, initialMockProjects } from '@/app/projects/page';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge'; // Added Badge import
 
 interface AggregatedMetrics {
   totalProjects: number;
@@ -36,8 +37,14 @@ export default function PortfolioDashboardPage() {
     if (!isClient) return;
 
     setIsLoading(true);
-    const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
-    const loadedProjects: Project[] = storedProjectsJson ? JSON.parse(storedProjectsJson) : initialMockProjects;
+    let loadedProjects: Project[] = [];
+    try {
+      const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
+      loadedProjects = storedProjectsJson ? JSON.parse(storedProjectsJson) : initialMockProjects;
+    } catch (e) {
+      console.error("Error parsing projects from localStorage for dashboard:", e);
+      loadedProjects = initialMockProjects; // Fallback
+    }
     setProjects(loadedProjects);
 
     let totalTasks = 0;
@@ -48,33 +55,34 @@ export default function PortfolioDashboardPage() {
 
     loadedProjects.forEach(project => {
       const tasksStorageKey = getTasksStorageKey(project.id);
-      const storedTasksJson = localStorage.getItem(tasksStorageKey);
-      if (storedTasksJson) {
-        try {
-          const projectTasks: Task[] = JSON.parse(storedTasksJson);
-          totalTasks += projectTasks.length;
-          projectTasks.forEach(task => {
-            if (task.isMilestone) return; // Optionally exclude milestones from task counts
-            switch (task.status) {
-              case 'To Do':
-                todoTasks++;
-                break;
-              case 'In Progress':
-                inProgressTasks++;
-                break;
-              case 'Done':
-                doneTasks++;
-                break;
-              case 'Blocked':
-                blockedTasks++;
-                break;
-            }
-          });
-        } catch (e) {
-          console.error(`Error parsing tasks for project ${project.id}:`, e);
-          // Optionally, handle this error, e.g., by setting task counts to 0 for this project
+      let projectTasks: Task[] = [];
+      try {
+        const storedTasksJson = localStorage.getItem(tasksStorageKey);
+        if (storedTasksJson) {
+          projectTasks = JSON.parse(storedTasksJson);
         }
+      } catch (e) {
+        console.error(`Error parsing tasks for project ${project.id} on dashboard:`, e);
       }
+      
+      totalTasks += projectTasks.length;
+      projectTasks.forEach(task => {
+        if (task.isMilestone) return; 
+        switch (task.status) {
+          case 'To Do':
+            todoTasks++;
+            break;
+          case 'In Progress':
+            inProgressTasks++;
+            break;
+          case 'Done':
+            doneTasks++;
+            break;
+          case 'Blocked':
+            blockedTasks++;
+            break;
+        }
+      });
     });
 
     setMetrics({
@@ -221,7 +229,6 @@ export default function PortfolioDashboardPage() {
         </CardFooter>
       </Card>
       
-      {/* Placeholder for Resource Allocation */}
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Resource Allocation</CardTitle>
