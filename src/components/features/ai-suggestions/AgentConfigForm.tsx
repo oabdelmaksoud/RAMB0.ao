@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -23,18 +22,12 @@ const formSchema = z.object({
 
 type AgentConfigFormData = z.infer<typeof formSchema>;
 
-const getAiSuggestedConfigStorageKey = (projectId?: string): string => {
-  if (projectId) {
-    return `aiSuggestedAgentConfig_project_${projectId}`;
-  }
-  return 'aiSuggestedAgentConfig';
-};
-
 interface AgentConfigFormProps {
-  projectId?: string;
+  projectId?: string; // Optional: if provided, suggestions are for this project
+  onSuggestionAccepted?: (agentData: Omit<Agent, 'id' | 'status' | 'lastActivity'>) => void;
 }
 
-export default function AgentConfigForm({ projectId }: AgentConfigFormProps) {
+export default function AgentConfigForm({ projectId, onSuggestionAccepted }: AgentConfigFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<SuggestAgentConfigurationOutput | null>(null);
   const { toast } = useToast();
@@ -74,29 +67,28 @@ export default function AgentConfigForm({ projectId }: AgentConfigFormProps) {
   }
 
   const handleUseConfiguration = () => {
-    if (suggestion?.suggestedAgent) {
+    if (suggestion?.suggestedAgent && onSuggestionAccepted) {
+      const { name, type, config } = suggestion.suggestedAgent;
+      onSuggestionAccepted({ name, type, config });
+      toast({
+        title: 'AI Suggestion Applied!',
+        description: `Agent "${name}" has been added to your project agents.`,
+      });
+      setSuggestion(null); // Clear suggestion after use
+    } else if (suggestion?.suggestedAgent) {
+      // Fallback for global context (if onSuggestionAccepted is not provided)
       const { name, type, config } = suggestion.suggestedAgent;
       const storedConfig = {
         name,
         type,
-        configString: JSON.stringify(config, null, 2) // Store config as string for Textarea
+        configString: JSON.stringify(config, null, 2)
       };
-      const storageKey = getAiSuggestedConfigStorageKey(projectId);
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(storedConfig));
-        toast({
-          title: 'Configuration Copied!',
-          description: projectId 
-            ? "Go to this project's 'Project Agents' tab and click 'Add New Agent' to use this configuration."
-            : "Go to the 'Agent Management' page and click 'Add New Agent' to use this configuration.",
-        });
-      } catch (e) {
-        toast({
-          title: 'Error',
-          description: 'Could not save suggestion to use later. Your browser might be blocking localStorage.',
-          variant: 'destructive',
-        });
-      }
+      const storageKey = 'aiSuggestedAgentConfig'; // Global key
+      localStorage.setItem(storageKey, JSON.stringify(storedConfig));
+      toast({
+        title: 'Configuration Copied!',
+        description: "Go to 'Agent Management' and click 'Add New Agent' to use this configuration.",
+      });
     }
   };
 
@@ -105,7 +97,7 @@ export default function AgentConfigForm({ projectId }: AgentConfigFormProps) {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Get Agent Configuration Suggestion</CardTitle>
-          <CardDescription>Fill in the details below and let AI assist you{projectId ? ` for project "${projectId}"` : ''}.</CardDescription>
+          <CardDescription>Fill in the details below and let AI assist you{projectId ? ` for this project` : ''}.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -165,14 +157,24 @@ export default function AgentConfigForm({ projectId }: AgentConfigFormProps) {
         </Form>
       </Card>
 
-      {suggestion && (
+      {isLoading && (
+        <Card className="mt-6 bg-muted/30 border-dashed border-muted-foreground/50 animate-pulse">
+          <CardContent className="p-6 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary mb-3" />
+            <p className="text-muted-foreground">AI is generating your configuration suggestion...</p>
+            <p className="text-xs text-muted-foreground mt-1">This may take a moment.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && suggestion && (
         <Card className="mt-6 bg-accent/50 border-accent shadow-lg">
           <CardHeader>
             <CardTitle className="text-lg flex items-center">
               <Sparkles className="w-5 h-5 mr-2 text-primary" />
               AI Configuration Suggestion
             </CardTitle>
-            <CardDescription>Review the AI-generated suggestion below and use it to create a new agent.</CardDescription>
+            <CardDescription>Review the AI-generated suggestion below. {onSuggestionAccepted && "You can add this directly to your project agents."}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
             <div className="space-y-1">
@@ -185,13 +187,13 @@ export default function AgentConfigForm({ projectId }: AgentConfigFormProps) {
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Suggested Configuration (JSON)</Label>
-              <pre className="mt-1 p-3 bg-background/70 rounded-md border text-xs sm:text-sm overflow-x-auto whitespace-pre-wrap font-mono">
+              <pre className="mt-1 p-3 bg-background/70 rounded-md border text-xs sm:text-sm overflow-x-auto whitespace-pre-wrap font-mono max-h-40">
                 {JSON.stringify(suggestion.suggestedAgent.config, null, 2)}
               </pre>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Reasoning</Label>
-              <p className="text-sm p-2 bg-background/70 rounded-md border italic">{suggestion.reasoning}</p>
+              <p className="text-sm p-2 bg-background/70 rounded-md border italic whitespace-pre-wrap max-h-40 overflow-y-auto">{suggestion.reasoning}</p>
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Confidence Score</Label>
@@ -202,7 +204,7 @@ export default function AgentConfigForm({ projectId }: AgentConfigFormProps) {
             </div>
           </CardContent>
           <CardFooter className="flex justify-end border-t pt-6">
-            <Button onClick={handleUseConfiguration}>
+            <Button onClick={handleUseConfiguration} disabled={!onSuggestionAccepted}>
               <Send className="mr-2 h-4 w-4" /> Use this Configuration
             </Button>
           </CardFooter>
