@@ -2,7 +2,7 @@
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, EyeIcon, SlidersHorizontal, Lightbulb, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, X, Diamond, Users, FolderGit2, MessageSquare, Settings, Brain, AlertTriangle, Edit, Folder as FolderIcon, File as FileIcon, UploadCloud, FolderPlus, ArrowLeftCircle, InfoIcon, Play, ClipboardList, ChevronDown, ChevronRight, PlusSquare as PlusSquareIcon, Edit2 } from 'lucide-react';
+import { Briefcase, CalendarDays, Bot, Workflow as WorkflowIcon, ListChecks, Activity as ActivityIcon, TrendingUp, EyeIcon, SlidersHorizontal, Lightbulb, AlertCircle, FilePlus2, Trash2, MousePointerSquareDashed, Hand, XSquare, GripVertical, GanttChartSquare, X, Diamond, Users, FolderGit2, MessageSquare, Settings, Brain, AlertTriangle, Edit, Folder as FolderIcon, File as FileIcon, UploadCloud, FolderPlus, ArrowLeftCircle, InfoIcon, Play, ClipboardList, ChevronDown, ChevronRight, PlusSquare as PlusSquareIcon, Edit2, Files } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import type { Project, Task, Agent, ProjectWorkflow, WorkflowNode, WorkflowEdge, ProjectFile, Requirement, RequirementStatus, RequirementPriority } from '@/types';
@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { format, parseISO, addDays, differenceInCalendarDays, startOfDay } from 'date-fns';
+import { format, parseISO, addDays, differenceInCalendarDays, startOfDay, isValid } from 'date-fns';
 import { cn, uid } from '@/lib/utils';
 import Image from 'next/image';
 import EditTaskDialog from '@/components/features/projects/EditTaskDialog';
@@ -41,7 +41,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import ProjectGanttChartView from '@/components/features/projects/ProjectGanttChartView';
 import TaskChatDialog from '@/components/features/tasks/TaskChatDialog';
 import AITaskPlannerDialog from '@/components/features/projects/AITaskPlannerDialog';
-import type { PlanProjectTaskOutput } from "@/ai/flows/plan-project-task-flow";
+import type { PlanProjectTaskOutput, WorkflowNode as AIWorkflowNode } from "@/ai/flows/plan-project-task-flow";
 import { Table, TableBody, TableCell, TableHead, TableHeader as ShadCnTableHeader, TableRow } from "@/components/ui/table";
 import AddWorkflowDialog from '@/components/features/projects/AddWorkflowDialog';
 import { Label } from '@/components/ui/label';
@@ -65,8 +65,8 @@ export const taskStatusColors: { [key in Task['status']]: string } = {
 };
 
 const initialProjectScopedMockAgents = (projectId: string): Agent[] => [
-  { id: uid(`cfg-proj-${projectId.slice(-5)}`), name: 'Project Kickstart Analyzer', type: 'Analysis Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { scope: 'initial_setup', autoRun: false } },
-  { id: uid(`cfg-proj-${projectId.slice(-5)}`), name: 'Basic Task Reporter', type: 'Reporting Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { frequency: 'on-demand' } },
+  { id: uid(`cfg-proj-${projectId.slice(-5)}`), name: `Default Analyzer - ${projectId.slice(0,5)}`, type: 'Analysis Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { scope: 'initial_setup', autoRun: false } },
+  { id: uid(`cfg-proj-${projectId.slice(-5)}`), name: `Basic Reporter - ${projectId.slice(0,5)}`, type: 'Reporting Agent', status: 'Idle', lastActivity: new Date().toISOString(), config: { frequency: 'on-demand' } },
 ];
 
 const workflowStatusColors: { [key in ProjectWorkflow['status']]: string } = {
@@ -97,13 +97,13 @@ const predefinedWorkflowsData = (projectId: string): ProjectWorkflow[] => {
     nodeDetails: Array<{ name: string; type: string; config?: any, x?: number, y?: number }>,
     edgeConnections?: Array<{ sourceIndex: number; targetIndex: number }>
   ): ProjectWorkflow => {
-    const wfId = uid(`${name.toLowerCase().replace(/\s+/g, '-')}-${projectId.slice(-3)}`);
+    const wfId = uid(`pd-wf-${projectId.slice(-3)}-${name.toLowerCase().replace(/\s+/g, '-').substring(0,10)}`);
     const nodes: WorkflowNode[] = nodeDetails.map((detail, index) => ({
       id: uid(`node-${wfId}-${index}`),
       name: detail.name,
       type: detail.type,
-      x: detail.x !== undefined ? detail.x : 50 + (index % 4) * 220,
-      y: detail.y !== undefined ? detail.y : 50 + Math.floor(index / 4) * 120,
+      x: detail.x !== undefined ? detail.x : 50 + (index % 3) * 250, // Adjusted for better layout
+      y: detail.y !== undefined ? detail.y : 50 + Math.floor(index / 3) * 120, // Adjusted for better layout
       config: detail.config || {},
     }));
 
@@ -419,23 +419,24 @@ export default function ProjectDetailPage() {
     }
   }, [projectWorkflows, projectId, isClient, workflowsStorageKey]);
 
-  useEffect(() => {
-    if (designingWorkflow) {
+ useEffect(() => {
+    if (designingWorkflow && projectWorkflows.length > 0) {
       const updatedDesigningWorkflow = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflow) {
-        const designingWorkflowNodesString = JSON.stringify(designingWorkflow.nodes || []);
-        const updatedNodesString = JSON.stringify(updatedDesigningWorkflow.nodes || []);
-        const designingWorkflowEdgesString = JSON.stringify(designingWorkflow.edges || []);
-        const updatedEdgesString = JSON.stringify(updatedDesigningWorkflow.edges || []);
-
-        if (designingWorkflowNodesString !== updatedNodesString || designingWorkflowEdgesString !== updatedEdgesString) {
-            // console.log("PROJECT_DETAIL_PAGE: External change detected for designingWorkflow. Syncing. ID:", designingWorkflow.id);
-            setDesigningWorkflow(JSON.parse(JSON.stringify(updatedDesigningWorkflow))); // Deep clone
+        // Only update if there's an actual difference to avoid infinite loops
+        // Simple stringify comparison. For complex objects, a deep comparison library might be better.
+        if (JSON.stringify(designingWorkflow) !== JSON.stringify(updatedDesigningWorkflow)) {
+          // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with external changes from projectWorkflows. ID:", designingWorkflow.id);
+          setDesigningWorkflow(JSON.parse(JSON.stringify(updatedDesigningWorkflow))); // Deep clone to ensure re-render if child changes
         }
       } else {
-        // console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows list. Closing designer. ID was:", designingWorkflow.id);
-        setDesigningWorkflow(null);
+        // console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows list (e.g., deleted). Closing designer. ID was:", designingWorkflow.id);
+        setDesigningWorkflow(null); // Close designer if the workflow was deleted
       }
+    } else if (designingWorkflow && projectWorkflows.length === 0) {
+        // If designing a workflow and the list becomes empty (e.g., all deleted)
+        // console.log("PROJECT_DETAIL_PAGE: projectWorkflows list became empty while designing. Closing designer. ID was:", designingWorkflow.id);
+        setDesigningWorkflow(null);
     }
   }, [projectWorkflows, designingWorkflow?.id]); // Ensure designingWorkflow.id is safe
 
@@ -464,7 +465,7 @@ export default function ProjectDetailPage() {
 
       if (workflow.status === 'Active') {
         if (relevantTasks.length > 0 && relevantTasks.every(task => task.status === 'Done')) {
-          newStatus = 'Inactive';
+          newStatus = 'Inactive'; // Changed from 'Completed' to 'Inactive'
           newLastRun = new Date().toISOString();
           workflowsChanged = true;
           toast({
@@ -496,13 +497,12 @@ export default function ProjectDetailPage() {
 const handleTaskPlannedAndAccepted = useCallback(
   (aiOutput: PlanProjectTaskOutput) => {
     console.log("PROJECT_DETAIL_PAGE: handleTaskPlannedAndAccepted received aiOutput:", JSON.stringify(aiOutput, null, 2));
+    
     const { plannedTask: plannedTaskDataFromAI, reasoning: aiReasoning } = aiOutput || { plannedTask: {}, reasoning: "" };
-
-    // Default to an empty object if plannedTaskDataFromAI is undefined
-    const safePlannedTaskData = plannedTaskDataFromAI || {};
+    const safePlannedTaskData = plannedTaskDataFromAI || {}; // Ensure plannedTaskDataFromAI is an object
 
     const {
-      suggestedSubTasks = [],
+      suggestedSubTasks = [], // Default to empty array if undefined
       title: aiTaskTitle,
       status: aiTaskStatus,
       assignedTo: aiTaskAssignedTo,
@@ -514,11 +514,9 @@ const handleTaskPlannedAndAccepted = useCallback(
       dependencies: aiTaskDependencies,
     } = safePlannedTaskData;
 
-
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted taskTitle:", aiTaskTitle || "Untitled AI Task");
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted aiReasoning:", aiReasoning || "No reasoning provided by AI.");
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Extracted suggestedSubTasksFromAI:", JSON.stringify(suggestedSubTasks, null, 2));
-
 
     const subTasksDetailsText = (suggestedSubTasks && suggestedSubTasks.length > 0)
       ? suggestedSubTasks
@@ -527,7 +525,7 @@ const handleTaskPlannedAndAccepted = useCallback(
       : "None specified by AI.";
 
     const combinedDescription = `AI Reasoning: ${(aiReasoning || "No reasoning provided by AI.").trim()}\n\nAI Suggested Sub-Tasks / Steps:\n${subTasksDetailsText.trim()}`;
-    // console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed combinedDescription for main task:", combinedDescription);
+    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed combinedDescription for main task:", combinedDescription);
 
     const mainTaskId = uid(`task-proj-${projectId.slice(-5)}`);
     let mainTask: Task = {
@@ -544,12 +542,11 @@ const handleTaskPlannedAndAccepted = useCallback(
       dependencies: aiTaskDependencies || [],
       description: combinedDescription.trim() || "AI-planned task.",
     };
-    // console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Initial mainTask object:", JSON.stringify(mainTask, null, 2));
+     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Initial mainTask object:", JSON.stringify(mainTask, null, 2));
 
 
     let newTasksList: Task[] = [];
-    let workflowAutoActivated = false;
-    let agentAutoStarted = false; // This flag seems to be unused in current logic but kept for context
+    let autoStartedOrActivated = false;
     let toastDescriptionText = "";
 
     const assignedToValue = mainTask.assignedTo;
@@ -561,7 +558,7 @@ const handleTaskPlannedAndAccepted = useCallback(
           let changed = false;
           const updatedWorkflows = prevWorkflows.map(wf => {
             if (wf.id === matchingWorkflow.id && (wf.status === 'Draft' || wf.status === 'Inactive')) {
-              workflowAutoActivated = true;
+              autoStartedOrActivated = true;
               changed = true;
               return { ...wf, status: 'Active', lastRun: new Date().toISOString() };
             }
@@ -569,13 +566,16 @@ const handleTaskPlannedAndAccepted = useCallback(
           });
           return changed ? updatedWorkflows : prevWorkflows;
         });
-        if (workflowAutoActivated) {
+
+        if (autoStartedOrActivated) {
           mainTask = { ...mainTask, status: 'In Progress', progress: (mainTask.progress === 0 || mainTask.progress === undefined) ? 10 : mainTask.progress };
-          toastDescriptionText += ` Workflow activated. Main task status set to 'In Progress'.`;
+          toastDescriptionText += ` Workflow activated. Main task set to 'In Progress'.`;
         } else if (matchingWorkflow.status === 'Active') {
-          mainTask = { ...mainTask, status: 'In Progress', progress: (mainTask.progress === 0 || mainTask.progress === undefined) ? 10 : mainTask.progress };
-          toastDescriptionText += ` Main task status set to 'In Progress'.`;
+           mainTask = { ...mainTask, status: 'In Progress', progress: (mainTask.progress === 0 || mainTask.progress === undefined) ? 10 : mainTask.progress };
+           toastDescriptionText += ` Main task set to 'In Progress'.`;
+           autoStartedOrActivated = true;
         }
+
       } else {
         const assignedAgentInstance = projectAgents.find(agent => agent.name === assignedToValue);
         if (assignedAgentInstance) {
@@ -585,8 +585,8 @@ const handleTaskPlannedAndAccepted = useCallback(
             setProjectAgents(prevAgents => prevAgents.map(agent =>
               agent.id === assignedAgentInstance.id ? { ...agent, lastActivity: new Date().toISOString() } : agent
             ));
-            agentAutoStarted = true; // Set this if an agent starts it
-            toastDescriptionText += ` Agent is running, main task status set to 'In Progress'.`;
+            autoStartedOrActivated = true;
+            toastDescriptionText += ` Agent is running, main task set to 'In Progress'.`;
           } else {
             toastDescriptionText += ` Agent is not running. Start the agent to process.`;
           }
@@ -600,26 +600,26 @@ const handleTaskPlannedAndAccepted = useCallback(
       toastDescriptionText = `Task "${mainTask.title}" added. Assigned to: ${mainTask.assignedTo}.`;
     }
 
-    // console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Final mainTask before adding to list:", JSON.stringify(mainTask, null, 2));
+    console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Final mainTask before adding to list:", JSON.stringify(mainTask, null, 2));
     newTasksList.push(mainTask);
 
     if (suggestedSubTasks && suggestedSubTasks.length > 0 && !mainTask.isMilestone) {
       const subTasksFromAI: Task[] = suggestedSubTasks.map((st, index) => {
-        const subTaskId = uid(`subtask-${mainTaskId.slice(-5)}-${index}`);
-        const previousSubTask = newTasksList.length > 1 ? newTasksList[newTasksList.length - 1] : null; // Get previously added sub-task if exists
+        const subTaskId = uid(`subtask-${mainTaskId.slice(-5)}`);
+        const previousSubTask = newTasksList.length > 1 ? newTasksList[newTasksList.length - 1] : null;
         return {
           id: subTaskId,
           projectId: projectId,
           title: st.title || "Untitled Sub-task",
           status: 'To Do',
           assignedTo: st.assignedAgentType || "General Agent",
-          startDate: mainTask.startDate,
-          durationDays: 1,
+          startDate: mainTask.startDate, // Sub-tasks inherit main task start date for simplicity
+          durationDays: 1, // Default duration for sub-tasks
           progress: 0,
           isMilestone: false,
-          parentId: mainTaskId,
-          dependencies: (index === 0 || !previousSubTask || previousSubTask.parentId !== mainTaskId) ? [] : [previousSubTask.id], // Depend on previous sub-task of same parent
-          description: st.description || "No description provided by AI.",
+          parentId: mainTaskId, // Link to the main AI-planned task
+          dependencies: (index === 0 || !previousSubTask || previousSubTask.parentId !== mainTaskId) ? [] : [previousSubTask.id],
+          description: st.description || "No description provided by AI for this sub-task.",
         };
       });
       newTasksList = [...newTasksList, ...subTasksFromAI];
@@ -628,12 +628,12 @@ const handleTaskPlannedAndAccepted = useCallback(
         toastDescriptionText += ` ${createdSubTasksCount} sub-task(s) also created and linked.`;
       }
     }
-
-    setTasks(prevTasks => [...newTasksList, ...prevTasks]); // Add new tasks to the beginning
+    
+    setTasks(prevTasks => [...newTasksList, ...prevTasks]);
     setIsAITaskPlannerDialogOpen(false);
 
     let toastTitle = mainTask.isMilestone ? "Milestone Planned (AI)" : "Task Planned (AI)";
-    if (workflowAutoActivated || agentAutoStarted) { // Check agentAutoStarted as well
+    if (autoStartedOrActivated) {
       toastTitle = "Task In Progress (AI Planned)";
     }
     toast({ title: toastTitle, description: toastDescriptionText.trim() });
@@ -641,6 +641,7 @@ const handleTaskPlannedAndAccepted = useCallback(
     console.log("PROJECT_DETAIL_PAGE (handleTaskPlannedAndAccepted): Constructed mainTask for chat:", JSON.stringify(mainTask, null, 2));
     setChattingTask(mainTask);
     setIsChatDialogOpen(true);
+
   }, [projectId, project?.name, projectWorkflows, projectAgents, toast, updateWorkflowStatusBasedOnTasks]);
 
 
@@ -738,13 +739,11 @@ const handleTaskPlannedAndAccepted = useCallback(
             taskToMove.progress = newStatus === 'Done' ? 100 : (newStatus === 'To Do' || newStatus === 'Blocked' ? 0 : (taskToMove.progress || 0));
         }
         
-        updatedTasksArray.splice(taskToMoveIndex, 1); // Remove from old position
+        updatedTasksArray.splice(taskToMoveIndex, 1); 
         
-        // Find insertion point in the new column (append at the end of tasks with the new status)
         let insertionPoint = updatedTasksArray.length;
         for(let i = 0; i < updatedTasksArray.length; i++) {
             if(updatedTasksArray[i].status === newStatus) {
-                // find the last task with this status
                 let j = i;
                 while(j + 1 < updatedTasksArray.length && updatedTasksArray[j+1].status === newStatus) {
                     j++;
@@ -762,12 +761,11 @@ const handleTaskPlannedAndAccepted = useCallback(
         setTasks(updatedTasksArray);
         setProjectWorkflows(prevWorkflows => updateWorkflowStatusBasedOnTasks(updatedTasksArray, prevWorkflows));
 
-    } else { // Dropped in the same column
+    } else { 
         const isDroppedOnCard = (event.target as HTMLElement).closest('[data-task-id]');
-        if (!isDroppedOnCard && draggedTaskId) { // Dropped in empty space of the same column
+        if (!isDroppedOnCard && draggedTaskId) {
             const currentTask = updatedTasksArray.splice(taskToMoveIndex, 1)[0];
             
-            // Find last index of tasks with this status
             let lastIndexOfStatus = -1;
             for (let i = updatedTasksArray.length - 1; i >= 0; i--) {
                 if (updatedTasksArray[i].status === sourceTaskStatus) {
@@ -777,7 +775,7 @@ const handleTaskPlannedAndAccepted = useCallback(
             }
             if (lastIndexOfStatus !== -1) {
                  updatedTasksArray.splice(lastIndexOfStatus + 1, 0, currentTask);
-            } else { // If no other tasks of this status, just add it back
+            } else { 
                  updatedTasksArray.push(currentTask);
             }
 
@@ -919,7 +917,7 @@ const handleTaskPlannedAndAccepted = useCallback(
 
   const handleAddProjectWorkflow = (workflowData: { name: string; description: string }) => {
     const newWorkflow: ProjectWorkflow = {
-      id: uid(`wf-proj-${projectId.slice(-3)}`),
+      id: uid(`wf-proj-${projectId.slice(-3)}-${workflowData.name.toLowerCase().replace(/\s+/g, '-').substring(0,5)}`),
       name: workflowData.name,
       description: workflowData.description,
       status: 'Draft',
@@ -933,8 +931,8 @@ const handleTaskPlannedAndAccepted = useCallback(
   };
 
   const handleOpenWorkflowDesigner = (workflow: ProjectWorkflow) => {
-    // console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.name, "ID:", workflow.id, "Nodes:", (workflow.nodes || []).map(n=>n.id), "Edges:", (workflow.edges || []).map(e=>e.id));
-    setDesigningWorkflow(JSON.parse(JSON.stringify(workflow)));
+    // console.log("PROJECT_DETAIL_PAGE: Opening designer for workflow:", workflow.name, "ID:", workflow.id, "Nodes:", (workflow.nodes || []).map(n=>({id: n.id, name: n.name, type: n.type})), "Edges:", (workflow.edges || []).map(e=>e.id));
+    setDesigningWorkflow(JSON.parse(JSON.stringify(workflow))); // Deep clone
   };
 
   const handleCloseWorkflowDesigner = useCallback(() => {
@@ -965,7 +963,7 @@ const handleTaskPlannedAndAccepted = useCallback(
         // });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow]); // designingWorkflow is the key dependency
+  }, [designingWorkflow]);
 
   const handleWorkflowEdgesChange = useCallback((updatedEdges: WorkflowEdge[]) => {
     // console.log(`PROJECT_DETAIL_PAGE: handleWorkflowEdgesChange received updatedEdges. Length: ${updatedEdges.length}`);
@@ -987,7 +985,8 @@ const handleTaskPlannedAndAccepted = useCallback(
         // });
         return newWorkflowsArray;
     });
-  }, [designingWorkflow]); // designingWorkflow is the key dependency
+  }, [designingWorkflow]);
+
 
   const handleOpenDeleteWorkflowDialog = (workflow: ProjectWorkflow) => {
     setWorkflowToDelete(workflow);
@@ -1007,23 +1006,20 @@ const handleTaskPlannedAndAccepted = useCallback(
   };
 
   const formatDate = (dateString: string | undefined, formatString: string = "MMMM d, yyyy 'at' hh:mm a") => {
-    if (!isClient || !dateString) return 'Loading date...'; // Or handle as appropriate
-    // Check for various invalid date string possibilities before parsing
+    if (!isClient || !dateString) return 'Loading date...'; 
     if (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString) && !/^\d{4}-\d{2}-\d{2}$/.test(dateString) ) {
-      // If it's not a recognizable ISO or YYYY-MM-DD format, and doesn't have common delimiters,
-      // it might be already formatted or an invalid string. Return as is or handle as error.
-      return dateString; // Or throw new Error("Invalid date format"); or return "Invalid Date"
+      return dateString;
     }
     try {
       const date = parseISO(dateString);
-      if (!isValid(date)) { // Check if parseISO resulted in a valid date
+      if (!isValid(date)) { 
         // console.warn(`Invalid date string encountered: ${dateString}`);
-        return "Invalid Date"; // Or return dateString if you prefer to show the original malformed string
+        return "Invalid Date"; 
       }
       return format(date, formatString);
     } catch (error) {
       // console.warn(`Error formatting date: ${dateString}`, error);
-      return dateString; // Fallback to original string on error
+      return dateString; 
     }
   };
 
@@ -1064,13 +1060,13 @@ const handleTaskPlannedAndAccepted = useCallback(
     itemToAdd: ProjectFile,
     currentLevelPath: string = '/'
   ): ProjectFile[] => {
-    if (targetPathSegments.length === 0) { // Target is the currentLevelPath
+    if (targetPathSegments.length === 0) { 
       const itemExists = currentItems.some(item => item.name === itemToAdd.name && item.path === currentLevelPath && item.type === itemToAdd.type);
       if (itemExists) {
         toast({ title: "Duplicate Item", description: `A ${itemToAdd.type} named "${itemToAdd.name}" already exists in ${currentLevelPath}.`, variant: "destructive" });
-        return currentItems; // Return original items without adding duplicate
+        return currentItems; 
       }
-      // Add and sort
+      
       return [...currentItems, { ...itemToAdd, path: currentLevelPath }].sort((a, b) => {
         if (a.type === 'folder' && b.type === 'file') return -1;
         if (a.type === 'file' && b.type === 'folder') return 1;
@@ -1078,21 +1074,21 @@ const handleTaskPlannedAndAccepted = useCallback(
       });
     }
 
-    // Traverse deeper
+    
     const headSegment = targetPathSegments[0];
     const tailSegments = targetPathSegments.slice(1);
 
     return currentItems.map(item => {
       if (item.type === 'folder' && item.name === headSegment && item.path === currentLevelPath) {
-        // Found the target folder at the current level, recurse into its children
+        
         return {
           ...item,
           children: addFileOrFolderRecursive(item.children || [], tailSegments, itemToAdd, `${currentLevelPath}${item.name}/`),
-          lastModified: new Date().toISOString(), // Update parent folder's modification time
+          lastModified: new Date().toISOString(), 
         };
       }
       return item;
-    }).sort((a, b) => { // Ensure root level remains sorted
+    }).sort((a, b) => { 
         if (a.type === 'folder' && b.type === 'file') return -1;
         if (a.type === 'file' && b.type === 'folder') return 1;
         return a.name.localeCompare(b.name);
@@ -1119,15 +1115,15 @@ const handleTaskPlannedAndAccepted = useCallback(
         if (folder && folder.children !== undefined) {
             currentLevelItems = folder.children;
             accumulatedPath += segment + '/';
-        } else if (folder && folder.children === undefined) { // Folder exists but has no children array (treat as empty)
+        } else if (folder && folder.children === undefined) { 
             currentLevelItems = [];
             break;
         }
-         else { // Folder not found
+         else { 
             return [];
         }
     }
-    // Ensure items returned have the correct path reflecting their current depth
+    
     return (currentLevelItems || []).map(item => ({...item, path: accumulatedPath})).sort((a,b) => {
       if (a.type === 'folder' && b.type === 'file') return -1;
       if (a.type === 'file' && b.type === 'folder') return 1;
@@ -1192,14 +1188,14 @@ const handleTaskPlannedAndAccepted = useCallback(
       id: uid(`folder-proj-${projectId.slice(-5)}`),
       name: newFolderName.trim(),
       type: 'folder',
-      path: currentFilePath, // This will be adjusted by addFileOrFolderRecursive if needed
+      path: currentFilePath, 
       children: [],
       lastModified: new Date().toISOString(),
     };
 
     setProjectFiles(prevFiles => {
       if (currentFilePath === '/') {
-         // Check if item already exists at root
+         
          const itemExists = prevFiles.some(item => item.name === newFolder.name && item.path === '/' && item.type === 'folder');
          if (itemExists) {
            toast({ title: "Duplicate Item", description: `A folder named "${newFolder.name}" already exists in the root.`, variant: "destructive" });
@@ -1211,9 +1207,9 @@ const handleTaskPlannedAndAccepted = useCallback(
             return a.name.localeCompare(b.name);
           });
       }
-      // For nested paths, addFileOrFolderRecursive will handle placement and existence check
+      
       const pathSegments = currentFilePath.split('/').filter(Boolean);
-      const deepCopiedFiles = JSON.parse(JSON.stringify(prevFiles)); // Ensure deep copy for immutable update
+      const deepCopiedFiles = JSON.parse(JSON.stringify(prevFiles)); 
       return addFileOrFolderRecursive(deepCopiedFiles, pathSegments, newFolder);
     });
 
@@ -1238,7 +1234,7 @@ const handleTaskPlannedAndAccepted = useCallback(
         id: uid(`file-proj-${projectId}-${i}`),
         name: file.name,
         type: 'file',
-        path: currentFilePath, // Will be adjusted by recursive add if needed
+        path: currentFilePath, 
         size: `${(file.size / 1024).toFixed(1)}KB`,
         lastModified: new Date(file.lastModified).toISOString(),
       };
@@ -1246,7 +1242,7 @@ const handleTaskPlannedAndAccepted = useCallback(
     }
 
     setProjectFiles(currentProjectFileState => {
-        let updatedList = JSON.parse(JSON.stringify(currentProjectFileState)); // Deep copy
+        let updatedList = JSON.parse(JSON.stringify(currentProjectFileState)); 
         const pathSegments = currentFilePath === '/' ? [] : currentFilePath.split('/').filter(Boolean);
 
         for (const fileToAdd of newFilesBatch) {
@@ -1259,33 +1255,32 @@ const handleTaskPlannedAndAccepted = useCallback(
         toast({ title: `${newFilesBatch.length} File(s) Processed (Mock)`, description: `Files processed for ${currentFilePath}. Duplicates are skipped if they exist.` });
     }
 
-    // Reset the file input so the same file can be selected again if needed
+    
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
 
-  // Effect to sync designingWorkflow with changes from projectWorkflows (e.g., if a workflow is deleted while being designed)
+  
   useEffect(() => {
     if (designingWorkflow && projectWorkflows.length > 0) {
       const updatedDesigningWorkflow = projectWorkflows.find(wf => wf.id === designingWorkflow.id);
       if (updatedDesigningWorkflow) {
-        // Only update if there's an actual difference to avoid infinite loops
+        
         if (JSON.stringify(designingWorkflow) !== JSON.stringify(updatedDesigningWorkflow)) {
           // console.log("PROJECT_DETAIL_PAGE: Syncing designingWorkflow with external changes from projectWorkflows. ID:", designingWorkflow.id);
-          setDesigningWorkflow(JSON.parse(JSON.stringify(updatedDesigningWorkflow))); // Deep clone
+          setDesigningWorkflow(JSON.parse(JSON.stringify(updatedDesigningWorkflow))); 
         }
       } else {
         // console.log("PROJECT_DETAIL_PAGE: Designing workflow no longer found in projectWorkflows list (e.g., deleted). Closing designer. ID was:", designingWorkflow.id);
-        setDesigningWorkflow(null); // Close designer if the workflow was deleted
+        setDesigningWorkflow(null); 
       }
     } else if (designingWorkflow && projectWorkflows.length === 0) {
-        // If designing a workflow and the list becomes empty (e.g., all deleted)
         // console.log("PROJECT_DETAIL_PAGE: projectWorkflows list became empty while designing. Closing designer. ID was:", designingWorkflow.id);
         setDesigningWorkflow(null);
     }
-  }, [projectWorkflows, designingWorkflow?.id]); // Only re-run if projectWorkflows array or designingWorkflow.id changes
+  }, [projectWorkflows, designingWorkflow?.id]); 
 
 
   const handleGanttTaskUpdate = (updatedTask: Task) => {
@@ -1321,7 +1316,7 @@ const handleTaskPlannedAndAccepted = useCallback(
   }
 
   if (!project) {
-    return null; // Should be covered by the above, but good for TS
+    return null; 
   }
 
   // Start of the main return statement for ProjectDetailPage
@@ -1335,10 +1330,10 @@ const handleTaskPlannedAndAccepted = useCallback(
                 src={project.thumbnailUrl}
                 alt={`${project.name} thumbnail`}
                 fill
-                sizes="(max-width: 639px) 64px, (min-width: 640px) 80px, (min-width: 768px) 96px, 96px"
+                sizes="(max-width: 639px) 64px, (max-width: 767px) 80px, 96px"
+                priority
                 style={{ objectFit: 'cover' }}
                 data-ai-hint="project abstract"
-                priority
               />
             </div>
           )}
@@ -1404,10 +1399,9 @@ const handleTaskPlannedAndAccepted = useCallback(
       <Separator className="my-6" />
 
       <Tabs defaultValue="taskManagement" className="w-full">
-        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 mb-6 xl:w-auto xl:inline-grid">
+        <TabsList className="grid w-full grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 mb-6 xl:w-auto xl:inline-grid">
             <TabsTrigger value="taskManagement"><ListChecks className="mr-2 h-4 w-4"/>Task Management</TabsTrigger>
-            <TabsTrigger value="requirements"><ClipboardList className="mr-2 h-4 w-4"/>Requirements</TabsTrigger>
-            <TabsTrigger value="repository"><FolderIcon className="mr-2 h-4 w-4"/>Repository</TabsTrigger>
+            <TabsTrigger value="projectAssets"><Files className="mr-2 h-4 w-4"/>Project Assets</TabsTrigger>
             <TabsTrigger value="projectAgents"><SlidersHorizontal className="mr-2 h-4 w-4"/>Project Agents</TabsTrigger>
             <TabsTrigger value="projectWorkflows"><WorkflowIcon className="mr-2 h-4 w-4"/>Project Workflows &amp; Design</TabsTrigger>
             <TabsTrigger value="aiSuggestions"><Lightbulb className="mr-2 h-4 w-4" />AI Suggestions</TabsTrigger>
@@ -1436,7 +1430,7 @@ const handleTaskPlannedAndAccepted = useCallback(
                             {tasks.length > 0 ? (
                                 <ProjectGanttChartView
                                     tasks={tasks}
-                                    onUpdateTask={handleGanttTaskUpdate}
+                                    onUpdateTask={handleUpdateTask}
                                     onTasksReorder={handleGanttTaskReorder}
                                 />
                             ) : (
@@ -1497,7 +1491,10 @@ const handleTaskPlannedAndAccepted = useCallback(
                                         />
                                     )})}
                                     {tasks.filter(task => task.status === status).length === 0 && (
-                                        <p className="text-xs text-muted-foreground text-center py-4">No tasks in this stage.</p>
+                                        <div className="text-center py-10 flex flex-col items-center justify-center h-full">
+                                          <ListChecks className="mx-auto h-8 w-8 text-muted-foreground/30 mb-2" />
+                                          <p className="text-xs text-muted-foreground">No tasks in this stage.</p>
+                                        </div>
                                     )}
                                     </div>
                                 </div>
@@ -1521,137 +1518,157 @@ const handleTaskPlannedAndAccepted = useCallback(
             </Card>
         </TabsContent>
 
-        <TabsContent value="requirements" className="mt-8 sm:mt-4">
-          <Card>
-            <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-              <div>
-                <CardTitle>Requirements Management</CardTitle>
-                <CardDescription className="text-xs sm:text-sm text-muted-foreground">
-                  Define, track, and manage project requirements.
-                </CardDescription>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => toast({ title: "Add Requirement (Placeholder)", description: "This functionality is not yet implemented."})} className="w-full mt-2 sm:w-auto sm:mt-0">
-                <FilePlus2 className="mr-2 h-4 w-4" /> Add New Requirement
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {projectRequirements.length > 0 ? (
-                <Table>
-                  <ShadCnTableHeader>
-                    <TableRow>
-                      <TableHead className="w-[100px]">ID</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead className="hidden sm:table-cell">Status</TableHead>
-                      <TableHead className="hidden md:table-cell">Priority</TableHead>
-                      <TableHead className="hidden lg:table-cell">Version</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </ShadCnTableHeader>
-                  <TableBody>
-                    {projectRequirements.map((req) => (
-                      <TableRow key={req.id}>
-                        <TableCell className="font-mono text-xs">{req.id.slice(0, 8)}...</TableCell>
-                        <TableCell className="font-medium">{req.title}</TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <Badge variant="outline" className={cn("capitalize", requirementStatusColors[req.status])}>
-                            {req.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className={cn("hidden md:table-cell", requirementPriorityColors[req.priority])}>
-                          {req.priority}
-                        </TableCell>
-                        <TableCell className="hidden lg:table-cell">{req.version}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast({ title: "View/Edit Requirement (Placeholder)", description: `Action for ${req.title} not implemented.` })}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast({ title: "Delete Requirement (Placeholder)", description: `Action for ${req.title} not implemented.`, variant: 'destructive' })}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
-                  <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
-                  <p className="text-lg font-medium text-muted-foreground">No requirements defined for this project yet.</p>
-                  <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Click "Add New Requirement" to get started.</p>
-                   <Button onClick={() => toast({ title: "Add Requirement (Placeholder)", description: "This functionality is not yet implemented."})} className="w-full max-w-xs sm:w-auto">
-                     <FilePlus2 className="mr-2 h-4 w-4" /> Add First Requirement
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-             <CardFooter className="border-t pt-4">
-                <Button variant="outline" size="sm" disabled>View Traceability Matrix (Coming Soon)</Button>
-            </CardFooter>
-          </Card>
+        <TabsContent value="projectAssets" className="mt-8 sm:mt-4">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Project Assets</CardTitle>
+                    <CardDescription className="text-xs sm:text-sm text-muted-foreground">
+                        Manage project requirements and repository files.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Tabs defaultValue="requirements" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 mb-4 sm:w-auto sm:inline-grid">
+                           <TabsTrigger value="requirements"><ClipboardList className="mr-2 h-4 w-4"/>Requirements</TabsTrigger>
+                           <TabsTrigger value="repository"><FolderIcon className="mr-2 h-4 w-4"/>Repository</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="requirements" className="mt-4">
+                          <Card>
+                            <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+                              <div>
+                                <CardTitle className="text-xl">Requirements</CardTitle>
+                                <CardDescription className="text-xs sm:text-sm text-muted-foreground">
+                                  Define, track, and manage project requirements.
+                                </CardDescription>
+                              </div>
+                              <Button variant="outline" size="sm" onClick={() => toast({ title: "Add Requirement (Placeholder)", description: "This functionality is not yet implemented."})} className="w-full mt-2 sm:w-auto sm:mt-0">
+                                <FilePlus2 className="mr-2 h-4 w-4" /> Add New Requirement
+                              </Button>
+                            </CardHeader>
+                            <CardContent>
+                              {projectRequirements.length > 0 ? (
+                                <Table>
+                                  <ShadCnTableHeader>
+                                    <TableRow>
+                                      <TableHead className="w-[100px]">ID</TableHead>
+                                      <TableHead>Title</TableHead>
+                                      <TableHead className="hidden sm:table-cell">Status</TableHead>
+                                      <TableHead className="hidden md:table-cell">Priority</TableHead>
+                                      <TableHead className="hidden lg:table-cell">Version</TableHead>
+                                      <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                  </ShadCnTableHeader>
+                                  <TableBody>
+                                    {projectRequirements.map((req) => (
+                                      <TableRow key={req.id}>
+                                        <TableCell className="font-mono text-xs">{req.id.slice(0, 8)}...</TableCell>
+                                        <TableCell className="font-medium">{req.title}</TableCell>
+                                        <TableCell className="hidden sm:table-cell">
+                                          <Badge variant="outline" className={cn("capitalize", requirementStatusColors[req.status])}>
+                                            {req.status}
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell className={cn("hidden md:table-cell", requirementPriorityColors[req.priority])}>
+                                          {req.priority}
+                                        </TableCell>
+                                        <TableCell className="hidden lg:table-cell">{req.version}</TableCell>
+                                        <TableCell className="text-right">
+                                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast({ title: "View/Edit Requirement (Placeholder)", description: `Action for ${req.title} not implemented.` })}>
+                                            <Edit className="h-4 w-4" />
+                                          </Button>
+                                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toast({ title: "Delete Requirement (Placeholder)", description: `Action for ${req.title} not implemented.`, variant: 'destructive' })}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                          </Button>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              ) : (
+                                <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
+                                  <ClipboardList className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                                  <p className="text-lg font-medium text-muted-foreground">No requirements defined for this project yet.</p>
+                                  <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Click "Add New Requirement" to get started.</p>
+                                   <Button onClick={() => toast({ title: "Add Requirement (Placeholder)", description: "This functionality is not yet implemented."})} className="w-full max-w-xs sm:w-auto">
+                                     <FilePlus2 className="mr-2 h-4 w-4" /> Add First Requirement
+                                  </Button>
+                                </div>
+                              )}
+                            </CardContent>
+                             <CardFooter className="border-t pt-4">
+                                <Button variant="outline" size="sm" disabled>View Traceability Matrix (Coming Soon)</Button>
+                            </CardFooter>
+                          </Card>
+                        </TabsContent>
+
+                        <TabsContent value="repository" className="mt-4">
+                          <Card>
+                            <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+                              <div>
+                                <CardTitle className="text-xl">Repository</CardTitle>
+                                <CardDescription className="text-xs sm:text-sm text-muted-foreground">
+                                  Current path: <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{currentFilePath}</span>
+                                </CardDescription>
+                              </div>
+                              <div className="flex items-center gap-2 mt-2 sm:mt-0 flex-wrap">
+                                 <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    style={{ display: 'none' }}
+                                    onChange={handleFileSelect}
+                                    multiple
+                                  />
+                                {currentFilePath !== '/' && (
+                                  <Button variant="outline" size="sm" onClick={handleNavigateUp} className="w-full sm:w-auto">
+                                    <ArrowLeftCircle className="mr-2 h-4 w-4" /> Up One Level
+                                  </Button>
+                                )}
+                                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleFileUploadClick}>
+                                  <UploadCloud className="mr-2 h-4 w-4" /> Upload Files
+                                </Button>
+                                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleOpenNewFolderDialog}>
+                                  <FolderPlus className="mr-2 h-4 w-4" /> New Folder
+                                </Button>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              {getFilesForPath(currentFilePath).length > 0 || (currentFilePath === '/' && projectFiles.filter(f => f.path === '/').length > 0) ? (
+                                <Table>
+                                  <ShadCnTableHeader>
+                                    <TableRow>
+                                      <TableHead>Name</TableHead>
+                                      <TableHead className="hidden sm:table-cell">Size</TableHead>
+                                      <TableHead className="hidden md:table-cell">Last Modified</TableHead>
+                                      <TableHead className="text-right">Actions</TableHead>
+                                    </TableRow>
+                                  </ShadCnTableHeader>
+                                  <TableBody>
+                                    {renderProjectFiles()}
+                                  </TableBody>
+                                </Table>
+                              ) : (
+                                <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
+                                  <FolderIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
+                                  <p className="text-lg font-medium text-muted-foreground">
+                                    {currentFilePath === '/' ? 'No files or folders in this project repository yet.' : `Folder "${currentFilePath.slice(0,-1).split('/').pop()}" is empty.`}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground/80 mt-1 mb-4">
+                                    {currentFilePath === '/' ? 'Upload files or create folders to get started.' : 'You can upload files or create new folders here.'}
+                                  </p>
+                                   <Button onClick={handleOpenNewFolderDialog} className="w-full max-w-xs sm:w-auto">
+                                     <FolderPlus className="mr-2 h-4 w-4" /> Create Folder
+                                  </Button>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </TabsContent>
+                    </Tabs>
+                </CardContent>
+            </Card>
         </TabsContent>
 
-        <TabsContent value="repository" className="mt-8 sm:mt-4">
-          <Card>
-            <CardHeader className="flex flex-col space-y-2 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-              <div>
-                <CardTitle>Project Repository</CardTitle>
-                <CardDescription className="text-xs sm:text-sm text-muted-foreground">
-                  Current path: <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{currentFilePath}</span>
-                </CardDescription>
-              </div>
-              <div className="flex items-center gap-2 mt-2 sm:mt-0 flex-wrap">
-                 <input
-                    type="file"
-                    ref={fileInputRef}
-                    style={{ display: 'none' }}
-                    onChange={handleFileSelect}
-                    multiple
-                  />
-                {currentFilePath !== '/' && (
-                  <Button variant="outline" size="sm" onClick={handleNavigateUp} className="w-full sm:w-auto">
-                    <ArrowLeftCircle className="mr-2 h-4 w-4" /> Up One Level
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleFileUploadClick}>
-                  <UploadCloud className="mr-2 h-4 w-4" /> Upload Files
-                </Button>
-                <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={handleOpenNewFolderDialog}>
-                  <FolderPlus className="mr-2 h-4 w-4" /> New Folder
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {getFilesForPath(currentFilePath).length > 0 || (currentFilePath === '/' && projectFiles.filter(f => f.path === '/').length > 0) ? (
-                <Table>
-                  <ShadCnTableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="hidden sm:table-cell">Size</TableHead>
-                      <TableHead className="hidden md:table-cell">Last Modified</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </ShadCnTableHeader>
-                  <TableBody>
-                    {renderProjectFiles()}
-                  </TableBody>
-                </Table>
-              ) : (
-                <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
-                  <FolderIcon className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
-                  <p className="text-lg font-medium text-muted-foreground">
-                    {currentFilePath === '/' ? 'No files or folders in this project repository yet.' : `Folder "${currentFilePath.slice(0,-1).split('/').pop()}" is empty.`}
-                  </p>
-                  <p className="text-sm text-muted-foreground/80 mt-1 mb-4">
-                    {currentFilePath === '/' ? 'Upload files or create folders to get started.' : 'You can upload files or create new folders here.'}
-                  </p>
-                   <Button onClick={handleOpenNewFolderDialog} className="w-full max-w-xs sm:w-auto">
-                     <FolderPlus className="mr-2 h-4 w-4" /> Create Folder
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="projectAgents" className="mt-8 sm:mt-4">
             <PageHeader className="items-start justify-between sm:flex-row sm:items-center pt-0 pb-4">
@@ -1676,13 +1693,13 @@ const handleTaskPlannedAndAccepted = useCallback(
                   <p className="text-lg font-medium text-muted-foreground">No agents configured for this project yet.</p>
                   <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Add an agent to get started with automation!</p>
                    <Button onClick={() => {
-                        // This is a bit of a hack to find the AddAgentDialog's trigger
-                        // In a more complex app, managing dialog states globally or via context might be better
-                        const addAgentButton = document.querySelector('#project-agents-content button'); // A more specific selector may be needed
+                        const addAgentButton = document.querySelector('#project-detail-add-agent-button'); // Using a specific ID
                         if (addAgentButton instanceof HTMLElement) {
-                          addAgentButton.click();
+                            addAgentButton.click();
                         } else {
-                           toast({title: "Hint", description: "Click 'Add New Project Agent' above to create your first agent."});
+                           const dialogTrigger = document.querySelector('button > svg.lucide-plus-circle'); // Fallback
+                           if (dialogTrigger?.parentElement instanceof HTMLElement) dialogTrigger.parentElement.click();
+                           else toast({title: "Hint", description: "Click 'Add New Project Agent' above to create your first agent."});
                         }
                     }} className="w-full max-w-xs sm:w-auto">
                        <PlusSquareIcon className="mr-2 h-4 w-4"/> Add First Agent
@@ -1725,7 +1742,7 @@ const handleTaskPlannedAndAccepted = useCallback(
                                             ? {...pWf, status: pWf.status === 'Active' ? 'Inactive' : (pWf.status === 'Draft' ? 'Active' : 'Active'), lastRun: new Date().toISOString()}
                                             : pWf
                                         );
-                                        // Auto-activate tasks assigned to this workflow if it becomes Active
+                                        
                                         const activatedWorkflow = updatedWfs.find(uwf => uwf.id === wf.id);
                                         if(activatedWorkflow && activatedWorkflow.status === 'Active') {
                                            setTasks(currentTasks => {
@@ -1737,10 +1754,11 @@ const handleTaskPlannedAndAccepted = useCallback(
                                                     }
                                                     return t;
                                                 });
+                                                if (tasksChanged) {
+                                                  toast({title: "Tasks Activated", description: `Tasks assigned to workflow "${wf.name}" are now In Progress.`});
+                                                }
                                                 return tasksChanged ? newTasks : currentTasks;
                                            });
-                                        } else if (activatedWorkflow && activatedWorkflow.status === 'Inactive') {
-                                           // Potentially do something if workflow becomes inactive (e.g. pause tasks - out of scope for now)
                                         }
                                         return updatedWfs;
                                     });
