@@ -4,20 +4,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  LayoutDashboard,
   Briefcase,
   Activity,
-  Settings,
-  UserCircle,
-  LayoutGrid, // For Portfolio Dashboard
+  Settings, // Added for Admin Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Projects', icon: Briefcase },
-  { href: '/portfolio-dashboard', label: 'Portfolio', icon: LayoutGrid },
+  { href: '/', label: 'Projects', icon: Briefcase }, // Changed Dashboard to Projects, points to root
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
+  // Removed other global links as they are now project-specific or admin
 ];
 
 export default function SidebarNav() {
@@ -29,6 +28,12 @@ export default function SidebarNav() {
         {navItems.map((item) => (
           <Tooltip key={item.href}>
             <TooltipTrigger asChild>
+              {/*
+                Using Link asChild to pass props to Button,
+                and Button asChild to pass props to the underlying <a> tag.
+                This pattern is often needed with ShadCN UI components.
+                `passHref` is usually implied with `asChild` on Link but kept for clarity.
+              */}
               <Link href={item.href} passHref legacyBehavior>
                 <Button
                   variant="ghost"
@@ -40,7 +45,7 @@ export default function SidebarNav() {
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                 >
-                  <a> {/* Link's child */}
+                  <a>
                     <item.icon className="h-5 w-5" />
                     <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>
