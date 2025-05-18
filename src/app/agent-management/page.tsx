@@ -4,7 +4,7 @@
 import AgentManagementTable from '@/components/features/agent-management/AgentManagementTable';
 import type { Agent } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import { SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal, PlusSquareIcon } from 'lucide-react'; // Updated to PlusSquareIcon
 import AddAgentDialog from '@/components/features/agent-management/AddAgentDialog';
 import EditAgentDialog from '@/components/features/agent-management/EditAgentDialog';
 import { useState, useEffect } from 'react';
@@ -20,82 +20,135 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { uid } from '@/lib/utils'; // Import uid
+import { uid } from '@/lib/utils';
 
-// Exported for use by other pages like Agent Monitoring
+// ASPICE V-Model Aligned Global Agent Templates
 export const initialMockAgents: Agent[] = [
   {
     id: uid('global-agent'),
-    name: 'Requirements & Analysis Specialist',
+    name: 'Stakeholder Requirements Elicitation Agent',
     type: 'Analysis Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:00:00Z',
-    config: { focus: "System & Software Requirements", methods: ["elicitation", "analysis", "specification"] },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+    config: { focus: "Stakeholder Needs", methods: ["interviews", "surveys", "workshops"], outputs: ["StakeholderRequirementsSpecification"] },
   },
   {
     id: uid('global-agent'),
-    name: 'System Architecture Designer',
+    name: 'System Requirements Analysis Agent',
+    type: 'Analysis Agent',
+    status: 'Idle',
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+    config: { inputs: ["StakeholderRequirementsSpecification"], outputs: ["SystemRequirementsSpecification", "SystemTestCases"], tools: ["SysML", "DOORS_Next_Interface"] },
+  },
+  {
+    id: uid('global-agent'),
+    name: 'System Architectural Design Agent',
     type: 'Design Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:05:00Z',
-    config: { level: "System", outputs: ["architecture_document", "interface_specs"] },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+    config: { inputs: ["SystemRequirementsSpecification"], outputs: ["SystemArchitectureDesign", "SystemIntegrationTestCases"], modelingLanguage: "SysML/UML" },
   },
   {
     id: uid('global-agent'),
-    name: 'Software Architecture & Component Designer',
+    name: 'Software Requirements Analysis Agent',
+    type: 'Analysis Agent',
+    status: 'Idle',
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+    config: { inputs: ["SystemArchitectureDesign"], outputs: ["SoftwareRequirementsSpecification", "SoftwareQualificationTestCases"], refinementLevel: "Detailed" },
+  },
+  {
+    id: uid('global-agent'),
+    name: 'Software Architectural Design Agent',
     type: 'Design Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:10:00Z',
-    config: { level: "Software", detail: "Component-level design", tools: ["UML", "SysML"] },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(),
+    config: { inputs: ["SoftwareRequirementsSpecification"], outputs: ["SoftwareArchitectureDesign", "SoftwareIntegrationTestCases"], designPatterns: ["Microservices", "Layered"] },
   },
   {
     id: uid('global-agent'),
-    name: 'Implementation & Unit Verification Engineer',
+    name: 'Software Detailed Design & Implementation Agent',
     type: 'Development Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:15:00Z',
-    config: { languages: ["C++", "Python"], unitTestFrameworks: ["GTest", "pytest"] },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 7).toISOString(),
+    config: { inputs: ["SoftwareArchitectureDesign"], outputs: ["SourceCode", "UnitTests"], languages: ["TypeScript", "Python"], frameworks: ["React", "FastAPI"] },
   },
   {
     id: uid('global-agent'),
-    name: 'Software Integration & Qualification Tester',
+    name: 'Software Unit Verification Agent',
     type: 'Testing Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:20:00Z',
-    config: { scope: "Software Integration & Qualification", levels: ["SWE.5", "SWE.6"] },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(),
+    config: { inputs: ["SourceCode", "UnitTests"], testFrameworks: ["Jest", "Pytest"], coverageGoal: "90%" },
   },
   {
     id: uid('global-agent'),
-    name: 'System Integration & Validation Engineer',
+    name: 'Software Integration & Test Agent',
     type: 'Testing Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:25:00Z',
-    config: { scope: "System Integration & Validation", levels: ["SYS.4", "SYS.5"], includesHardware: true },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 9).toISOString(),
+    config: { inputs: ["SoftwareArchitectureDesign", "IntegratedSoftware"], outputs: ["IntegrationTestReport"], strategy: "Bottom-up" },
   },
   {
     id: uid('global-agent'),
-    name: 'Process Support Agent (PM, QA, CM)',
-    type: 'Reporting Agent', // Broad type, config specifies roles
+    name: 'Software Qualification Test Agent',
+    type: 'Testing Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:30:00Z',
-    config: {
-      projectManagementTasks: ["status_tracking", "risk_logging"],
-      qualityAssuranceTasks: ["process_audit_support", "metric_collection"],
-      configurationManagementTasks: ["baseline_creation_support", "change_request_tracking"]
-    },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 10).toISOString(),
+    config: { inputs: ["SoftwareRequirementsSpecification", "SoftwareProduct"], outputs: ["QualificationTestReport"], methods: ["BlackBox", "AlphaTesting"] },
   },
   {
     id: uid('global-agent'),
-    name: 'Technical Documentation Specialist',
+    name: 'System Integration & Test Agent',
+    type: 'Testing Agent',
+    status: 'Idle',
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 11).toISOString(),
+    config: { inputs: ["SystemArchitectureDesign", "IntegratedHardwareSoftware"], outputs: ["SystemIntegrationTestReport"] },
+  },
+  {
+    id: uid('global-agent'),
+    name: 'System Qualification Test Agent',
+    type: 'Testing Agent',
+    status: 'Idle',
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
+    config: { inputs: ["SystemRequirementsSpecification", "SystemProduct"], outputs: ["SystemQualificationTestReport"], validationMethods: ["UserScenarios", "PerformanceTesting"] },
+  },
+  {
+    id: uid('global-agent'),
+    name: 'Project Management Support Agent',
+    type: 'Reporting Agent',
+    status: 'Idle',
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 13).toISOString(),
+    config: { tasks: ["ProgressTracking", "RiskMonitoring", "StatusReporting"], tools: ["Jira_Interface", "Gantt_Generator"] },
+  },
+  {
+    id: uid('global-agent'),
+    name: 'Quality Assurance Support Agent',
+    type: 'Custom Logic Agent',
+    status: 'Idle',
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 14).toISOString(),
+    config: { tasks: ["ProcessAudits", "MetricCollection", "ComplianceChecks"], standards: ["ASPICE", "ISO26262"] },
+  },
+  {
+    id: uid('global-agent'),
+    name: 'Configuration Management Support Agent',
+    type: 'CI/CD Agent',
+    status: 'Idle',
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 15).toISOString(),
+    config: { tasks: ["BaselineManagement", "ChangeRequestTracking", "VersionControl"], tools: ["Git", "SVN_Interface"] },
+  },
+  {
+    id: uid('global-agent'),
+    name: 'Technical Documentation Agent (ASPICE)',
     type: 'Documentation Agent',
     status: 'Idle',
-    lastActivity: '2024-07-20T09:35:00Z',
-    config: { documentTypes: ["RequirementsSpec", "DesignDoc", "TestPlan", "UserManual"], outputFormats: ["PDF", "Markdown"] },
+    lastActivity: new Date(Date.now() - 1000 * 60 * 60 * 16).toISOString(),
+    config: { documentTypes: ["RequirementsSpec", "ArchitectureDoc", "DesignDoc", "TestPlan", "TestReport", "UserManual"], outputFormats: ["PDF", "Markdown", "HTML"], standardCompliance: "ASPICE" },
   }
 ];
 
-
-export const AGENTS_STORAGE_KEY = 'ramboAgentGlobalAgents'; // Updated key for clarity
+// Renamed initialMockAgents to initialGlobalAgentsData for clarity
+export const initialGlobalAgentsData = initialMockAgents;
+export const AGENTS_STORAGE_KEY = 'ramboAgentGlobalAgents';
 
 export default function AgentManagementPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -104,6 +157,7 @@ export default function AgentManagementPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
   const { toast } = useToast();
+  const [isAddAgentDialogOpen, setIsAddAgentDialogOpen] = useState(false);
 
   useEffect(() => {
     const storedAgents = localStorage.getItem(AGENTS_STORAGE_KEY);
@@ -113,22 +167,18 @@ export default function AgentManagementPage() {
         if (Array.isArray(parsedAgents) && parsedAgents.length > 0) {
           setAgents(parsedAgents);
         } else {
-          // If stored data is empty array or not an array, initialize with mocks
-          setAgents(initialMockAgents);
+          setAgents(initialGlobalAgentsData);
         }
       } catch (error) {
         console.error("Failed to parse agents from localStorage, initializing with mocks.", error);
-        setAgents(initialMockAgents);
+        setAgents(initialGlobalAgentsData);
       }
     } else {
-      // No agents found in localStorage, initialize with mocks
-      setAgents(initialMockAgents);
+      setAgents(initialGlobalAgentsData);
     }
   }, []);
 
   useEffect(() => {
-    // Save to localStorage whenever agents state changes, but only if it's not the initial empty array before loading.
-    // This prevents overwriting localStorage with an empty array on initial load before mocks are set.
     if (agents.length > 0 || localStorage.getItem(AGENTS_STORAGE_KEY)) {
        localStorage.setItem(AGENTS_STORAGE_KEY, JSON.stringify(agents));
     }
@@ -147,6 +197,7 @@ export default function AgentManagementPage() {
       title: "Global Agent Created",
       description: `Agent "${newAgent.name}" has been added to global configurations.`,
     });
+    setIsAddAgentDialogOpen(false);
   };
 
   const handleOpenEditDialog = (agent: Agent) => {
@@ -221,13 +272,15 @@ export default function AgentManagementPage() {
         <div>
           <PageHeaderHeading>
             <SlidersHorizontal className="mr-2 inline-block h-6 w-6" />
-            Agent Configuration Management (Global)
+            Agent Configuration Management (Global Templates)
           </PageHeaderHeading>
           <PageHeaderDescription>
             Manage global agent configurations and templates. These can be used as starting points for project-specific agents.
           </PageHeaderDescription>
         </div>
-        <AddAgentDialog onAddAgent={handleAddAgent} />
+        <Button onClick={() => setIsAddAgentDialogOpen(true)} className="w-full mt-4 sm:w-auto sm:mt-0">
+          <PlusSquareIcon className="mr-2 h-4 w-4" /> Add New Global Agent
+        </Button>
       </PageHeader>
 
       <AgentManagementTable
@@ -237,6 +290,12 @@ export default function AgentManagementPage() {
         onStopAgent={handleStopAgent}
         onDuplicateAgent={handleDuplicateAgent}
         onDeleteAgent={handleOpenDeleteDialog}
+      />
+      
+      <AddAgentDialog 
+        open={isAddAgentDialogOpen}
+        onOpenChange={setIsAddAgentDialogOpen}
+        onAddAgent={handleAddAgent}
       />
 
       {editingAgent && (
@@ -266,10 +325,4 @@ export default function AgentManagementPage() {
               <AlertDialogAction onClick={confirmDeleteAgent} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Delete
               </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-    </div>
-  );
-}
+            </

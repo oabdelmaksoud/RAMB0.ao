@@ -12,7 +12,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { format } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 
 // Zod schema for WorkflowNode, ensuring it's available for PlanProjectTaskInputSchema
 const WorkflowNodeSchema = z.object({
@@ -52,8 +52,6 @@ const PlannedTaskSchema = z.object({
   suggestedSubTasks: z.array(SuggestedSubTaskSchema).optional().describe("A list of suggested sub-tasks or steps AI agents would perform to complete the main task. If `selectedWorkflowDetail` with nodes was provided, these sub-tasks MUST primarily use Agent Types from those nodes and reflect a logical sequence based on the workflow.")
 });
 
-// PlanProjectTaskOutputSchema defines the full output from the AI, including the plan and reasoning.
-// It's also used for the previousPlan input during modifications.
 const PlanProjectTaskOutputSchema = z.object({
   plannedTask: PlannedTaskSchema.describe('The structured task details planned by the AI.'),
   reasoning: z.string().describe('A concise (2-5 sentences max) explanation from the AI on how it derived the task plan. This MUST include: 1. Its choice for "assignedTo" (workflow/team). 2. How the "durationDays" was estimated based on AI AGENT execution speed. 3. If `selectedWorkflowDetail` was used, how its node structure influenced the `suggestedSubTasks` (agent types and sequence). If modifying a previous plan, explain the changes made based on feedback.'),
@@ -259,6 +257,9 @@ const planProjectTaskFlow = ai.defineFlow(
     try {
         if (!isValid(parseISO(plannedTask.startDate))) {
             plannedTask.startDate = format(new Date(), 'yyyy-MM-dd');
+        } else {
+           // Ensure it's formatted correctly if it was valid
+           plannedTask.startDate = format(parseISO(plannedTask.startDate), 'yyyy-MM-dd');
         }
     } catch (e) {
         plannedTask.startDate = format(new Date(), 'yyyy-MM-dd');
@@ -294,4 +295,7 @@ const planProjectTaskFlow = ai.defineFlow(
     }
     
     console.log("PLAN_PROJECT_TASK_FLOW: Processed and returning output:", JSON.stringify(output, null, 2));
-    return
+    return output!;
+  }
+);
+
