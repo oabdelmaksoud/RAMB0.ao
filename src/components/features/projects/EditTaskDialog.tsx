@@ -1,4 +1,4 @@
-
+// src/components/features/projects/EditTaskDialog.tsx
 'use client';
 
 import * as React from "react";
@@ -23,6 +23,7 @@ import { format, isValid, parseISO } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
+import { Brain, Hand } from "lucide-react"; // Icons for task type
 
 const taskSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title must be 100 characters or less"),
@@ -36,7 +37,8 @@ const taskSchema = z.object({
   isMilestone: z.boolean().optional(),
   parentId: z.string().nullable().optional(),
   dependencies: z.array(z.string()).optional(),
-  description: z.string().max(500, "Description must be 500 characters or less").optional(),
+  description: z.string().max(1000, "Description must be 1000 characters or less").optional(), // Increased limit for AI reasoning
+  isAiPlanned: z.boolean().optional(), // Keep track of source
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -64,9 +66,10 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
       durationDays: 1,
       progress: 0,
       isMilestone: false,
-      parentId: null,
+      parentId: NO_PARENT_VALUE,
       dependencies: [],
       description: "",
+      isAiPlanned: false,
     },
   });
 
@@ -84,11 +87,12 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
         durationDays: taskToEdit.durationDays === undefined ? (taskToEdit.isMilestone ? 0 : 1) : taskToEdit.durationDays,
         progress: taskToEdit.progress === undefined ? (taskToEdit.isMilestone && taskToEdit.status === 'Done' ? 100 : 0) : taskToEdit.progress,
         isMilestone: taskToEdit.isMilestone || false,
-        parentId: initialParentId,
+        parentId: initialParentId ?? NO_PARENT_VALUE,
         dependencies: taskToEdit.dependencies || [],
         description: taskToEdit.description || "",
+        isAiPlanned: taskToEdit.isAiPlanned || false,
       });
-    } else if (!open && !form.formState.isSubmitSuccessful) {
+    } else if (!open && !form.formState.isSubmitSuccessful) { // Reset only if closed without successful submission
       form.reset({
         title: "",
         status: "To Do",
@@ -97,9 +101,10 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
         durationDays: 1,
         progress: 0,
         isMilestone: false,
-        parentId: null,
+        parentId: NO_PARENT_VALUE,
         dependencies: [],
         description: "",
+        isAiPlanned: false,
       });
     }
   }, [open, taskToEdit, form]);
@@ -108,25 +113,29 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
     if (!isReadOnly) {
       if (isMilestoneWatch) {
         form.setValue("durationDays", 0, { shouldValidate: true });
-        if (form.getValues("status") !== 'To Do' && form.getValues("status") !== 'Done' && form.getValues("status") !== 'Blocked') {
+        if (statusWatch !== 'To Do' && statusWatch !== 'Done' && statusWatch !== 'Blocked') {
           form.setValue("status", "To Do", { shouldValidate: true });
         }
-        if (form.getValues("status") === 'Done') {
+        if (statusWatch === 'Done') {
             form.setValue("progress", 100, { shouldValidate: true });
         } else {
             form.setValue("progress", 0, { shouldValidate: true });
         }
+      } else {
+          // If not a milestone, ensure duration is at least 1 if it was 0
+        if(form.getValues("durationDays") === 0) {
+          form.setValue("durationDays", 1, { shouldValidate: true });
+        }
       }
     }
-  }, [isMilestoneWatch, form, isReadOnly, statusWatch]);
-
+  }, [isMilestoneWatch, statusWatch, form, isReadOnly]);
+  
   React.useEffect(() => {
-    if (!isReadOnly && isMilestoneWatch && statusWatch === 'Done') {
+    if (!isReadOnly && !isMilestoneWatch && statusWatch === 'Done') {
         form.setValue("progress", 100, { shouldValidate: true });
-    } else if (!isReadOnly && isMilestoneWatch && (statusWatch === 'To Do' || statusWatch === 'Blocked')) {
-        form.setValue("progress", 0, { shouldValidate: true });
     }
   }, [statusWatch, isMilestoneWatch, form, isReadOnly]);
+
 
   const onSubmit: SubmitHandler<TaskFormData> = (data) => {
     if (!taskToEdit || isReadOnly) return;
@@ -140,11 +149,12 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
       parentId: data.parentId === NO_PARENT_VALUE ? null : data.parentId,
       dependencies: data.dependencies || [],
       description: data.description || "",
+      isAiPlanned: data.isAiPlanned || false, // Persist this
     };
     onUpdateTask(updatedTask);
   };
 
-  if (!taskToEdit && open) return null;
+  if (!taskToEdit && open) return null; // Should not happen if open is true
 
   const currentTaskId = taskToEdit?.id;
   const currentParentId = form.watch('parentId');
@@ -152,13 +162,13 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
   const availableParentTasks = projectTasks.filter(pt => 
     pt.id !== currentTaskId && 
     !pt.isMilestone && 
-    pt.id !== currentParentId
+    pt.id !== currentParentId // Avoid self-parenting if it's already the parent
   );
   
   const availableDependencies = projectTasks.filter(pt => 
     pt.id !== currentTaskId && 
     !pt.isMilestone && 
-    pt.id !== currentParentId
+    pt.id !== currentParentId // Avoid depending on its own parent in a simple UI
   );
 
   return (
@@ -170,237 +180,244 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
             {isReadOnly ? `Viewing ${taskToEdit?.isMilestone ? 'milestone' : 'task'} details.` : `Update the details for this ${taskToEdit?.isMilestone ? 'milestone' : 'task'}. Click save when you're done.`}
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} id="editTaskFormInternal" className="space-y-4 py-2 flex-grow overflow-y-auto pr-3">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <RHFFormLabel>Title</RHFFormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Implement user authentication" {...field} disabled={isReadOnly} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="isMilestone"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center space-x-2 space-y-0 py-2">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      disabled={isReadOnly}
-                    />
-                  </FormControl>
-                  <Label className="font-normal cursor-pointer">Mark as Milestone</Label>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <RHFFormLabel>Status</RHFFormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    disabled={isReadOnly || (isMilestoneWatch && field.value !== 'To Do' && field.value !== 'Done' && field.value !== 'Blocked')}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {taskStatuses.map(status => (
-                         <SelectItem
-                          key={status}
-                          value={status}
-                          disabled={isMilestoneWatch && status !== 'To Do' && status !== 'Done' && status !== 'Blocked'}
-                        >
-                          {status}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {isMilestoneWatch && <FormDescription className="text-xs">Milestone status can be 'To Do', 'Done' or 'Blocked'.</FormDescription>}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="assignedTo"
-              render={({ field }) => (
-                <FormItem>
-                  <RHFFormLabel>Assigned To</RHFFormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., AI Agent X or Team Member" {...field} disabled={isReadOnly} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <RHFFormLabel>Description (Optional)</RHFFormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Add a brief description or details..." 
-                      {...field} 
-                      disabled={isReadOnly} 
-                      className="min-h-[80px] resize-y"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="parentId"
-              render={({ field }) => (
-                <FormItem>
-                  <RHFFormLabel>Parent Task (Optional)</RHFFormLabel>
-                  <Select
-                    onValueChange={(value) => field.onChange(value === NO_PARENT_VALUE ? null : value)}
-                    value={field.value ?? NO_PARENT_VALUE}
-                    disabled={isReadOnly}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a parent task" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={NO_PARENT_VALUE}>No Parent</SelectItem>
-                      {availableParentTasks.map(task => (
-                        <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormDescription className="text-xs">Choose an existing task as the parent for this task.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-2 gap-4">
+        <div className="flex-grow overflow-y-auto pr-3 -mr-3 py-2"> {/* Scrollable form area */}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} id="editTaskForm" className="space-y-4">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-3">
+                {taskToEdit?.isAiPlanned ? <Brain className="h-4 w-4 text-purple-500" /> : <Hand className="h-4 w-4 text-blue-500" />}
+                <span>Source: {taskToEdit?.isAiPlanned ? "AI Planned" : "Manually Created"}</span>
+              </div>
               <FormField
                 control={form.control}
-                name="startDate"
+                name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <RHFFormLabel>{isMilestoneWatch ? 'Milestone Date' : 'Start Date'}</RHFFormLabel>
+                    <RHFFormLabel>Title</RHFFormLabel>
                     <FormControl>
-                      <Input type="date" {...field} value={field.value || ''} disabled={isReadOnly} />
+                      <Input placeholder="e.g., Implement user authentication" {...field} disabled={isReadOnly} />
                     </FormControl>
-                    <FormDescription className="text-xs">{isMilestoneWatch ? 'Date of the milestone.' : 'Optional start date.'}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               <FormField
                 control={form.control}
-                name="durationDays"
+                name="isMilestone"
                 render={({ field }) => (
-                  <FormItem>
-                    <RHFFormLabel>Duration (Days)</RHFFormLabel>
+                  <FormItem className="flex flex-row items-center space-x-2 space-y-0 py-2">
                     <FormControl>
-                      <Input type="number" placeholder="e.g., 5" {...field} value={field.value ?? (isMilestoneWatch ? 0 : 1)} disabled={isReadOnly || isMilestoneWatch}/>
-                    </FormControl>
-                     <FormDescription className="text-xs">{isMilestoneWatch ? 'Not applicable for milestones.' : 'Optional.'}</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-             <FormField
-              control={form.control}
-              name="progress"
-              render={({ field }) => (
-                <FormItem>
-                  <RHFFormLabel>Progress (%)</RHFFormLabel>
-                  <FormControl>
-                    <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} value={field.value ?? (isMilestoneWatch && form.getValues("status") === 'Done' ? 100 : 0)} disabled={isReadOnly || (isMilestoneWatch && !(form.getValues("status") === 'Done'))} />
-                  </FormControl>
-                   <FormDescription className="text-xs">
-                    {isMilestoneWatch
-                      ? (form.getValues("status") === 'Done' ? "Set to 100% for completed milestones." : "Set to 0% for milestones not yet done.")
-                      : "Optional (0-100)."
-                    }
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="dependencies"
-              render={() => (
-                <FormItem>
-                  <div className="mb-2">
-                    <RHFFormLabel>Dependencies (Prerequisites)</RHFFormLabel>
-                    <FormDescription className="text-xs">
-                      Select tasks that must be completed before this {isMilestoneWatch ? 'milestone' : 'task'} can start.
-                    </FormDescription>
-                  </div>
-                  <ScrollArea className="h-32 w-full rounded-md border p-2 bg-muted/30">
-                  {availableDependencies.length > 0 ? (
-                    availableDependencies.map((item) => (
-                      <FormField
-                        key={item.id}
-                        control={form.control}
-                        name="dependencies"
-                        render={({ field: checkboxField }) => {
-                          return (
-                            <FormItem
-                              className="flex flex-row items-center space-x-2 space-y-0 py-1.5"
-                            >
-                              <FormControl>
-                                <Checkbox
-                                  checked={checkboxField.value?.includes(item.id)}
-                                  onCheckedChange={(checked) => {
-                                    const currentDeps = checkboxField.value || [];
-                                    const newDeps = checked
-                                      ? [...currentDeps, item.id]
-                                      : currentDeps.filter(
-                                          (value) => value !== item.id
-                                        );
-                                    checkboxField.onChange(newDeps);
-                                  }}
-                                  disabled={isReadOnly}
-                                />
-                              </FormControl>
-                              <Label className="text-xs font-normal cursor-pointer">
-                                {item.title}
-                              </Label>
-                            </FormItem>
-                          );
-                        }}
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={isReadOnly}
                       />
-                    ))
-                  ) : (
-                    <p className="text-xs text-muted-foreground text-center py-4">No other non-milestone tasks available to set as dependencies.</p>
+                    </FormControl>
+                    <Label className="font-normal cursor-pointer">Mark as Milestone</Label>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>Status</RHFFormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={isReadOnly || (isMilestoneWatch && field.value !== 'To Do' && field.value !== 'Done' && field.value !== 'Blocked')}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {taskStatuses.map(status => (
+                          <SelectItem
+                            key={status}
+                            value={status}
+                            disabled={isMilestoneWatch && status !== 'To Do' && status !== 'Done' && status !== 'Blocked'}
+                          >
+                            {status}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {isMilestoneWatch && <FormDescription className="text-xs">Milestone status can be 'To Do', 'Done' or 'Blocked'.</FormDescription>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="assignedTo"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>Assigned To</RHFFormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., AI Agent X or Team Member" {...field} disabled={isReadOnly} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>Description (Optional)</RHFFormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Add a brief description or details..."
+                        {...field}
+                        disabled={isReadOnly}
+                        className="min-h-[80px] resize-y"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="parentId"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>Parent Task (Optional)</RHFFormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === NO_PARENT_VALUE ? null : value)}
+                      value={field.value ?? NO_PARENT_VALUE}
+                      disabled={isReadOnly}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a parent task" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NO_PARENT_VALUE}>No Parent</SelectItem>
+                        {availableParentTasks.map(task => (
+                          <SelectItem key={task.id} value={task.id}>{task.title}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription className="text-xs">Choose an existing task as the parent for this task.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <RHFFormLabel>{isMilestoneWatch ? 'Milestone Date' : 'Start Date'}</RHFFormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} value={field.value || ''} disabled={isReadOnly} />
+                      </FormControl>
+                      <FormDescription className="text-xs">{isMilestoneWatch ? 'Date of the milestone.' : 'Optional start date.'}</FormDescription>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                  </ScrollArea>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </form>
-        </Form>
-        <DialogFooter className="pt-4 border-t">
+                />
+                <FormField
+                  control={form.control}
+                  name="durationDays"
+                  render={({ field }) => (
+                    <FormItem>
+                      <RHFFormLabel>Duration (Days)</RHFFormLabel>
+                      <FormControl>
+                        <Input type="number" placeholder="e.g., 5" {...field} value={field.value ?? (isMilestoneWatch ? 0 : 1)} disabled={isReadOnly || isMilestoneWatch}/>
+                      </FormControl>
+                      <FormDescription className="text-xs">{isMilestoneWatch ? 'Not applicable for milestones.' : 'Optional.'}</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              <FormField
+                control={form.control}
+                name="progress"
+                render={({ field }) => (
+                  <FormItem>
+                    <RHFFormLabel>Progress (%)</RHFFormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" max="100" placeholder="e.g., 50" {...field} value={field.value ?? (isMilestoneWatch && form.getValues("status") === 'Done' ? 100 : 0)} disabled={isReadOnly || (isMilestoneWatch && !(form.getValues("status") === 'Done'))} />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      {isMilestoneWatch
+                        ? (form.getValues("status") === 'Done' ? "Set to 100% for completed milestones." : "Set to 0% for milestones not yet done.")
+                        : "Optional (0-100)."
+                      }
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="dependencies"
+                render={() => (
+                  <FormItem>
+                    <div className="mb-2">
+                      <RHFFormLabel>Dependencies (Prerequisites)</RHFFormLabel>
+                      <FormDescription className="text-xs">
+                        Select tasks that must be completed before this {isMilestoneWatch ? 'milestone' : 'task'} can start.
+                      </FormDescription>
+                    </div>
+                    <ScrollArea className="h-32 w-full rounded-md border p-2 bg-muted/30">
+                    {availableDependencies.length > 0 ? (
+                      availableDependencies.map((item) => (
+                        <FormField
+                          key={item.id}
+                          control={form.control}
+                          name="dependencies"
+                          render={({ field: checkboxField }) => {
+                            return (
+                              <FormItem
+                                key={item.id}
+                                className="flex flex-row items-center space-x-2 space-y-0 py-1.5"
+                              >
+                                <FormControl>
+                                  <Checkbox
+                                    checked={checkboxField.value?.includes(item.id)}
+                                    onCheckedChange={(checked) => {
+                                      const currentDeps = checkboxField.value || [];
+                                      const newDeps = checked
+                                        ? [...currentDeps, item.id]
+                                        : currentDeps.filter(
+                                            (value) => value !== item.id
+                                          );
+                                      checkboxField.onChange(newDeps);
+                                    }}
+                                    disabled={isReadOnly}
+                                  />
+                                </FormControl>
+                                <Label className="text-xs font-normal cursor-pointer">
+                                  {item.title}
+                                </Label>
+                              </FormItem>
+                            );
+                          }}
+                        />
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center py-4">No other non-milestone tasks available to set as dependencies.</p>
+                    )}
+                    </ScrollArea>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </form>
+          </Form>
+        </div>
+        <DialogFooter className="pt-4 mt-auto border-t flex-shrink-0">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{isReadOnly ? 'Close' : 'Cancel'}</Button>
-          {!isReadOnly && <Button type="submit" form="editTaskFormInternal">Save Changes</Button>}
+          {!isReadOnly && <Button type="submit" form="editTaskForm">Save Changes</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,3 +1,4 @@
+// src/components/features/tasks/KanbanTaskCard.tsx
 'use client';
 
 import React from 'react';
@@ -5,7 +6,7 @@ import type { Task } from '@/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { GripVertical, FolderGit2, ListTree, Diamond, Eye, Edit2, MessageSquare, Trash2 } from 'lucide-react'; // Updated Edit to Edit2
+import { GripVertical, FolderGit2, ListTree, Diamond, Eye, Edit2, MessageSquare, Trash2, Brain, Hand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
@@ -57,19 +58,23 @@ const KanbanTaskCard = React.memo(function KanbanTaskCard({
       onDrop={(e) => onDropOnCard(e, task)}
     >
       <CardHeader className="p-3 flex items-start justify-between gap-2">
-        <div className={cn("flex items-center flex-grow min-w-0", task.parentId ? "pl-2" : "")}> {/* Added min-w-0 for better truncation */}
+        <div className={cn("flex items-center flex-grow min-w-0", task.parentId ? "pl-2" : "")}>
           <GripVertical className="h-4 w-4 mr-1.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 cursor-grab flex-shrink-0 opacity-50 group-hover:opacity-100" />
           <CardTitle
             className={cn(
-              "text-sm font-medium leading-tight flex items-center min-w-0", // Added min-w-0
+              "text-sm font-medium leading-tight flex items-center min-w-0",
               isParentTask && "font-bold"
             )}
-            title={task.title} // Add title attribute for full text on hover
+            title={task.title}
           >
             {task.parentId && <FolderGit2 className="mr-1.5 h-3 w-3 text-muted-foreground/70 flex-shrink-0" />}
             {isParentTask && !task.isMilestone && <ListTree className="mr-1.5 h-3 w-3 text-sky-600 flex-shrink-0" />}
             {task.isMilestone && <Diamond className="mr-1.5 h-3 w-3 text-amber-500 flex-shrink-0" />}
-            <span className="truncate whitespace-normal break-words">{task.title}</span> {/* Allow wrapping and break words */}
+            {task.isAiPlanned ? 
+              <Brain className="mr-1.5 h-3 w-3 text-purple-500 flex-shrink-0" title="AI Planned Task"/> : 
+              <Hand className="mr-1.5 h-3 w-3 text-blue-500 flex-shrink-0" title="Manually Created Task"/>
+            }
+            <span className="truncate whitespace-normal break-words">{task.title}</span>
           </CardTitle>
         </div>
       </CardHeader>
