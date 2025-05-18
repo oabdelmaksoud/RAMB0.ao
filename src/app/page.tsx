@@ -11,7 +11,8 @@ import {
   getTasksStorageKey, 
   getAgentsStorageKey, 
   getWorkflowsStorageKey,
-  getFilesStorageKey // Added
+  getFilesStorageKey,
+  getRequirementsStorageKey
 } from '@/app/projects/page'; 
 import { Briefcase, PlusCircle } from 'lucide-react';
 import AddProjectDialog from '@/components/features/projects/AddProjectDialog';
@@ -29,9 +30,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { mockProjectTemplates } from '@/lib/project-templates'; // Import templates
 import { format } from 'date-fns';
+import { uid } from '@/lib/utils'; // Assuming uid is moved to utils
 
 export default function HomePage() {
-  const [projects, setProjects] = useState<Project[]>(initialMockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isClient, setIsClient] = useState(false);
   const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
@@ -53,8 +55,7 @@ export default function HomePage() {
       }
     } else {
       console.log("PROJECTS_PAGE: No projects found in localStorage. Initial mocks will be used and saved.");
-      // No need to setProjects(initialMockProjects) as it's the default state
-      // The save effect below will save the initialMockProjects if localStorage was empty
+      setProjects(initialMockProjects); // Explicitly set if nothing in localStorage
     }
   }, []);
 
@@ -66,17 +67,23 @@ export default function HomePage() {
     }
   }, [projects, isClient]);
 
-  const createInitialFiles = (projectId: string, templateFiles: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>>, currentPath: string = '/'): ProjectFile[] => {
-    return templateFiles.map((fileTemplate, index) => {
-      const fileId = `file-${projectId}-${currentPath.replace(/\//g, '-')}${fileTemplate.name.replace(/\s+/g, '-')}-${Date.now()}-${index}`;
+  const createInitialFilesRecursive = (
+    projectId: string, 
+    templateFiles: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' > & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>> }>, // Adjusted type for template
+    currentPath: string = '/'
+  ): ProjectFile[] => {
+    return templateFiles.map((fileTemplate) => {
+      const fileId = uid(`file-${projectId}-${currentPath.replace(/\//g, '-')}${fileTemplate.name.replace(/\s+/g, '-')}`);
       const newFile: ProjectFile = {
         id: fileId,
         name: fileTemplate.name,
         type: fileTemplate.type,
         path: currentPath,
         lastModified: new Date().toISOString(),
-        size: fileTemplate.type === 'file' ? `${Math.floor(Math.random() * 500) + 10}KB` : undefined, // Mock size for files
-        children: fileTemplate.type === 'folder' ? createInitialFiles(projectId, fileTemplate.children || [], `${currentPath}${fileTemplate.name}/`) : undefined,
+        size: fileTemplate.type === 'file' ? `${Math.floor(Math.random() * 500) + 10}KB` : undefined,
+        children: fileTemplate.type === 'folder' && fileTemplate.children 
+                    ? createInitialFilesRecursive(projectId, fileTemplate.children, `${currentPath}${fileTemplate.name}/`) 
+                    : undefined,
       };
       return newFile;
     });
@@ -87,31 +94,28 @@ export default function HomePage() {
     projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'agentCount' | 'workflowCount'>,
     templateId?: string
   ) => {
-    const newProjectId = `proj-${Date.now().toString().slice(-5)}-${Math.random().toString(36).substring(2, 7)}`;
+    const newProjectId = uid(`proj`);
     const newProject: Project = {
       id: newProjectId,
       ...projectData,
       status: 'Active',
       lastUpdated: new Date().toISOString(),
       thumbnailUrl: projectData.thumbnailUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(projectData.name.substring(0,20))}`,
-      agentCount: 0, // Will be based on template or default
-      workflowCount: 0, // Will be based on template or default
+      agentCount: 0, 
+      workflowCount: 0, 
     };
 
     let initialTasksForProject: Task[] = [];
     let initialFilesForProject: ProjectFile[] = [];
-    // For now, initial agents and workflows from templates are not implemented to keep this step focused.
-    // They would be handled similarly to tasks and files.
-
-    if (templateId) {
+    
+    if (templateId && templateId !== 'template-blank') {
       const selectedTemplate = mockProjectTemplates.find(t => t.id === templateId);
       if (selectedTemplate) {
         console.log(`PROJECTS_PAGE: Using template "${selectedTemplate.name}" for new project "${newProject.name}"`);
-        // Initialize tasks from template
         if (selectedTemplate.initialTasks) {
           initialTasksForProject = selectedTemplate.initialTasks.map((taskTemplate, index) => ({
-            id: `task-${newProjectId}-${index}-${Date.now().toString().slice(-3)}`,
-            projectId: newProjectId, // Associate with the new project
+            id: uid(`task-${newProjectId}-${index}`),
+            projectId: newProjectId, 
             title: taskTemplate.title || "Untitled Task",
             status: taskTemplate.status || 'To Do',
             assignedTo: taskTemplate.assignedTo || 'Unassigned',
@@ -127,17 +131,22 @@ export default function HomePage() {
           console.log(`PROJECTS_PAGE: Initialized ${initialTasksForProject.length} tasks for project ${newProjectId} from template.`);
         }
 
-        // Initialize files from template
         if (selectedTemplate.initialFiles) {
-          initialFilesForProject = createInitialFiles(newProjectId, selectedTemplate.initialFiles);
+          initialFilesForProject = createInitialFilesRecursive(newProjectId, selectedTemplate.initialFiles);
           localStorage.setItem(getFilesStorageKey(newProjectId), JSON.stringify(initialFilesForProject));
            console.log(`PROJECTS_PAGE: Initialized file structure for project ${newProjectId} from template.`);
         }
         
-        // Placeholder for initializing agents and workflows if templates define them
-        // newProject.agentCount = selectedTemplate.initialAgents?.length || 0;
-        // newProject.workflowCount = selectedTemplate.initialWorkflows?.length || 0;
+        newProject.agentCount = 0; // Templates don't define agents yet
+        newProject.workflowCount = 0; // Templates don't define workflows yet
       }
+    } else {
+       // For blank projects, initialize with empty task, file, etc. storages explicitly if needed
+       localStorage.setItem(getTasksStorageKey(newProjectId), JSON.stringify([]));
+       localStorage.setItem(getFilesStorageKey(newProjectId), JSON.stringify([]));
+       localStorage.setItem(getAgentsStorageKey(newProjectId), JSON.stringify([]));
+       localStorage.setItem(getWorkflowsStorageKey(newProjectId), JSON.stringify([]));
+       localStorage.setItem(getRequirementsStorageKey(newProjectId), JSON.stringify([]));
     }
     
     console.log("PROJECTS_PAGE: handleAddProject - Adding new project:", newProject);
@@ -151,6 +160,7 @@ export default function HomePage() {
       title: 'Project Created',
       description: `Project "${newProject.name}" has been successfully created ${templateId && templateId !== 'template-blank' ? 'using the "' + mockProjectTemplates.find(t => t.id === templateId)?.name + '" template' : ''}.`,
     });
+    setIsAddProjectDialogOpen(false); // Close dialog after adding
   };
 
   const handleOpenDeleteProjectDialog = (project: Project) => {
@@ -161,11 +171,11 @@ export default function HomePage() {
   const confirmDeleteProject = () => {
     if (projectToDelete) {
       console.log("PROJECTS_PAGE: confirmDeleteProject - Deleting project:", projectToDelete);
-      // Clean up project-specific data from localStorage
       localStorage.removeItem(getTasksStorageKey(projectToDelete.id));
       localStorage.removeItem(getAgentsStorageKey(projectToDelete.id));
       localStorage.removeItem(getWorkflowsStorageKey(projectToDelete.id));
       localStorage.removeItem(getFilesStorageKey(projectToDelete.id));
+      localStorage.removeItem(getRequirementsStorageKey(projectToDelete.id));
       
       setProjects(prevProjects => {
         const updatedProjects = prevProjects.filter(p => p.id !== projectToDelete.id);
@@ -209,7 +219,7 @@ export default function HomePage() {
         <div>
           <PageHeaderHeading>
             <Briefcase className="mr-2 inline-block h-6 w-6" />
-            Projects Overview
+            Projects
           </PageHeaderHeading>
           <PageHeaderDescription>
             Manage your ongoing and completed projects. Track progress and access project-specific resources and agents.
@@ -250,7 +260,7 @@ export default function HomePage() {
               <AlertDialogTitle>Are you sure you want to delete this project?</AlertDialogTitle>
               <AlertDialogDescription>
                 This action cannot be undone. This will permanently delete the project "{projectToDelete.name}" 
-                and all its associated tasks, agents, workflows, and files.
+                and all its associated tasks, agents, workflows, files, and requirements.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
