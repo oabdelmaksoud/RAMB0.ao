@@ -49,11 +49,13 @@ export interface Project {
   workflowCount?: number;
 }
 
+export type TaskStatus = 'To Do' | 'In Progress' | 'Done' | 'Blocked';
+
 export interface Task {
   id: string;
   projectId: string;
   title: string;
-  status: 'To Do' | 'In Progress' | 'Done' | 'Blocked';
+  status: TaskStatus;
   assignedTo: string;
   startDate?: string; // ISO date string e.g., "2024-07-01"
   durationDays?: number; // Duration in days
@@ -76,7 +78,10 @@ export interface ProjectFile {
 }
 
 export type RequirementStatus = 'Draft' | 'Under Review' | 'Approved' | 'Implemented' | 'Obsolete' | 'Rejected';
+export const requirementStatuses: RequirementStatus[] = ['Draft', 'Under Review', 'Approved', 'Implemented', 'Obsolete', 'Rejected'];
+
 export type RequirementPriority = 'High' | 'Medium' | 'Low';
+export const requirementPriorities: RequirementPriority[] = ['High', 'Medium', 'Low'];
 
 export interface Requirement {
   id: string;
@@ -88,11 +93,18 @@ export interface Requirement {
   version: string;
   createdDate: string; // ISO date string
   updatedDate: string; // ISO date string
+  // Future: linkedTasks?: string[]; linkedTests?: string[];
 }
 
 export type TicketStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
+export const ticketStatuses: TicketStatus[] = ['Open', 'In Progress', 'Resolved', 'Closed'];
+
 export type TicketPriority = 'High' | 'Medium' | 'Low';
+export const ticketPriorities: TicketPriority[] = ['High', 'Medium', 'Low'];
+
 export type TicketType = 'Bug' | 'Feature Request' | 'Support Request' | 'Change Request';
+export const ticketTypes: TicketType[] = ['Bug', 'Feature Request', 'Support Request', 'Change Request'];
+
 
 export interface Ticket {
   id: string;
@@ -113,5 +125,4 @@ export interface ProjectTemplate {
   name: string;
   description: string;
   initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId'>>>;
-  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' > & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content?: string }>;
-}
+  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' | 'content'> & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content?:
