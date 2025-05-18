@@ -1,24 +1,24 @@
+
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Briefcase,
+  LayoutDashboard, // Changed from Briefcase for the main link
   Activity,
-  Settings,
-  LayoutGrid,
-  UserCircle,
-  Mail, // Added Mail icon
+  Mail,
+  SlidersHorizontal,
+  Lightbulb,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Projects', icon: Briefcase },
-  { href: '/portfolio-dashboard', label: 'Portfolio', icon: LayoutGrid },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard }, // Points to the new main landing page (Portfolio Dashboard)
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
-  { href: '/personal-assistant', label: 'Assistant', icon: Mail }, // New Personal Assistant Link
+  { href: '/personal-assistant', label: 'Assistant', icon: Mail },
+  // Link to /agent-management (global agents) can be added to Admin Settings or kept here if frequently accessed
 ];
 
 export default function SidebarNav() {
@@ -43,7 +43,7 @@ export default function SidebarNav() {
                 >
                   <a> {/* Link's child */}
                     <item.icon className="h-5 w-5" />
-                    <span className="ml-2 hidden lg:inline">{item.label}</span> {/* Label hidden until lg */}
+                    <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>
                 </Button>
               </Link>

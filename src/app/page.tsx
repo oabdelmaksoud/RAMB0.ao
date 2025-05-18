@@ -1,280 +1,309 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import type { Project, Task } from '@/types';
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
-import ProjectCard from '@/components/features/projects/ProjectCard';
-import type { Project, Task, ProjectFile } from '@/types'; // Added ProjectFile
-import { 
-  initialMockProjects, 
-  PROJECTS_STORAGE_KEY, 
-  getTasksStorageKey, 
-  getAgentsStorageKey, 
-  getWorkflowsStorageKey,
-  getFilesStorageKey,
-  getRequirementsStorageKey
-} from '@/app/projects/page'; 
-import { Briefcase, PlusCircle } from 'lucide-react';
-import AddProjectDialog from '@/components/features/projects/AddProjectDialog';
-import { useToast } from '@/hooks/use-toast';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { BarChart3, Briefcase, ListChecks, AlertCircle, CheckCircle2, RotateCcw, TrendingUp } from 'lucide-react';
+import { PROJECTS_STORAGE_KEY, getTasksStorageKey, initialMockProjects } from '@/app/projects/page'; // Assuming these are still exported from /projects/page.tsx
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { mockProjectTemplates } from '@/lib/project-templates'; // Import templates
-import { format } from 'date-fns';
-import { uid } from '@/lib/utils'; // Assuming uid is moved to utils
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress'; // Added Progress
+import { cn } from '@/lib/utils'; // Added cn
 
-export default function HomePage() {
-  const [projects, setProjects] = useState<Project[]>([]);
+interface AggregatedMetrics {
+  totalProjects: number;
+  activeProjects: number;
+  completedProjects: number;
+  onHoldProjects: number;
+  totalTasks: number;
+  todoTasks: number;
+  inProgressTasks: number;
+  doneTasks: number;
+  blockedTasks: number;
+  overallProgress: number; // New metric
+}
+
+interface ProjectWithHealth extends Project {
+  healthStatus: 'Healthy' | 'Warning' | 'Critical';
+  healthReason?: string;
+  taskCounts?: {
+    total: number;
+    todo: number;
+    inProgress: number;
+    done: number;
+    blocked: number;
+  };
+}
+
+export default function PortfolioDashboardPage() {
+  const [metrics, setMetrics] = useState<AggregatedMetrics | null>(null);
+  const [projectsWithHealth, setProjectsWithHealth] = useState<ProjectWithHealth[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
-  const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null);
-  const [isDeleteProjectDialogOpen, setIsDeleteProjectDialogOpen] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     setIsClient(true);
-    console.log("PROJECTS_PAGE: Attempting to load projects from localStorage.");
-    const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
-    if (storedProjectsJson) {
-      try {
-        const storedProjects = JSON.parse(storedProjectsJson);
-        setProjects(storedProjects);
-        console.log("PROJECTS_PAGE: Loaded from localStorage:", storedProjects);
-      } catch (e) {
-        console.error("PROJECTS_PAGE: Error parsing projects from localStorage. Initial mocks will be used.", e);
-        setProjects(initialMockProjects); // Fallback to initial mocks
-      }
-    } else {
-      console.log("PROJECTS_PAGE: No projects found in localStorage. Initial mocks will be used and saved.");
-      setProjects(initialMockProjects); // Explicitly set if nothing in localStorage
-    }
   }, []);
 
   useEffect(() => {
-    if (isClient) {
-      console.log("PROJECTS_PAGE: Attempting to save projects to localStorage. Current projects state:", projects);
-      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-      console.log("PROJECTS_PAGE: Successfully saved projects to localStorage.");
+    if (!isClient) return;
+
+    setIsLoading(true);
+    let loadedProjects: Project[] = [];
+    try {
+      const storedProjectsJson = localStorage.getItem(PROJECTS_STORAGE_KEY);
+      loadedProjects = storedProjectsJson ? JSON.parse(storedProjectsJson) : initialMockProjects;
+    } catch (e) {
+      console.error("Error parsing projects from localStorage for dashboard:", e);
+      loadedProjects = initialMockProjects; // Fallback
     }
-  }, [projects, isClient]);
 
-  const createInitialFilesRecursive = (
-    projectId: string, 
-    templateFiles: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' > & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size'>> }>, // Adjusted type for template
-    currentPath: string = '/'
-  ): ProjectFile[] => {
-    return templateFiles.map((fileTemplate) => {
-      const fileId = uid(`file-${projectId}-${currentPath.replace(/\//g, '-')}${fileTemplate.name.replace(/\s+/g, '-')}`);
-      const newFile: ProjectFile = {
-        id: fileId,
-        name: fileTemplate.name,
-        type: fileTemplate.type,
-        path: currentPath,
-        lastModified: new Date().toISOString(),
-        size: fileTemplate.type === 'file' ? `${Math.floor(Math.random() * 500) + 10}KB` : undefined,
-        children: fileTemplate.type === 'folder' && fileTemplate.children 
-                    ? createInitialFilesRecursive(projectId, fileTemplate.children, `${currentPath}${fileTemplate.name}/`) 
-                    : undefined,
-      };
-      return newFile;
-    });
-  };
-
-
-  const handleAddProject = (
-    projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'agentCount' | 'workflowCount'>,
-    templateId?: string
-  ) => {
-    const newProjectId = uid(`proj`);
-    const newProject: Project = {
-      id: newProjectId,
-      ...projectData,
-      status: 'Active',
-      lastUpdated: new Date().toISOString(),
-      thumbnailUrl: projectData.thumbnailUrl || `https://placehold.co/600x400.png?text=${encodeURIComponent(projectData.name.substring(0,20))}`,
-      agentCount: 0, 
-      workflowCount: 0, 
-    };
-
-    let initialTasksForProject: Task[] = [];
-    let initialFilesForProject: ProjectFile[] = [];
-    
-    if (templateId && templateId !== 'template-blank') {
-      const selectedTemplate = mockProjectTemplates.find(t => t.id === templateId);
-      if (selectedTemplate) {
-        console.log(`PROJECTS_PAGE: Using template "${selectedTemplate.name}" for new project "${newProject.name}"`);
-        if (selectedTemplate.initialTasks) {
-          initialTasksForProject = selectedTemplate.initialTasks.map((taskTemplate, index) => ({
-            id: uid(`task-${newProjectId}-${index}`),
-            projectId: newProjectId, 
-            title: taskTemplate.title || "Untitled Task",
-            status: taskTemplate.status || 'To Do',
-            assignedTo: taskTemplate.assignedTo || 'Unassigned',
-            startDate: taskTemplate.startDate || format(new Date(), 'yyyy-MM-dd'),
-            durationDays: taskTemplate.durationDays === undefined ? 1 : taskTemplate.durationDays,
-            progress: taskTemplate.progress === undefined ? 0 : taskTemplate.progress,
-            isMilestone: taskTemplate.isMilestone || false,
-            parentId: taskTemplate.parentId || null,
-            dependencies: taskTemplate.dependencies || [],
-            description: taskTemplate.description || "",
-          }));
-          localStorage.setItem(getTasksStorageKey(newProjectId), JSON.stringify(initialTasksForProject));
-          console.log(`PROJECTS_PAGE: Initialized ${initialTasksForProject.length} tasks for project ${newProjectId} from template.`);
+    let allTasksAcrossProjects: Task[] = [];
+    const projectsDataWithHealth: ProjectWithHealth[] = loadedProjects.map(project => {
+      const tasksStorageKey = getTasksStorageKey(project.id);
+      let projectTasks: Task[] = [];
+      try {
+        const storedTasksJson = localStorage.getItem(tasksStorageKey);
+        if (storedTasksJson) {
+          projectTasks = JSON.parse(storedTasksJson);
         }
-
-        if (selectedTemplate.initialFiles) {
-          initialFilesForProject = createInitialFilesRecursive(newProjectId, selectedTemplate.initialFiles);
-          localStorage.setItem(getFilesStorageKey(newProjectId), JSON.stringify(initialFilesForProject));
-           console.log(`PROJECTS_PAGE: Initialized file structure for project ${newProjectId} from template.`);
-        }
-        
-        newProject.agentCount = 0; // Templates don't define agents yet
-        newProject.workflowCount = 0; // Templates don't define workflows yet
+      } catch (e) {
+        console.error(`Error parsing tasks for project ${project.id} on dashboard:`, e);
       }
-    } else {
-       // For blank projects, initialize with empty task, file, etc. storages explicitly if needed
-       localStorage.setItem(getTasksStorageKey(newProjectId), JSON.stringify([]));
-       localStorage.setItem(getFilesStorageKey(newProjectId), JSON.stringify([]));
-       localStorage.setItem(getAgentsStorageKey(newProjectId), JSON.stringify([]));
-       localStorage.setItem(getWorkflowsStorageKey(newProjectId), JSON.stringify([]));
-       localStorage.setItem(getRequirementsStorageKey(newProjectId), JSON.stringify([]));
-    }
-    
-    console.log("PROJECTS_PAGE: handleAddProject - Adding new project:", newProject);
-    setProjects(prevProjects => {
-      const updatedProjects = [newProject, ...prevProjects];
-      console.log("PROJECTS_PAGE: handleAddProject - State updated. New projects list:", updatedProjects);
-      return updatedProjects;
-    });
+      allTasksAcrossProjects.push(...projectTasks);
 
-    toast({
-      title: 'Project Created',
-      description: `Project "${newProject.name}" has been successfully created ${templateId && templateId !== 'template-blank' ? 'using the "' + mockProjectTemplates.find(t => t.id === templateId)?.name + '" template' : ''}.`,
-    });
-    setIsAddProjectDialogOpen(false); // Close dialog after adding
-  };
-
-  const handleOpenDeleteProjectDialog = (project: Project) => {
-    setProjectToDelete(project);
-    setIsDeleteProjectDialogOpen(true);
-  };
-
-  const confirmDeleteProject = () => {
-    if (projectToDelete) {
-      console.log("PROJECTS_PAGE: confirmDeleteProject - Deleting project:", projectToDelete);
-      localStorage.removeItem(getTasksStorageKey(projectToDelete.id));
-      localStorage.removeItem(getAgentsStorageKey(projectToDelete.id));
-      localStorage.removeItem(getWorkflowsStorageKey(projectToDelete.id));
-      localStorage.removeItem(getFilesStorageKey(projectToDelete.id));
-      localStorage.removeItem(getRequirementsStorageKey(projectToDelete.id));
+      const taskCounts = {
+        total: projectTasks.filter(t => !t.isMilestone).length,
+        todo: projectTasks.filter(t => !t.isMilestone && t.status === 'To Do').length,
+        inProgress: projectTasks.filter(t => !t.isMilestone && t.status === 'In Progress').length,
+        done: projectTasks.filter(t => !t.isMilestone && t.status === 'Done').length,
+        blocked: projectTasks.filter(t => !t.isMilestone && t.status === 'Blocked').length,
+      };
       
-      setProjects(prevProjects => {
-        const updatedProjects = prevProjects.filter(p => p.id !== projectToDelete.id);
-        console.log("PROJECTS_PAGE: confirmDeleteProject - State updated. New projects list:", updatedProjects);
-        return updatedProjects;
-      });
-      toast({
-        title: 'Project Deleted',
-        description: `Project "${projectToDelete.name}" and its associated data have been deleted.`,
-        variant: 'destructive',
-      });
-      setProjectToDelete(null);
-      setIsDeleteProjectDialogOpen(false);
+      let healthStatus: ProjectWithHealth['healthStatus'] = 'Healthy';
+      let healthReason = "";
+      if (taskCounts.blocked > 2 || (taskCounts.total > 0 && (taskCounts.blocked / taskCounts.total) > 0.25) ) {
+        healthStatus = 'Critical';
+        healthReason = `${taskCounts.blocked} tasks blocked`;
+      } else if (taskCounts.blocked > 0 || (taskCounts.total > 0 && (taskCounts.inProgress / taskCounts.total) > 0.75 && taskCounts.done === 0) ) {
+        healthStatus = 'Warning';
+        healthReason = taskCounts.blocked > 0 ? `${taskCounts.blocked} tasks blocked` : "High WIP, low completion";
+      }
+
+
+      return { ...project, healthStatus, healthReason, taskCounts };
+    });
+
+    setProjectsWithHealth(projectsDataWithHealth);
+
+    const nonMilestoneTasks = allTasksAcrossProjects.filter(t => !t.isMilestone);
+    const totalTasksCount = nonMilestoneTasks.length;
+    const doneTasksCount = nonMilestoneTasks.filter(t => t.status === 'Done').length;
+    const overallProgress = totalTasksCount > 0 ? Math.round((doneTasksCount / totalTasksCount) * 100) : 0;
+
+    setMetrics({
+      totalProjects: loadedProjects.length,
+      activeProjects: loadedProjects.filter(p => p.status === 'Active').length,
+      completedProjects: loadedProjects.filter(p => p.status === 'Completed').length,
+      onHoldProjects: loadedProjects.filter(p => p.status === 'On Hold').length,
+      totalTasks: totalTasksCount,
+      todoTasks: nonMilestoneTasks.filter(t => t.status === 'To Do').length,
+      inProgressTasks: nonMilestoneTasks.filter(t => t.status === 'In Progress').length,
+      doneTasks: doneTasksCount,
+      blockedTasks: nonMilestoneTasks.filter(t => t.status === 'Blocked').length,
+      overallProgress,
+    });
+    setIsLoading(false);
+  }, [isClient]);
+
+  const getHealthIndicator = (status: ProjectWithHealth['healthStatus']) => {
+    switch (status) {
+      case 'Healthy':
+        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case 'Warning':
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      case 'Critical':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return null;
     }
   };
 
-  if (!isClient && projects.length === 0) {
+  if (!isClient || isLoading) {
     return (
-       <div className="container mx-auto">
-        <PageHeader className="items-start justify-between sm:flex-row sm:items-center">
-          <div>
-            <PageHeaderHeading>
-              <Briefcase className="mr-2 inline-block h-6 w-6" />
-              Projects
-            </PageHeaderHeading>
-            <PageHeaderDescription>
-              Loading your projects... Manage your ongoing and completed projects.
-            </PageHeaderDescription>
-          </div>
+      <div className="container mx-auto">
+        <PageHeader>
+          <PageHeaderHeading>
+            <BarChart3 className="mr-2 inline-block h-6 w-6" />
+            Portfolio Dashboard
+          </PageHeaderHeading>
+          <PageHeaderDescription>
+            Aggregated overview of all your projects and tasks.
+          </PageHeaderDescription>
         </PageHeader>
-        <div className="text-center py-10">
-          <p>Loading projects...</p>
-        </div>
+        <div className="text-center py-10">Loading dashboard data...</div>
+      </div>
+    );
+  }
+
+  if (!metrics) {
+    return (
+      <div className="container mx-auto">
+        <PageHeader>
+          <PageHeaderHeading>
+            <BarChart3 className="mr-2 inline-block h-6 w-6" />
+            Portfolio Dashboard
+          </PageHeaderHeading>
+           <PageHeaderDescription>
+            Aggregated overview of all your projects and tasks.
+          </PageHeaderDescription>
+        </PageHeader>
+        <div className="text-center py-10">Could not load dashboard data.</div>
       </div>
     );
   }
 
   return (
     <div className="container mx-auto">
-      <PageHeader className="items-start justify-between sm:flex-row sm:items-center">
-        <div>
-          <PageHeaderHeading>
-            <Briefcase className="mr-2 inline-block h-6 w-6" />
-            Projects
-          </PageHeaderHeading>
-          <PageHeaderDescription>
-            Manage your ongoing and completed projects. Track progress and access project-specific resources and agents.
-          </PageHeaderDescription>
-        </div>
-        <Button onClick={() => setIsAddProjectDialogOpen(true)} className="w-full mt-4 sm:w-auto sm:mt-0">
-          <PlusCircle className="mr-2 h-4 w-4" /> Add New Project
-        </Button>
+      <PageHeader>
+        <PageHeaderHeading>
+          <BarChart3 className="mr-2 inline-block h-6 w-6" />
+          Portfolio Dashboard
+        </PageHeaderHeading>
+        <PageHeaderDescription>
+          High-level overview of all your projects and their progress.
+        </PageHeaderDescription>
       </PageHeader>
 
-      {projects.length > 0 ? (
-        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} onDeleteProject={handleOpenDeleteProjectDialog} />
-          ))}
-        </div>
-      ) : (
-        <div className="text-center py-10 flex flex-col items-center justify-center h-60 border-2 border-dashed rounded-lg bg-muted/20">
-          <Briefcase className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
-          <p className="text-lg font-medium text-muted-foreground">No projects found.</p>
-          <p className="text-sm text-muted-foreground/80 mt-1 mb-4">Create your first project to get started!</p>
-          <Button onClick={() => setIsAddProjectDialogOpen(true)} className="w-full max-w-xs sm:w-auto">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add First Project
-          </Button>
-        </div>
-      )}
+      <div className="mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-md">Overall Portfolio Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Progress value={metrics.overallProgress} className="w-full h-3" />
+            <p className="text-sm text-muted-foreground mt-2">{metrics.overallProgress}% of tasks completed across all projects.</p>
+          </CardContent>
+        </Card>
+      </div>
 
-      <AddProjectDialog
-        open={isAddProjectDialogOpen}
-        onOpenChange={setIsAddProjectDialogOpen}
-        onAddProject={handleAddProject}
-      />
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Projects</CardTitle>
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalProjects}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.activeProjects} active, {metrics.completedProjects} completed, {metrics.onHoldProjects} on hold
+            </p>
+          </CardContent>
+        </Card>
 
-      {projectToDelete && (
-         <AlertDialog open={isDeleteProjectDialogOpen} onOpenChange={setIsDeleteProjectDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure you want to delete this project?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the project "{projectToDelete.name}" 
-                and all its associated tasks, agents, workflows, files, and requirements.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => {
-                setProjectToDelete(null);
-                setIsDeleteProjectDialogOpen(false);
-              }}>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmDeleteProject} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                Delete Project
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
+            <ListChecks className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalTasks}</div>
+            <p className="text-xs text-muted-foreground">Across all non-milestone tasks</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tasks In Progress</CardTitle>
+            <RotateCcw className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.inProgressTasks}</div>
+             <p className="text-xs text-muted-foreground">
+              {metrics.todoTasks} To Do, {metrics.blockedTasks} Blocked
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Tasks Completed</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.doneTasks}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.totalTasks > 0 ? `${Math.round((metrics.doneTasks / metrics.totalTasks) * 100)}%` : '0%'} overall completion
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Projects Overview</CardTitle>
+          <CardDescription>Current status and health of all projects.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {projectsWithHealth.length > 0 ? (
+            <div className="space-y-3">
+              {projectsWithHealth.map(project => (
+                <Card key={project.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader className="p-4">
+                    <div className="flex items-center justify-between">
+                      <Link href={`/projects/${project.id}`} className="font-semibold text-primary hover:underline text-lg">
+                        {project.name}
+                      </Link>
+                      <Badge variant="outline" className={cn(project.status === 'Active' ? 'border-green-500 text-green-700' : (project.status === 'Completed' ? 'border-blue-500 text-blue-700' : 'border-yellow-500 text-yellow-700'))}>
+                        {project.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-4 pt-0 text-sm text-muted-foreground">
+                    <p className="line-clamp-2 mb-2">{project.description}</p>
+                    <div className="flex items-center gap-2 text-xs">
+                      {getHealthIndicator(project.healthStatus)}
+                      <span>Health: {project.healthStatus}</span>
+                      {project.healthReason && <span className="italic">({project.healthReason})</span>}
+                    </div>
+                    {project.taskCounts && (
+                      <div className="mt-1 text-xs">
+                        Tasks: {project.taskCounts.done} Done / {project.taskCounts.total} Total ({project.taskCounts.blocked} Blocked)
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter className="p-4 border-t">
+                     <Link href={`/projects/${project.id}`} passHref legacyBehavior>
+                        <Button variant="ghost" size="sm" className="text-xs">
+                            View Details
+                        </Button>
+                    </Link>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-center py-6">No projects available to display. Create your first project!</p>
+          )}
+        </CardContent>
+      </Card>
+      
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Resource Allocation</CardTitle>
+          <CardDescription className="text-destructive">
+            <AlertCircle className="inline h-4 w-4 mr-1" />
+            Feature Coming Soon: View team member assignments and workload across projects.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground text-center py-8">Resource allocation visualization will be available here.</p>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }
