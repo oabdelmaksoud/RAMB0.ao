@@ -20,8 +20,9 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { generateRequirementDoc, type GenerateRequirementDocInput, type GenerateRequirementDocOutput } from '@/ai/flows/generate-requirement-doc-flow';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, FileText, CheckSquare, RotateCcw } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // CardDescription was not used
+import { ScrollArea } from '@/components/ui/scroll-area'; // Corrected import path
+import { Label as ShadCnLabel } from "@/components/ui/label"; // Renamed to avoid conflict with RHF FormLabel
 
 const generateDocSchema = z.object({
   documentTitle: z.string().min(5, "Document title must be at least 5 characters.").max(150, "Title too long."),
@@ -35,8 +36,8 @@ interface GenerateRequirementDocDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaveDocument: (fileName: string, content: string, path: string) => void;
-  currentProjectPath: string; // e.g., '/' or '/SYS.1 Requirements/'
-  initialProjectContext: string; // e.g., "Project Name: XYZ, Description: ABC"
+  currentProjectPath: string;
+  initialProjectContext: string;
 }
 
 export default function GenerateRequirementDocDialog({
@@ -101,7 +102,7 @@ export default function GenerateRequirementDocDialog({
   const handleSaveToProject = () => {
     if (aiSuggestion && aiSuggestion.suggestedFileName && aiSuggestion.documentContent) {
       onSaveDocument(aiSuggestion.suggestedFileName, aiSuggestion.documentContent, currentProjectPath);
-      onOpenChange(false); // Close dialog after saving
+      onOpenChange(false); 
     } else {
       toast({
         title: "Cannot Save Document",
@@ -192,15 +193,15 @@ export default function GenerateRequirementDocDialog({
               </CardHeader>
               <CardContent className="space-y-3 text-sm pt-2">
                 <div>
-                  <Label className="text-xs font-normal block mb-0.5">Suggested File Name:</Label>
+                  <ShadCnLabel className="text-xs font-normal block mb-0.5">Suggested File Name:</ShadCnLabel>
                   <p className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.suggestedFileName}</p>
                 </div>
                 <div>
-                  <Label className="text-xs font-normal block mb-0.5">AI Reasoning:</Label>
+                  <ShadCnLabel className="text-xs font-normal block mb-0.5">AI Reasoning:</ShadCnLabel>
                   <p className="p-2 bg-background/70 rounded-md border text-xs italic">{aiSuggestion.aiReasoning}</p>
                 </div>
                 <div>
-                  <Label className="text-xs font-normal block mb-0.5">Document Content (Markdown):</Label>
+                  <ShadCnLabel className="text-xs font-normal block mb-0.5">Document Content (Markdown):</ShadCnLabel>
                   <ScrollArea className="h-[250px] rounded-md border bg-background p-3">
                     <pre className="whitespace-pre-wrap text-xs">{aiSuggestion.documentContent}</pre>
                   </ScrollArea>
@@ -228,7 +229,7 @@ export default function GenerateRequirementDocDialog({
             <>
               <Button
                 variant="secondary"
-                onClick={() => form.handleSubmit(handleGenerateWithAI)()} // Re-submit form for regeneration
+                onClick={() => form.handleSubmit(handleGenerateWithAI)()} 
                 disabled={isLoading || !form.formState.isValid}
               >
                 <RotateCcw className="mr-2 h-4 w-4" /> Regenerate
@@ -242,5 +243,3 @@ export default function GenerateRequirementDocDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}

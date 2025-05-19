@@ -84,11 +84,11 @@ export interface Task {
   progress?: number; // Percentage 0-100
   isMilestone?: boolean;
   parentId?: string | null;
-  dependencies?: string[];
-  description?: string;
+  dependencies?: string[]; // Array of task IDs
   isAiPlanned?: boolean;
   sprintId?: string | null;
-  suggestedSubTasks?: SuggestedSubTask[]; // Added for AI Planner output
+  description?: string; // Can store AI reasoning + formatted sub-tasks
+  suggestedSubTasks?: SuggestedSubTask[]; // Store the structured sub-task suggestions from AI
 }
 
 export interface ProjectFile {
@@ -108,7 +108,7 @@ export const requirementStatuses: RequirementStatus[] = ['Draft', 'Under Review'
 export type RequirementPriority = 'High' | 'Medium' | 'Low';
 export const requirementPriorities: RequirementPriority[] = ['High', 'Medium', 'Low'];
 
-export interface Requirement { // This type is for structured requirement items, currently converted to docs
+export interface Requirement {
   id: string;
   projectId: string;
   title: string;

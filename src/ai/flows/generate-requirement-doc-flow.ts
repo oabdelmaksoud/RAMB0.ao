@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview An AI agent that generates initial content for a requirements document.
@@ -50,13 +49,12 @@ Instructions:
         *   Introduction / Purpose
         *   Scope
         *   Definitions, Acronyms, and Abbreviations (if applicable)
-        *   Functional Requirements (use a numbered or bulleted list, be specific)
-        *   Non-Functional Requirements (e.g., Performance, Security, Usability, Reliability, Maintainability)
+        *   Functional Requirements (use a numbered or bulleted list, be specific, aim for 3-5 example requirements)
+        *   Non-Functional Requirements (e.g., Performance, Security, Usability, Reliability, Maintainability; aim for 2-3 example requirements)
         *   Interface Requirements (if applicable)
         *   Data Requirements (if applicable)
     *   If an aspiceProcessArea is provided, ensure the content and structure reflect the typical work products and information items associated with that process area. For example, for SYS.2 (System Requirements Analysis), focus on system-level functional and non-functional requirements. For SWE.1 (Software Requirements Analysis), focus on software-specific requirements derived from system requirements.
     *   The content should be a solid starting point for human engineers to review and elaborate upon.
-    *   Aim for 3-5 specific functional requirements and 2-3 non-functional requirements as examples, tailored to the document title.
 3.  Generate aiReasoning: Provide a very concise (1-3 sentences) explanation of the document structure you chose and why.
 
 Output ONLY the JSON object adhering to the GenerateRequirementDocOutputSchema.

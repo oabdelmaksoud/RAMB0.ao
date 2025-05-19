@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 
 const DAY_WIDTH_PX = 35;
 const ROW_HEIGHT_PX = 40;
-const TIMELINE_HEADER_ROW_HEIGHT_PX = 30; // Height for each row of the timeline header (Month/Year, Day numbers)
+const TIMELINE_HEADER_ROW_HEIGHT_PX = 30; 
 
 const TASK_TITLE_COL_WIDTH_PX = 250;
 const SPRINT_COL_WIDTH_PX = 120;
@@ -58,12 +58,7 @@ interface ProjectGanttChartViewProps {
 
 export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateTask, onTasksReorder, onViewTask }: ProjectGanttChartViewProps) {
   const [isClient, setIsClient] = useState(false);
-  const svgRef = useRef<SVGSVGElement>(null); // Declare svgRef
-  useEffect(() => {
-    setIsClient(true);
-    // console.log("GANTT_CHART: initial tasks prop:", tasks.map(t => ({id: t.id, title: t.title, order: tasks.findIndex(p => p.id === t.id) })));
-  }, []);
-
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const [draggingTaskDetails, setDraggingTaskDetails] = useState<{
     task: Task;
@@ -81,6 +76,11 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
   const [dependencySourceTaskId, setDependencySourceTaskId] = useState<string | null>(null);
   const [collapsedTaskIds, setCollapsedTaskIds] = useState<Set<string>>(new Set());
 
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+
   const toggleTaskCollapse = useCallback((taskId: string) => {
     setCollapsedTaskIds(prevCollapsed => {
       const newCollapsed = new Set(prevCollapsed);
@@ -94,7 +94,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
   }, []);
 
   const processedTasks = useMemo(() => {
-    // console.log("GANTT_CHART: Recomputing processedTasks. Input tasks:", tasks.map(t => ({id: t.id, title: t.title, order: tasks.findIndex(p => p.id === t.id) })));
+    // console.log("GANTT_CHART: Input tasks for processing:", tasks.map(t => ({id: t.id, title: t.title, parentId: t.parentId, order: tasks.findIndex(p=>p.id === t.id)})));
     type TaskWithHierarchy = Task & { children: TaskWithHierarchy[]; level: number; isParent: boolean };
 
     const taskMap = new Map<string, TaskWithHierarchy>();
@@ -106,20 +106,26 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
       if (task.parentId && taskMap.has(task.parentId)) {
         const parentNode = taskMap.get(task.parentId)!;
         parentNode.children.push(currentTaskNode);
+        parentNode.isParent = true; 
       } else {
         rootTasks.push(currentTaskNode);
       }
     });
+    
+    const originalOrderMap = new Map(tasks.map((task, index) => [task.id, index]));
 
-    // Sort root tasks based on their order in the original `tasks` array
-    const orderedRootTasks = rootTasks.sort((a, b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
+    const sortTasks = (taskArray: TaskWithHierarchy[]) => {
+        taskArray.sort((a, b) => (originalOrderMap.get(a.id) ?? Infinity) - (originalOrderMap.get(b.id) ?? Infinity));
+    };
 
-    // Sort children for each node and determine if it's a parent
+    sortTasks(rootTasks);
     taskMap.forEach(node => {
-      if (node.children.length > 0) {
-        node.isParent = true;
-        node.children.sort((a, b) => tasks.findIndex(t => t.id === a.id) - tasks.findIndex(t => t.id === b.id));
-      }
+        if (node.children.length > 0) {
+            node.isParent = true; // Ensure isParent is set if children exist
+            sortTasks(node.children);
+        } else {
+            node.isParent = false;
+        }
     });
 
     const flattenTasks = (tasksToFlatten: TaskWithHierarchy[], currentLevel: number): (Task & { level: number; isParent: boolean })[] => {
@@ -133,8 +139,8 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
       return result;
     };
 
-    const finalFlattenedTasks = flattenTasks(orderedRootTasks, 0);
-    // console.log("GANTT_CHART: Output finalFlattenedTasks:", finalFlattenedTasks.map(t => ({id: t.id, title: t.title, level: t.level })));
+    const finalFlattenedTasks = flattenTasks(rootTasks, 0);
+    // console.log("GANTT_CHART: Output finalFlattenedTasks:", finalFlattenedTasks.map(t => ({id: t.id, title: t.title, level: t.level, isParent: t.isParent })));
     return finalFlattenedTasks;
   }, [tasks, collapsedTaskIds]);
 
@@ -143,7 +149,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
     if (!tasks.length) {
       const today = startOfDay(new Date());
       const defaultStartDate = addDays(today, -15);
-      const defaultEndDate = addDays(today, 45); // Ensure at least ~60 days initially
+      const defaultEndDate = addDays(today, 45); 
       return {
         chartStartDate: defaultStartDate,
         chartEndDate: defaultEndDate,
@@ -157,15 +163,15 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
         const start = startOfDay(parseISO(task.startDate));
         acc.push(start);
         if (!task.isMilestone && task.durationDays && task.durationDays > 0) {
-          acc.push(addDays(start, Math.max(0, task.durationDays - 1))); // Ensure duration is not negative
+          acc.push(addDays(start, Math.max(0, task.durationDays - 1)));
         } else if (task.isMilestone || (task.durationDays !== undefined && task.durationDays === 0) ) {
-           acc.push(start); // Milestones effectively have a duration of 1 day for range calculation
+           acc.push(start);
         }
       }
       return acc;
     }, [] as Date[]);
 
-    if (!taskDates.length) { // Fallback if no tasks have valid dates
+    if (!taskDates.length) { 
       const today = startOfDay(new Date());
       const fallbackStart = addDays(today, -15);
       const fallbackEnd = addDays(today, 45);
@@ -180,13 +186,12 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
     let overallMinDate = min(taskDates);
     let overallMaxDate = max(taskDates);
 
-    const paddingDaysStart = Math.max(10, Math.floor(tasks.length * 0.5)); // More padding if more tasks
-    const paddingDaysEnd = Math.max(30, Math.floor(tasks.length * 1));
+    const paddingDaysStart = 10; 
+    const paddingDaysEnd = 30; 
 
     overallMinDate = addDays(overallMinDate, -paddingDaysStart);
     overallMaxDate = addDays(overallMaxDate, paddingDaysEnd);
 
-    // Ensure a minimum viewport width (e.g., 60 days)
     if (differenceInCalendarDays(overallMaxDate, overallMinDate) < 60) {
        overallMaxDate = addDays(overallMinDate, Math.max(59, differenceInCalendarDays(overallMaxDate, overallMinDate)));
     }
@@ -196,8 +201,8 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
     return {
       chartStartDate: overallMinDate,
       chartEndDate: overallMaxDate,
-      totalDays: days.length > 0 ? days.length : 60, // Fallback to 60 days if calculated is less
-      daysArray: days.length > 0 ? days : eachDayOfInterval({start: addDays(startOfDay(new Date()), -15), end: addDays(startOfDay(new Date()), 44)}), // Ensure a 60-day array if empty
+      totalDays: days.length > 0 ? days.length : 60, 
+      daysArray: days.length > 0 ? days : eachDayOfInterval({start: addDays(startOfDay(new Date()), -15), end: addDays(startOfDay(new Date()), 44)}),
     };
   }, [tasks]);
 
@@ -208,6 +213,8 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
     const taskStart = startOfDay(parseISO(task.startDate));
     const offsetDays = differenceInCalendarDays(taskStart, chartStartDate);
     const duration = task.isMilestone ? 1 : ((task.durationDays && task.durationDays > 0) ? task.durationDays : 1);
+    
+    // console.log(`Rendering bar for ${task.title} (ID: ${task.id}) at index ${taskIndex}, calculated top: ${taskIndex * ROW_HEIGHT_PX}`);
     return {
       left: Math.max(0, offsetDays * DAY_WIDTH_PX),
       width: duration * DAY_WIDTH_PX,
@@ -243,12 +250,11 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
         ...draggingTaskDetails.task,
         startDate: format(newStartDate, 'yyyy-MM-dd'),
       };
-      onUpdateTask(updatedTask); // Call parent to update state
+      onUpdateTask(updatedTask); 
     };
 
     const handleDocumentMouseUp = () => {
       if (!draggingTaskDetails) return;
-      // Final update is already done by onUpdateTask in mouseMove
       setDraggingTaskDetails(null);
     };
 
@@ -288,12 +294,11 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
         ...resizingTaskDetails.task,
         durationDays: newDurationDays,
       };
-      onUpdateTask(updatedTask); // Call parent to update state
+      onUpdateTask(updatedTask);
     };
 
     const handleDocumentMouseUpForResize = () => {
       if (!resizingTaskDetails) return;
-       // Final update is already done by onUpdateTask in mouseMove
       setResizingTaskDetails(null);
     };
 
@@ -314,7 +319,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
     event.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleRowDragOver = (event: ReactDragEvent<HTMLDivElement>, taskId: string) => {
+  const handleRowDragOver = (event: ReactDragEvent<HTMLDivElement>, taskId: string | null) => { // Allow null for dropping at the end
     event.preventDefault();
     setDragOverRowId(taskId);
   };
@@ -341,25 +346,29 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
   };
 
   const handleTaskBarClickForDependency = (event: ReactMouseEvent<HTMLDivElement>, task: Task & {isParent: boolean}) => {
-    event.stopPropagation(); // Prevent triggering row click
-    if (task.isMilestone || task.isParent) return; // Can't set dependencies for milestones or parent tasks
+    event.stopPropagation(); 
+    if (task.isMilestone || task.isParent) return; 
 
     if (!dependencySourceTaskId) {
       setDependencySourceTaskId(task.id);
     } else {
-      if (dependencySourceTaskId === task.id) { // Clicked same task, deselect
+      if (dependencySourceTaskId === task.id) { 
         setDependencySourceTaskId(null);
         return;
       }
-      // This is the target task
+      
       const sourceTask = tasks.find(t => t.id === dependencySourceTaskId);
       if (!sourceTask) {
         setDependencySourceTaskId(null);
         return;
       }
 
-      // Prevent cyclical dependencies and adding existing dependency
-      if (task.dependencies?.includes(dependencySourceTaskId) || sourceTask.dependencies?.includes(task.id)) {
+      // Prevent cyclical dependencies (simple check: target doesn't depend on source)
+      // Also prevent adding if dependency already exists
+      const targetDependencies = task.dependencies || [];
+      const sourceDependencies = sourceTask.dependencies || [];
+
+      if (targetDependencies.includes(dependencySourceTaskId) || sourceDependencies.includes(task.id)) {
         console.warn("Cannot create cyclical or duplicate dependency.");
         setDependencySourceTaskId(null);
         return;
@@ -367,7 +376,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
 
       const updatedTask: Task = {
         ...task,
-        dependencies: [...(task.dependencies || []), dependencySourceTaskId],
+        dependencies: [...targetDependencies, dependencySourceTaskId],
       };
       onUpdateTask(updatedTask);
       setDependencySourceTaskId(null);
@@ -385,7 +394,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
 
   const getTaskTooltip = (task: Task): string => {
     let tooltip = `Task: ${task.title}`;
-    if (task.isParent) tooltip += ` (Summary Task)`;
+    if (task.isParent && !task.isMilestone) tooltip += ` (Summary Task)`;
     if (task.isMilestone) tooltip += ` (Milestone)`;
     tooltip += `\nStatus: ${task.status}`;
     if (task.assignedTo) tooltip += `\nAssigned To: ${task.assignedTo}`;
@@ -396,7 +405,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
     if (task.startDate && isValidDate(parseISO(task.startDate))) {
       tooltip += `\n${task.isMilestone ? 'Date' : 'Start'}: ${format(parseISO(task.startDate), 'MMM d, yyyy')}`;
     }
-    if (!task.isMilestone && task.durationDays) {
+    if (!task.isMilestone && task.durationDays && task.durationDays > 0) {
       tooltip += `\nDuration: ${task.durationDays} day(s)`;
       if (task.startDate && isValidDate(parseISO(task.startDate))) {
          tooltip += `\nEnd: ${format(addDays(parseISO(task.startDate), Math.max(0, task.durationDays -1)), 'MMM d, yyyy')}`;
@@ -446,14 +455,13 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
 
           {/* Timeline Header - Month/Year and Day numbers */}
           <div className="flex-grow overflow-x-hidden relative z-10">
-            {/* Today Label - Positioned within the timeline header's relative context */}
             {isTodayInView && (
                <div
                 className="absolute text-red-500 text-xs font-semibold pointer-events-none"
                 style={{
-                  left: `${todayOffsetDays * DAY_WIDTH_PX + (DAY_WIDTH_PX / 2) - 15}px`, // Adjust for label width
-                  top: '4px', // Position it within the month/year row
-                  zIndex: 40, // Ensure it's above day cells but potentially below interactive elements if any
+                  left: `${todayOffsetDays * DAY_WIDTH_PX + (DAY_WIDTH_PX / 2) - 15}px`, 
+                  top: '4px', 
+                  zIndex: 40, 
                 }}
               >
                 Today
@@ -499,8 +507,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
         </div>
 
         {/* Task Rows & Grid Lines Container */}
-        <div className="relative">
-          {/* Vertical Grid Lines */}
+        <div className="relative" onDragOver={(e) => handleRowDragOver(e, null)} /* Allow dropping at the end of the list */>
           {daysArray.map((_, dayIndex) => (
             <div
               key={`v-grid-${dayIndex}`}
@@ -516,19 +523,17 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
               }}
             ></div>
           ))}
-          {/* Today Line Marker on Task Area */}
           {isTodayInView && (
             <div
               className="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none"
               style={{
                 left: `${TASK_DETAILS_AREA_WIDTH_PX + todayOffsetDays * DAY_WIDTH_PX + (DAY_WIDTH_PX / 2) - 0.5}px`,
                 height: `${processedTasks.length * ROW_HEIGHT_PX}px`,
-                zIndex: 40, // Higher z-index to be on top of task bars if needed
+                zIndex: 40, 
               }}
               title={`Today: ${format(today, 'MMM d')}`}
             />
           )}
-          {/* Dependency Lines SVG Layer */}
           <svg
             ref={svgRef}
             className="absolute top-0 left-0 w-full h-full pointer-events-none"
@@ -539,7 +544,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
                 id="arrowhead"
                 markerWidth="8"
                 markerHeight="6"
-                refX="8" // Adjusted for better arrow positioning
+                refX="8" 
                 refY="3"
                 orient="auto"
                 markerUnits="strokeWidth"
@@ -564,10 +569,9 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
                 const x1 = prereqBarPos.left + (prereqTask.isMilestone ? MILESTONE_SIZE_PX / 2 : prereqBarPos.width);
                 const y1 = prereqBarPos.top + ROW_HEIGHT_PX / 2;
 
-                const x2 = dependentBarPos.left + (task.isMilestone ? MILESTONE_SIZE_PX / 2 : 0) - (task.isMilestone ? 0 : 5) ; // Small offset for arrow
+                const x2 = dependentBarPos.left + (task.isMilestone ? MILESTONE_SIZE_PX / 2 : 0) - (task.isMilestone ? 0 : 5) ; 
                 const y2 = dependentBarPos.top + ROW_HEIGHT_PX / 2;
-
-                // Avoid drawing lines that go backward for simple finish-to-start if not a milestone
+                
                 if (x1 >= x2 && !prereqTask.isMilestone && !task.isMilestone) return null;
 
                 return (
@@ -591,11 +595,9 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
             })}
           </svg>
 
-          {/* Task Rows */}
           {processedTasks.map((task, taskIndex) => {
             const { left: barLeftOffset, width: barWidth, top: barTopOffset } = getTaskBarPositionAndStyle(task, taskIndex);
             // console.log(`Rendering bar for ${task.title} (ID: ${task.id}) at index ${taskIndex}, calculated top: ${barTopOffset}`);
-
             const isDraggingThisTask = draggingTaskDetails?.task.id === task.id;
             const isResizingThisTask = resizingTaskDetails?.task.id === task.id;
 
@@ -632,10 +634,10 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
 
             return (
               <div
-                key={task.id} // Key for the row itself
+                key={task.id} 
                 className={cn(
                   "flex items-center border-b border-border/30 last:border-b-0 group hover:bg-muted/10 dark:hover:bg-muted/5",
-                  dragOverRowId === task.id && 'outline-dashed outline-1 outline-primary -outline-offset-1'
+                  dragOverRowId === task.id && 'outline-dashed outline-1 outline-primary -outline-offset-1 bg-primary/5'
                 )}
                 style={{ height: `${ROW_HEIGHT_PX}px`, position: 'relative' }}
                 onDragOver={(e) => handleRowDragOver(e, task.id)}
@@ -643,7 +645,6 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
                 onDrop={(e) => handleRowDrop(e, task.id)}
                 onDoubleClick={() => onViewTask(task)}
               >
-                {/* Task Details Part (Sticky Left) */}
                 <div
                   draggable
                   onDragStart={(e) => handleRowDragStart(e, task.id)}
@@ -657,7 +658,7 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
                   <div
                     style={{
                         width: `${TASK_TITLE_COL_WIDTH_PX}px`,
-                        paddingLeft: `${0.5 + (task.level * INDENT_WIDTH_PX / 16)}rem`
+                        paddingLeft: `${0.5 + (task.level * INDENT_WIDTH_PX / 16)}rem` 
                     }}
                     className={cn(
                         "p-2 border-r border-border/30 flex items-center truncate",
@@ -699,10 +700,9 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
                   </div>
                 </div>
 
-                {/* Task Bar/Milestone on Timeline Part */}
                 {task.startDate && isValidDate(parseISO(task.startDate)) && (
                   <div
-                    key={`bar-${task.id}`} // Key for the bar itself
+                    key={`bar-${task.id}`} 
                     onMouseDown={(e) => task.isMilestone || task.isParent ? null : handleTaskBarMouseDown(e, task)}
                     onClick={(e) => task.isMilestone || task.isParent ? null : handleTaskBarClickForDependency(e, task)}
                     title={getTaskTooltip(task)}
@@ -748,7 +748,6 @@ export default function ProjectGanttChartView({ tasks, projectSprints, onUpdateT
                     )}
                     {task.isMilestone && (
                       <div className="w-full h-full flex items-center justify-center" style={{ transform: 'rotate(-45deg)' }}>
-                        {/* Content for inside the diamond, if any (e.g., a small icon or initial) */}
                       </div>
                     )}
                   </div>
