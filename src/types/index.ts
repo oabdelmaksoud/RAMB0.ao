@@ -1,4 +1,3 @@
-
 export interface Agent {
   id: string;
   name: string;
@@ -15,8 +14,8 @@ export interface Agent {
 
 export interface WorkflowNode {
   id: string;
-  name: string;
-  type: string; // This should match an Agent['type']
+  name: string; // Name for the node instance (e.g., "Analyze Requirements")
+  type: string; // Agent type (e.g., "Analysis Agent")
   x: number;
   y: number;
   config?: Record<string, any>;
@@ -89,7 +88,7 @@ export interface Task {
   description?: string;
   isAiPlanned?: boolean;
   sprintId?: string | null;
-  suggestedSubTasks?: SuggestedSubTask[];
+  suggestedSubTasks?: SuggestedSubTask[]; // Added for AI Planner output
 }
 
 export interface ProjectFile {
@@ -109,7 +108,7 @@ export const requirementStatuses: RequirementStatus[] = ['Draft', 'Under Review'
 export type RequirementPriority = 'High' | 'Medium' | 'Low';
 export const requirementPriorities: RequirementPriority[] = ['High', 'Medium', 'Low'];
 
-export interface Requirement {
+export interface Requirement { // This type is for structured requirement items, currently converted to docs
   id: string;
   projectId: string;
   title: string;
@@ -150,6 +149,6 @@ export interface ProjectTemplate {
   id: string;
   name: string;
   description: string;
-  initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId' | 'isAiPlanned' | 'sprintId' | 'suggestedSubTasks' >>>;
+  initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId' | 'isAiPlanned' | 'sprintId' | 'suggestedSubTasks'>>>;
   initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' | 'content'> & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content?: string; }>;
 }
