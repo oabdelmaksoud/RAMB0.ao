@@ -13,49 +13,104 @@ enum UserRole {
   MANAGER
   DEVELOPER
   VIEWER
+  AGENT
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+  ARCHIVED
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum AgentStatus {
+  INACTIVE
+  ACTIVE
+  ERROR
+  UPDATING
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  role      UserRole
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  isDeleted Boolean  @default(false)
-  deletedAt DateTime?
-  projects  Project[]
-  tasks     Task[]
-  files     File[]
+  id                String        @id @default(cuid())
+  email             String        @unique
+  password          String
+  role              UserRole
+  firstName         String?
+  lastName          String?
+  profilePictureUrl String?
+  lastLogin         DateTime?
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  isDeleted         Boolean       @default(false)
+  deletedAt         DateTime?
+  
+  projects          Project[]
+  tasks             Task[]
+  files             File[]
+  assignedTickets   Ticket[]      @relation("AssignedTickets")
+  reportedTickets   Ticket[]      @relation("ReportedTickets")
+  requirements      Requirement[]
 
   @@map("users")
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([isDeleted])
 }
 
 model Project {
-  id          String     @id @default(cuid())
+  id          String        @id @default(cuid())
   name        String
   description String?
-  status      String     @default("PLANNING")
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  isDeleted   Boolean    @default(false)
+  status      ProjectStatus @default(PLANNING)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  isDeleted   Boolean       @default(false)
   deletedAt   DateTime?
-  owner       User       @relation(fields: [ownerId], references: [id])
+  owner       User          @relation(fields: [ownerId], references: [id])
   ownerId     String
   tasks       Task[]
   workflows   Workflow[]
   files       File[]
+  tickets     Ticket[]
+  requirements Requirement[]
+  sprints     Sprint[]
 
   @@map("projects")
+  @@index([ownerId])
+  @@index([status])
+  @@index([isDeleted])
 }
 
 model Task {
   id          String     @id @default(cuid())
   title       String
   description String?
-  status      String     @default("TODO") @validate(regex: "TODO|IN_PROGRESS|BLOCKED|DONE|ARCHIVED")
+  status      TaskStatus @default(TODO)
   priority    Int        @default(3)
+  startDate   DateTime?
   dueDate     DateTime?
+  estimatedHours Float?
+  actualHours  Float?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   isDeleted   Boolean    @default(false)
@@ -68,7 +123,12 @@ model Task {
   workflowId  String?
   agent       Agent?     @relation(fields: [agentId], references: [id])
   agentId     String?
+  parentTask  Task?      @relation("SubTasks", fields: [parentId], references: [id])
+  parentId    String?
+  subTasks    Task[]     @relation("SubTasks")
   logs        TaskLog[]
+  dependencies TaskDependency[] @relation("TaskDependencies")
+  dependentTasks TaskDependency[] @relation("DependsOnTasks")
 
   @@map("tasks")
   @@index([projectId])
@@ -76,24 +136,43 @@ model Task {
   @@index([workflowId])
   @@index([status])
   @@index([isDeleted])
+  @@index([parentId])
+}
+
+model TaskDependency {
+  id              String   @id @default(cuid())
+  task            Task     @relation("TaskDependencies", fields: [taskId], references: [id])
+  taskId          String
+  dependsOnTask   Task     @relation(fields: [dependsOnTaskId], references: [id])
+  dependsOnTaskId String
+  type            String   @default("FINISH_TO_START")  // Types like FS, SS, FF, SF
+  createdAt       DateTime @default(now())
+
+  @@unique([taskId, dependsOnTaskId])
+  @@map("task_dependencies")
 }
 
 model Workflow {
-  id          String     @id @default(cuid())
+  id          String         @id @default(cuid())
   name        String
   description String?
-  status      String     @default("DRAFT")
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  isDeleted   Boolean    @default(false)
+  status      WorkflowStatus @default(DRAFT)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  isDeleted   Boolean        @default(false)
   deletedAt   DateTime?
-  project     Project    @relation(fields: [projectId], references: [id])
+  project     Project        @relation(fields: [projectId], references: [id])
   projectId   String
   tasks       Task[]
   nodes       WorkflowNode[]
   edges       WorkflowEdge[]
 
   @@map("workflows")
+  @@index([projectId])
+  @@index([status])
+  @@index([isDeleted])
 }
 
 model WorkflowNode {
@@ -152,20 +231,28 @@ model TaskLog {
 }
 
 model Agent {
-  id          String     @id @default(cuid())
+  id          String       @id @default(cuid())
   name        String
   type        String
   config      Json
-  status      String     @default("INACTIVE")
+  status      AgentStatus  @default(INACTIVE)
   lastPing    DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  isDeleted   Boolean    @default(false)
+  capabilities String[]
+  description String?
+  version     String?
+  isSystemAgent Boolean    @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  isDeleted   Boolean      @default(false)
   deletedAt   DateTime?
   tasks       Task[]
   logs        AgentLog[]
 
   @@map("agents")
+  @@index([type])
+  @@index([status])
+  @@index([isDeleted])
+  @@index([isSystemAgent])
 }
 
 model AgentLog {
@@ -178,4 +265,123 @@ model AgentLog {
   agentId   String
 
   @@map("agent_logs")
+}
+
+enum TicketType {
+  BUG
+  FEATURE
+  IMPROVEMENT
+  TASK
+  EPIC
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  BLOCKED
+}
+
+model Ticket {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  type        TicketType
+  priority    TicketPriority  @default(MEDIUM)
+  status      TicketStatus    @default(BACKLOG)
+  project     Project         @relation(fields: [projectId], references: [id])
+  projectId   String
+  assignee    User?           @relation("AssignedTickets", fields: [assigneeId], references: [id])
+  assigneeId  String?
+  reporter    User            @relation("ReportedTickets", fields: [reporterId], references: [id])
+  reporterId  String
+  sprint      Sprint?         @relation(fields: [sprintId], references: [id])
+  sprintId    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  closedAt    DateTime?
+  estimatedHours Float?
+  actualHours  Float?
+  tags        String[]
+  aiMetadata  Json?
+
+  @@map("tickets")
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([reporterId])
+  @@index([sprintId])
+  @@index([status])
+}
+
+enum RequirementType {
+  FUNCTIONAL
+  NON_FUNCTIONAL
+  CONSTRAINT
+  INTERFACE
+  PERFORMANCE
+}
+
+enum RequirementStatus {
+  DRAFT
+  PROPOSED
+  APPROVED
+  IMPLEMENTED
+  VERIFIED
+  REJECTED
+}
+
+model Requirement {
+  id          String            @id @default(cuid())
+  title       String
+  description String
+  type        RequirementType
+  status      RequirementStatus @default(DRAFT)
+  project     Project           @relation(fields: [projectId], references: [id])
+  projectId   String
+  source      String?
+  priority    Int               @default(3)
+  complexity  Int               @default(3)
+  rationale   String?
+  acceptance  String?
+  createdBy   User              @relation(fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  version     String            @default("1.0")
+  tags        String[]
+  relatedTasks Task[] @relation("RelatedRequirements")
+  attachments File[] @relation("RequirementAttachments")
+
+  @@map("requirements")
+  @@index([projectId])
+  @@index([status])
+  @@index([createdById])
+}
+
+model Sprint {
+  id          String     @id @default(cuid())
+  name        String
+  goal        String?
+  startDate   DateTime
+  endDate     DateTime
+  status      String     @default("PLANNED")
+  project     Project    @relation(fields: [projectId], references: [id])
+  projectId   String
+  tickets     Ticket[]
+  tasks       Task[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("sprints")
+  @@index([projectId])
+  @@index([status])
 }
