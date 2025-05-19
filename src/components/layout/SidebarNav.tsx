@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -16,12 +15,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Button } from '@/components/ui/button';
 
 const navItems = [
-  { href: '/', label: 'Dashboard', icon: PieChart }, // Points to Portfolio Dashboard at root
-  { href: '/projects', label: 'Projects', icon: Briefcase }, // Points to Project Management
+  { href: '/', label: 'Dashboard', icon: PieChart },
+  { href: '/projects', label: 'Projects', icon: Briefcase },
   { href: '/agent-monitoring', label: 'Monitoring', icon: Activity },
   { href: '/resource-allocation', label: 'Resources', icon: Users },
   { href: '/personal-assistant', label: 'Assistant', icon: Mail },
-  // Admin Settings link is now directly in AppHeader
+  // Admin Settings and Profile are in AppHeader
 ];
 
 export default function SidebarNav() {
@@ -36,16 +35,16 @@ export default function SidebarNav() {
               <Link href={item.href} passHref legacyBehavior>
                 <Button
                   variant="ghost"
-                  asChild
+                  asChild // Button will use the <a> tag below as its child
                   className={cn(
                     "items-center px-3 py-2 text-sm font-medium",
-                    (pathname === item.href || (item.href === '/' && pathname === '/')) // Simplified active check
+                    (pathname === item.href || (item.href === '/' && pathname === '/portfolio-dashboard') || (item.href === '/portfolio-dashboard' && pathname === '/'))
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-accent"
                   )}
                   aria-label={item.label}
                 >
-                  <a> {/* Explicit anchor for TooltipTrigger asChild and Link legacyBehavior */}
+                  <a> {/* This is the actual anchor tag */}
                     <item.icon className="h-5 w-5" />
                     <span className="ml-2 hidden lg:inline">{item.label}</span>
                   </a>

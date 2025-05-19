@@ -1,7 +1,7 @@
 
 'use client';
 
-import React from 'react'; // Import React
+import React, { useState, useEffect } from 'react';
 import type { Project } from '@/types';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { ArrowRight, Bot, Workflow, CalendarDays, Trash2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { useState, useEffect } from 'react';
 
 interface ProjectCardProps {
   project: Project;
@@ -37,12 +36,15 @@ const ProjectCard = React.memo(function ProjectCard({ project, onDeleteProject }
       return 'Loading date...';
     }
     try {
+      // Attempt to parse common date string formats, including ISO
       if (!dateString || (!dateString.includes('-') && !dateString.includes('/') && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{3})?Z$/.test(dateString))) {
+        // If it doesn't look like a parsable date string, return it as is
         return dateString;
       }
       return format(parseISO(dateString), "MMM d, yyyy");
     } catch (error) {
-      return dateString;
+      // console.warn(`Error parsing date string: "${dateString}"`, error);
+      return dateString; // Fallback to original string if parsing fails
     }
   };
 
@@ -93,10 +95,12 @@ const ProjectCard = React.memo(function ProjectCard({ project, onDeleteProject }
         </div>
       </CardContent>
       <CardFooter className="flex gap-2">
-        <Link href={`/projects/${project.id}`} passHref>
-          <Button variant="outline" size="sm" className="flex-1">
-            View Project
-            <ArrowRight className="ml-2 h-4 w-4" />
+        <Link href={`/projects/${project.id}`} passHref legacyBehavior>
+          <Button variant="outline" size="sm" className="flex-1" asChild>
+            <a>
+              View Project
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </a>
           </Button>
         </Link>
         {onDeleteProject && (
@@ -105,7 +109,7 @@ const ProjectCard = React.memo(function ProjectCard({ project, onDeleteProject }
               size="icon"
               className="h-9 w-9 shrink-0"
               onClick={(e) => {
-                  e.stopPropagation();
+                  e.stopPropagation(); // Prevent link navigation if button is inside a Link
                   onDeleteProject(project);
               }}
               title="Delete Project"
