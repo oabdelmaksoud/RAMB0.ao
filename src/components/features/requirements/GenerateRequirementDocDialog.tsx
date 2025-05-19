@@ -1,4 +1,4 @@
-
+// src/components/features/requirements/GenerateRequirementDocDialog.tsx
 'use client';
 
 import * as React from 'react';
@@ -20,9 +20,10 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { generateRequirementDoc, type GenerateRequirementDocInput, type GenerateRequirementDocOutput } from '@/ai/flows/generate-requirement-doc-flow';
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Sparkles, FileText, CheckSquare, RotateCcw } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; // CardDescription was not used
-import { ScrollArea } from '@/components/ui/scroll-area'; // Corrected import path
-import { Label as ShadCnLabel } from "@/components/ui/label"; // Renamed to avoid conflict with RHF FormLabel
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from "@/components/ui/card";
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label as ShadCnLabel } from "@/components/ui/label";
+import { Separator } from '@/components/ui/separator';
 
 const generateDocSchema = z.object({
   documentTitle: z.string().min(5, "Document title must be at least 5 characters.").max(150, "Title too long."),
@@ -55,7 +56,7 @@ export default function GenerateRequirementDocDialog({
     resolver: zodResolver(generateDocSchema),
     defaultValues: {
       documentTitle: "",
-      projectContext: initialProjectContext,
+      projectContext: initialProjectContext || "No project context provided.",
       aspiceProcessArea: "",
     },
   });
@@ -64,7 +65,7 @@ export default function GenerateRequirementDocDialog({
     if (open) {
       form.reset({
         documentTitle: "",
-        projectContext: initialProjectContext,
+        projectContext: initialProjectContext || "No project context provided.",
         aspiceProcessArea: "",
       });
       setAiSuggestion(null);
@@ -81,12 +82,24 @@ export default function GenerateRequirementDocDialog({
         projectContext: data.projectContext,
         aspiceProcessArea: data.aspiceProcessArea || undefined,
       };
+      console.log("GEN_REQ_DOC_DIALOG: Calling AI with input:", JSON.stringify(input, null, 2));
       const result = await generateRequirementDoc(input);
-      setAiSuggestion(result);
-      toast({
-        title: "AI Document Draft Ready!",
-        description: "Review the suggested document content below.",
-      });
+      console.log("GEN_REQ_DOC_DIALOG: AI responded with:", JSON.stringify(result, null, 2));
+
+      if (!result || !result.suggestedFileName || !result.documentContent) {
+          toast({
+            title: "AI Suggestion Incomplete",
+            description: "The AI did not return all required fields for the document. Please ensure the Genkit flow is providing 'suggestedFileName' and 'documentContent'.",
+            variant: "destructive",
+          });
+          setAiSuggestion(null); 
+      } else {
+        setAiSuggestion(result);
+        toast({
+          title: "AI Document Draft Ready!",
+          description: "Review the suggested document content below.",
+        });
+      }
     } catch (error) {
       console.error("Error generating requirement document:", error);
       toast({
@@ -94,6 +107,7 @@ export default function GenerateRequirementDocDialog({
         description: `Failed to generate document: ${error instanceof Error ? error.message : String(error)}`,
         variant: "destructive",
       });
+      setAiSuggestion(null);
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +120,7 @@ export default function GenerateRequirementDocDialog({
     } else {
       toast({
         title: "Cannot Save Document",
-        description: "No AI-generated document content available to save.",
+        description: "No AI-generated document content available to save, or critical fields like filename or content are missing.",
         variant: "destructive",
       });
     }
@@ -182,27 +196,31 @@ export default function GenerateRequirementDocDialog({
             </div>
           )}
 
-          {aiSuggestion && !isLoading && (
+          {aiSuggestion && aiSuggestion.suggestedFileName && aiSuggestion.documentContent && !isLoading && (
             <Card className="bg-muted/20 border-muted-foreground/30 shadow-sm mt-4">
               <CardHeader className="pb-2">
                 <CardTitle className="text-md flex items-center">
                   <FileText className="w-5 h-5 mr-2 text-primary" />
                   AI Generated Document Draft
                 </CardTitle>
-                <DialogDescription className="text-xs">Review the suggested content. You can save it to the project repository.</DialogDescription>
+                <ShadCnCardDescription className="text-xs">Review the suggested content. You can save it to the project repository.</ShadCnCardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm pt-2">
                 <div>
                   <ShadCnLabel className="text-xs font-normal block mb-0.5">Suggested File Name:</ShadCnLabel>
                   <p className="p-2 bg-background/70 rounded-md border font-medium">{aiSuggestion.suggestedFileName}</p>
                 </div>
-                <div>
-                  <ShadCnLabel className="text-xs font-normal block mb-0.5">AI Reasoning:</ShadCnLabel>
-                  <p className="p-2 bg-background/70 rounded-md border text-xs italic">{aiSuggestion.aiReasoning}</p>
-                </div>
+                {aiSuggestion.aiReasoning && (
+                  <div>
+                    <ShadCnLabel className="text-xs font-normal block mb-0.5">AI Reasoning:</ShadCnLabel>
+                    <ScrollArea className="h-auto max-h-20">
+                        <p className="p-2 bg-background/70 rounded-md border text-xs italic whitespace-pre-wrap">{aiSuggestion.aiReasoning}</p>
+                    </ScrollArea>
+                  </div>
+                )}
                 <div>
                   <ShadCnLabel className="text-xs font-normal block mb-0.5">Document Content (Markdown):</ShadCnLabel>
-                  <ScrollArea className="h-[250px] rounded-md border bg-background p-3">
+                  <ScrollArea className="h-[200px] sm:h-[250px] rounded-md border bg-background p-3">
                     <pre className="whitespace-pre-wrap text-xs">{aiSuggestion.documentContent}</pre>
                   </ScrollArea>
                 </div>
@@ -225,7 +243,7 @@ export default function GenerateRequirementDocDialog({
               Generate with AI
             </Button>
           )}
-          {aiSuggestion && !isLoading && (
+          {aiSuggestion && aiSuggestion.suggestedFileName && aiSuggestion.documentContent && !isLoading && (
             <>
               <Button
                 variant="secondary"
@@ -243,3 +261,5 @@ export default function GenerateRequirementDocDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
