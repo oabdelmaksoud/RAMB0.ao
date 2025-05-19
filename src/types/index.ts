@@ -73,6 +73,7 @@ export interface SuggestedSubTask {
   assignedAgentType: string;
   description?: string;
 }
+
 export interface Task {
   id: string;
   projectId: string;
@@ -85,10 +86,10 @@ export interface Task {
   isMilestone?: boolean;
   parentId?: string | null;
   dependencies?: string[];
-  description?: string; // AI's overall reasoning for the main task
+  description?: string;
   isAiPlanned?: boolean;
   sprintId?: string | null;
-  suggestedSubTasks?: SuggestedSubTask[]; // Structured sub-tasks from AI planner
+  suggestedSubTasks?: SuggestedSubTask[];
 }
 
 export interface ProjectFile {
@@ -150,4 +151,5 @@ export interface ProjectTemplate {
   name: string;
   description: string;
   initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId' | 'isAiPlanned' | 'sprintId' | 'suggestedSubTasks' >>>;
-  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' | 'content'> & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content
+  initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' | 'content'> & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content?: string; }>;
+}
