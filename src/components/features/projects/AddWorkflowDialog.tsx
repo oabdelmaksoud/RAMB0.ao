@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -20,10 +21,10 @@ import { useToast } from "@/hooks/use-toast";
 import { suggestProjectWorkflow, type SuggestProjectWorkflowInput, type SuggestProjectWorkflowOutput } from '@/ai/flows/suggest-project-workflow-flow';
 import { Loader2, Sparkles, Brain, FileText, CheckSquare, Edit3 } from 'lucide-react';
 import type { Agent } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader } from '../ui/card'; // Added CardDescription
-import { ScrollArea } from '../ui/scroll-area';
-import { Label } from '../ui/label';
-import { Separator } from '../ui/separator';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription as ShadCnCardDescription } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
 const aiGoalSchema = z.object({
   workflowGoal: z.string().min(10, "Please describe the workflow goal in at least 10 characters.").max(500, "Goal description is too long."),
@@ -42,8 +43,8 @@ interface AddWorkflowDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddWorkflow: (workflowData: { name: string; description: string }, initialNodesData?: SuggestedNodeData[]) => void;
-  projectContext: string; // e.g., "Project Name: XYZ, Description: ABC"
-  projectAgents: Agent[]; // To extract agent types for AI
+  projectContext: string;
+  projectAgents: Agent[];
 }
 
 export default function AddWorkflowDialog({
@@ -86,15 +87,15 @@ export default function AddWorkflowDialog({
     setIsLoadingAISuggestion(true);
     setAiSuggestedWorkflow(null);
     try {
-      const existingAgentTypes = Array.from(new Set(projectAgents.map(agent => agent.type)));
+      const existingAgentTypes = Array.from(new Set(projectAgents.map(agent => agent.type).filter(type => typeof type === 'string' && type.trim() !== '')));
       const input: SuggestProjectWorkflowInput = {
         workflowGoal: data.workflowGoal,
         projectContext,
-        existingAgentTypes,
+        existingAgentTypes: existingAgentTypes.length > 0 ? existingAgentTypes : ['Analysis Agent', 'Documentation Agent', 'Notification Agent'], // Provide defaults if none configured
       };
       const result = await suggestProjectWorkflow(input);
       setAiSuggestedWorkflow(result);
-      manualForm.reset({ // Pre-fill manual form in case user wants to edit
+      manualForm.reset({ // Pre-fill manual form if user wants to edit
         name: result.suggestedName,
         description: result.suggestedDescription,
       });
@@ -108,7 +109,7 @@ export default function AddWorkflowDialog({
         description: `Failed to get AI suggestion: ${error instanceof Error ? error.message : String(error)}. You can configure manually.`,
         variant: 'destructive',
       });
-      setCurrentStep('manualConfiguration'); // Fallback to manual if AI fails
+      setCurrentStep('manualConfiguration'); // Fallback to manual
     } finally {
       setIsLoadingAISuggestion(false);
     }
@@ -120,13 +121,13 @@ export default function AddWorkflowDialog({
         { name: aiSuggestedWorkflow.suggestedName, description: aiSuggestedWorkflow.suggestedDescription },
         aiSuggestedWorkflow.suggestedNodes
       );
-      onOpenChange(false); // This will trigger resetDialogState
+      onOpenChange(false);
     }
   };
 
   const handleManualSubmit: SubmitHandler<ManualWorkflowFormData> = (data) => {
-    onAddWorkflow(data); // No initial nodes for purely manual creation
-    onOpenChange(false); // This will trigger resetDialogState
+    onAddWorkflow(data); // initialNodesData will be undefined, so no nodes created by default
+    onOpenChange(false);
   };
 
   return (
@@ -140,11 +141,11 @@ export default function AddWorkflowDialog({
           <DialogDescription>
             {currentStep === 'aiSuggestion'
               ? "Describe your workflow goal to get an AI suggestion, or switch to manual setup."
-              : "Manually define the workflow name and description."}
+              : "Manually define the workflow name and description. You can design its steps later."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-grow overflow-y-auto p-1 space-y-4">
+        <div className="flex-grow overflow-y-auto p-1 space-y-4"> {/* Main content area */}
           {currentStep === 'aiSuggestion' && (
             <div className="p-3">
               <Form {...aiGoalForm}>
@@ -219,7 +220,7 @@ export default function AddWorkflowDialog({
                             <CheckSquare className="mr-2 h-4 w-4" /> Use Suggestion & Create
                         </Button>
                         <Button variant="outline" onClick={() => setCurrentStep('manualConfiguration')} disabled={isLoadingAISuggestion} className="flex-1">
-                            <Edit3 className="mr-2 h-4 w-4" /> Edit Manually
+                            <Edit3 className="mr-2 h-4 w-4" /> Edit/Configure Manually
                         </Button>
                      </div>
                   </CardContent>
@@ -246,7 +247,6 @@ export default function AddWorkflowDialog({
                       <FormMessage />
                     </FormItem>
                   )} />
-                  {/* Button will be in DialogFooter */}
                 </form>
               </Form>
             </div>
@@ -259,7 +259,6 @@ export default function AddWorkflowDialog({
              <Button type="button" variant="secondary" onClick={() => setCurrentStep('manualConfiguration')} disabled={isLoadingAISuggestion}>
               Configure Manually
             </Button>
-            // "Get AI Suggestion" button is inside the form now
           )}
           {currentStep === 'manualConfiguration' && (
             <Button type="submit" form="manualWorkflowForm">Create Workflow</Button>
