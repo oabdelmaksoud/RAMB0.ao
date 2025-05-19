@@ -85,4 +85,7 @@ const suggestProjectWorkflowFlow = ai.defineFlow(
         type: node.type || (input.existingAgentTypes?.[0] || "Generic Agent")
     }));
     
-    console.log("SUGGEST
+    console.log("SUGGEST_PROJECT_WORKFLOW_FLOW: Processed and returning output:", JSON.stringify(output, null, 2));
+    return output!;
+  }
+);
