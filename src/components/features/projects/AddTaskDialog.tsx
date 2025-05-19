@@ -13,23 +13,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useForm, SubmitHandler, Controller } from "react-hook-form";
+import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Task, Sprint } from '@/types'; // Added Sprint
+import type { Task, Sprint, TaskStatus as AppTaskStatus } from '@/types';
 import { format, isValid, parseISO } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea"; 
+import { taskStatuses } from "@/types";
 
 const NO_PARENT_VALUE = "__NO_PARENT_SELECTED__";
 const NO_SPRINT_VALUE = "__NO_SPRINT_SELECTED__";
 
 const taskSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title must be 100 characters or less"),
-  status: z.enum(['To Do', 'In Progress', 'Done', 'Blocked'], { required_error: "Status is required" }),
+  status: z.enum(taskStatuses as [AppTaskStatus, ...AppTaskStatus[]], { required_error: "Status is required" }),
   assignedTo: z.string().min(2, "Assignee must be at least 2 characters").max(50, "Assignee must be 50 characters or less"),
   startDate: z.string().optional().refine(val => !val || isValid(parseISO(val)), {
     message: "Start date must be a valid date (YYYY-MM-DD)."
@@ -40,7 +41,7 @@ const taskSchema = z.object({
   parentId: z.string().nullable().optional(),
   dependencies: z.array(z.string()).optional(),
   description: z.string().max(500, "Description must be 500 characters or less").optional(),
-  sprintId: z.string().nullable().optional(), // Added sprintId
+  sprintId: z.string().nullable().optional(),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -51,10 +52,8 @@ interface AddTaskDialogProps {
   onAddTask: (taskData: Omit<Task, 'id' | 'projectId' | 'isAiPlanned'>) => void;
   defaultStartDate?: string;
   projectTasks: Task[];
-  projectSprints: Sprint[]; // Added projectSprints
+  projectSprints: Sprint[];
 }
-
-const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
 export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultStartDate, projectTasks, projectSprints }: AddTaskDialogProps) {
   const form = useForm<TaskFormData>({
@@ -70,7 +69,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       parentId: NO_PARENT_VALUE,
       dependencies: [],
       description: "",
-      sprintId: NO_SPRINT_VALUE, // Default to no sprint
+      sprintId: NO_SPRINT_VALUE,
     },
   });
 
@@ -111,7 +110,7 @@ export default function AddTaskDialog({ open, onOpenChange, onAddTask, defaultSt
       parentId: data.parentId === NO_PARENT_VALUE ? null : data.parentId,
       dependencies: data.dependencies || [],
       description: data.description || "",
-      sprintId: data.sprintId === NO_SPRINT_VALUE ? null : data.sprintId, // Handle sprintId
+      sprintId: data.sprintId === NO_SPRINT_VALUE ? null : data.sprintId,
     };
     onAddTask(taskData);
     form.reset({ 

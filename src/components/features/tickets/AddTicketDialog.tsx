@@ -18,7 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Ticket, TicketStatus, TicketPriority, TicketType, Sprint } from '@/types'; // Added Sprint
+import type { Ticket, TicketStatus, TicketPriority, TicketType, Sprint } from '@/types';
 import { ticketTypes, ticketPriorities, ticketStatuses } from '@/types'; 
 
 const NO_SPRINT_VALUE = "__NO_SPRINT_SELECTED__";
@@ -30,7 +30,7 @@ const ticketSchema = z.object({
   priority: z.enum(ticketPriorities as [TicketPriority, ...TicketPriority[]], { required_error: "Priority is required" }),
   status: z.enum(ticketStatuses as [TicketStatus, ...TicketStatus[]], { required_error: "Status is required" }),
   assignee: z.string().optional(),
-  sprintId: z.string().nullable().optional(), // Added sprintId
+  sprintId: z.string().nullable().optional(),
 });
 
 type TicketFormData = z.infer<typeof ticketSchema>;
@@ -39,7 +39,7 @@ interface AddTicketDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddTicket: (ticketData: Omit<Ticket, 'id' | 'projectId' | 'createdDate' | 'updatedDate' | 'aiMetadata'>) => void;
-  projectSprints: Sprint[]; // Added projectSprints
+  projectSprints: Sprint[];
 }
 
 export default function AddTicketDialog({ open, onOpenChange, onAddTicket, projectSprints }: AddTicketDialogProps) {
@@ -52,7 +52,7 @@ export default function AddTicketDialog({ open, onOpenChange, onAddTicket, proje
       priority: 'Medium',
       status: 'Open',
       assignee: "",
-      sprintId: NO_SPRINT_VALUE, // Default to no sprint
+      sprintId: NO_SPRINT_VALUE,
     },
   });
 

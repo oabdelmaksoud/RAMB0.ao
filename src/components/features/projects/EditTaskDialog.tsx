@@ -19,19 +19,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel as RHFFormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Task, Sprint } from '@/types'; // Added Sprint
+import type { Task, Sprint, TaskStatus as AppTaskStatus } from '@/types';
 import { format, isValid, parseISO } from 'date-fns';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { Brain, Hand } from "lucide-react"; 
+import { taskStatuses } from "@/types";
 
 const NO_PARENT_VALUE = "__NO_PARENT_SELECTED__";
 const NO_SPRINT_VALUE = "__NO_SPRINT_SELECTED__";
 
 const taskSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters").max(100, "Title must be 100 characters or less"),
-  status: z.enum(['To Do', 'In Progress', 'Done', 'Blocked'], { required_error: "Status is required" }),
+  status: z.enum(taskStatuses as [AppTaskStatus, ...AppTaskStatus[]], { required_error: "Status is required" }),
   assignedTo: z.string().min(2, "Assignee must be at least 2 characters").max(50, "Assignee must be 50 characters or less"),
   startDate: z.string().optional().refine(val => !val || isValid(parseISO(val)), {
     message: "Start date must be a valid date (YYYY-MM-DD)."
@@ -43,7 +44,7 @@ const taskSchema = z.object({
   dependencies: z.array(z.string()).optional(),
   description: z.string().max(1000, "Description must be 1000 characters or less").optional(),
   isAiPlanned: z.boolean().optional(), 
-  sprintId: z.string().nullable().optional(), // Added sprintId
+  sprintId: z.string().nullable().optional(),
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -55,10 +56,8 @@ interface EditTaskDialogProps {
   onUpdateTask: (taskData: Task) => void;
   isReadOnly?: boolean;
   projectTasks: Task[];
-  projectSprints: Sprint[]; // Added projectSprints
+  projectSprints: Sprint[];
 }
-
-const taskStatuses: Task['status'][] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
 export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdateTask, isReadOnly = false, projectTasks, projectSprints }: EditTaskDialogProps) {
   const form = useForm<TaskFormData>({
@@ -183,7 +182,7 @@ export default function EditTaskDialog({ open, onOpenChange, taskToEdit, onUpdat
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[525px] max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{isReadOnly ? `View ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}` : `Edit ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}`}: {form.watch('title') || taskToEdit?.title}</DialogTitle>
+          <DialogTitle>{isReadOnly ? `View ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}` : `Edit ${taskToEdit?.isMilestone ? 'Milestone' : 'Task'}`}: {taskToEdit?.title}</DialogTitle>
           <DialogDescription>
             {isReadOnly ? `Viewing ${taskToEdit?.isMilestone ? 'milestone' : 'task'} details.` : `Update the details for this ${taskToEdit?.isMilestone ? 'milestone' : 'task'}. Click save when you're done.`}
           </DialogDescription>

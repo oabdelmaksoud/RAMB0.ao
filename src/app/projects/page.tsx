@@ -30,7 +30,7 @@ export const initialMockProjects: Project[] = [
     name: 'AI Powered Marketing Suite',
     description: 'Develop an integrated suite of marketing tools powered by generative AI to automate content creation and campaign management.',
     status: 'Active',
-    lastUpdated: '2024-07-20T10:00:00Z',
+    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(), // 2 days ago
     thumbnailUrl: 'https://placehold.co/600x400.png?text=AI+Marketing',
     agentCount: 5,
     workflowCount: 3,
@@ -40,7 +40,7 @@ export const initialMockProjects: Project[] = [
     name: 'Automated Financial Reporting',
     description: 'A system to automatically pull financial data from various sources, generate reports, and identify anomalies using intelligent agents.',
     status: 'Active',
-    lastUpdated: '2024-07-21T14:30:00Z',
+    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(), // 1 day ago
     thumbnailUrl: 'https://placehold.co/600x400.png?text=Fin+Reporting',
     agentCount: 3,
     workflowCount: 2,
@@ -50,7 +50,7 @@ export const initialMockProjects: Project[] = [
     name: 'E-commerce Platform Revamp',
     description: 'Complete overhaul of the existing e-commerce platform with a focus on UX, performance, and AI-driven personalization.',
     status: 'On Hold',
-    lastUpdated: '2024-06-15T09:00:00Z',
+    lastUpdated: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(), // 15 days ago
     thumbnailUrl: 'https://placehold.co/600x400.png?text=E-commerce',
     agentCount: 8,
     workflowCount: 5,
@@ -62,7 +62,7 @@ export const getTasksStorageKey = (projectId: string) => `ramboAgentTasks_projec
 export const getAgentsStorageKey = (projectId: string) => `ramboAgentAgents_project_${projectId}`;
 export const getWorkflowsStorageKey = (projectId: string) => `ramboAgentWorkflows_project_${projectId}`;
 export const getFilesStorageKey = (projectId: string) => `ramboAgentFiles_project_${projectId}`;
-export const getRequirementsStorageKey = (projectId: string) => `ramboAgentRequirementDocs_project_${projectId}`; // Changed from ramboAgentRequirements
+export const getRequirementsStorageKey = (projectId: string) => `ramboAgentRequirementDocs_project_${projectId}`;
 export const getTicketsStorageKey = (projectId: string) => `ramboAgentTickets_project_${projectId}`;
 export const getSprintsStorageKey = (projectId: string) => `ramboAgentSprints_project_${projectId}`;
 
@@ -87,34 +87,41 @@ export default function ProjectsPage() {
       if (storedProjects) {
         try {
           const parsedProjects = JSON.parse(storedProjects);
-          setProjects(parsedProjects);
-          console.log("PROJECTS_MANAGEMENT_PAGE: Loaded projects from localStorage:", parsedProjects.length);
+          if (Array.isArray(parsedProjects) && parsedProjects.length > 0) {
+            setProjects(parsedProjects);
+            console.log("PROJECTS_MANAGEMENT_PAGE: Loaded projects from localStorage:", parsedProjects.length);
+          } else {
+            setProjects(initialMockProjects); // Initialize with detailed mocks if localStorage is empty/invalid
+            console.log("PROJECTS_MANAGEMENT_PAGE: localStorage empty or invalid, initialized with mocks:", initialMockProjects.length);
+          }
         } catch (error) {
           console.error("PROJECTS_MANAGEMENT_PAGE: Error parsing projects from localStorage, using initial mocks.", error);
           setProjects(initialMockProjects);
         }
       } else {
-        console.log("PROJECTS_MANAGEMENT_PAGE: No projects in localStorage, using initial mocks (will be saved by next effect).");
-        setProjects(initialMockProjects); // Initialize with mocks if localStorage is empty
+        console.log("PROJECTS_MANAGEMENT_PAGE: No projects in localStorage, using initial mocks.");
+        setProjects(initialMockProjects);
       }
     }
   }, [isClient]);
 
   useEffect(() => {
-    if (isClient && projects.length > 0) { // Only save if there are projects to prevent overwriting with empty array on initial load before client check
+    if (isClient && projects.length > 0) {
       console.log("PROJECTS_MANAGEMENT_PAGE: Attempting to save projects to localStorage. Current projects count:", projects.length);
       localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
       console.log("PROJECTS_MANAGEMENT_PAGE: Successfully saved projects to localStorage.");
     } else if (isClient && projects.length === 0 && localStorage.getItem(PROJECTS_STORAGE_KEY)) {
-        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify([])); // Save empty if all deleted
+        // If all projects are deleted, clear the projects key or save an empty array
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify([]));
+        console.log("PROJECTS_MANAGEMENT_PAGE: All projects deleted, saved empty array to localStorage.");
     }
   }, [projects, isClient]);
 
 
   const createInitialFilesRecursive = useCallback((files: ProjectTemplate['initialFiles'], currentPath: string, projectId: string): ProjectFile[] => {
     if (!files || !Array.isArray(files)) return [];
-    return files.map(fileTemplate => {
-      const fileId = uid(`projfile-${projectId.slice(-4)}-${fileTemplate.name.replace(/\s+/g, '-').toLowerCase()}`);
+    return files.map((fileTemplate, index) => {
+      const fileId = uid(`projfile-${projectId.slice(-4)}-${fileTemplate.name.replace(/\s+/g, '-').toLowerCase()}-${index}`);
       const newFile: ProjectFile = {
         id: fileId,
         name: fileTemplate.name,
@@ -122,14 +129,14 @@ export default function ProjectsPage() {
         path: currentPath,
         lastModified: new Date().toISOString(),
         content: fileTemplate.type === 'file' ? (fileTemplate.content || `// Placeholder for ${fileTemplate.name}`) : undefined,
-        children: fileTemplate.type === 'folder' ? createInitialFilesRecursive(fileTemplate.children || [], `${currentPath}${fileTemplate.name}/`, projectId) : undefined,
+        children: fileTemplate.type === 'folder' ? createInitialFilesRecursive(fileTemplate.children || [], `${currentPath}${fileTemplate.name}/`, projectId) : [],
         size: fileTemplate.type === 'file' ? `${Math.floor(Math.random() * 100) + 1}KB` : undefined,
       };
       return newFile;
     });
   }, []);
 
-  const handleAddProject = useCallback((projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'thumbnailUrl' | 'agentCount' | 'workflowCount'>, templateId?: string) => {
+  const handleAddProject = useCallback((projectData: Omit<Project, 'id' | 'status' | 'lastUpdated' | 'agentCount' | 'workflowCount'>, templateId?: string) => {
     console.log("PROJECTS_MANAGEMENT_PAGE: handleAddProject called with data:", projectData, "and templateId:", templateId);
     const newProject: Project = {
       ...projectData,
@@ -137,8 +144,8 @@ export default function ProjectsPage() {
       status: 'Active',
       lastUpdated: new Date().toISOString(),
       thumbnailUrl: `https://placehold.co/600x400.png?text=${encodeURIComponent(projectData.name.substring(0,20))}`,
-      agentCount: 0, // Will be updated if template has agents
-      workflowCount: 0, // Will be updated if template has workflows
+      agentCount: 0, 
+      workflowCount: 0, 
     };
 
     const selectedTemplate = mockProjectTemplates.find(t => t.id === templateId);
@@ -164,8 +171,8 @@ export default function ProjectsPage() {
             parentId: taskTemplate.parentId || null,
             dependencies: taskTemplate.dependencies || [],
             description: taskTemplate.description || `Initial task from ${selectedTemplate.name} template.`,
-            isAiPlanned: false,
-            sprintId: null, // Initialize sprintId
+            isAiPlanned: false, 
+            sprintId: null,
           });
         });
       }
@@ -178,12 +185,12 @@ export default function ProjectsPage() {
     }
     
     localStorage.setItem(getTasksStorageKey(newProject.id), JSON.stringify(initialTasksForProject));
-    localStorage.setItem(getAgentsStorageKey(newProject.id), JSON.stringify([])); // Start with no project-specific agents, user can add
-    localStorage.setItem(getWorkflowsStorageKey(newProject.id), JSON.stringify([])); // Default workflows will be added by ProjectDetailPage if this is empty
+    localStorage.setItem(getAgentsStorageKey(newProject.id), JSON.stringify([])); 
+    localStorage.setItem(getWorkflowsStorageKey(newProject.id), JSON.stringify([])); 
     localStorage.setItem(getFilesStorageKey(newProject.id), JSON.stringify(initialFilesForProject));
-    localStorage.setItem(getRequirementsStorageKey(newProject.id), JSON.stringify([])); // Start with empty ASPICE folder structure
-    localStorage.setItem(getTicketsStorageKey(newProject.id), JSON.stringify([])); // Start with no tickets
-    localStorage.setItem(getSprintsStorageKey(newProject.id), JSON.stringify([])); // Start with no sprints, ProjectDetailPage will add defaults
+    localStorage.setItem(getRequirementsStorageKey(newProject.id), JSON.stringify([])); 
+    localStorage.setItem(getTicketsStorageKey(newProject.id), JSON.stringify([])); 
+    localStorage.setItem(getSprintsStorageKey(newProject.id), JSON.stringify([]));
 
 
     setProjects(prevProjects => [newProject, ...prevProjects]);

@@ -143,6 +143,6 @@ export interface ProjectTemplate {
   id: string;
   name: string;
   description: string;
-  initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId'>>>;
+  initialTasks?: Array<Partial<Omit<Task, 'id' | 'projectId' | 'isAiPlanned' | 'sprintId'>>>;
   initialFiles?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'children' | 'content'> & { children?: Array<Omit<ProjectFile, 'id' | 'path' | 'lastModified' | 'size' | 'content'>>, content?: string; }>;
 }
