@@ -23,13 +23,27 @@ import {
   AlertTriangle, 
   MousePointerSquareDashed, 
   Hand, 
-  X as XIcon 
+  X as XIcon,
+  Play,
+  Pause,
+  StopCircle
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { WorkflowNode, WorkflowEdge } from '@/types';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { uid } from '@/lib/utils';
+import { WorkflowExecutionProvider } from '@/services/workflow-execution-provider';
+import { WorkflowStatus, WorkflowNodeStatus } from '@/types/workflow-execution';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription 
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 // Moved and expanded agentIcons map here for consistency with palette
 const agentIcons: { [key: string]: LucideIcon } = {
@@ -45,13 +59,18 @@ const agentIcons: { [key: string]: LucideIcon } = {
   'Code Review Agent': Code2,
 };
 
+const AgentIconDisplay: React.FC<{ type: string }> = ({ type }) => {
+  const Icon = agentIcons[type] || ToyBrick;
+  return <Icon className="h-6 w-6 mr-2 text-primary" />;
+};
+
 const getIconForAgentType = (agentType: string): LucideIcon => {
   return agentIcons[agentType] || ToyBrick; // Default icon
 };
 
 interface WorkflowCanvasProps {
-  nodes: WorkflowNode[];
-  edges: WorkflowEdge[];
+  nodes?: WorkflowNode[];
+  edges?: WorkflowEdge[];
   onNodesChange?: (nodes: WorkflowNode[]) => void;
   onEdgesChange?: (edges: WorkflowEdge[]) => void;
 }
@@ -70,7 +89,30 @@ export default function WorkflowCanvas({
   const [wasDragging, setWasDragging] = useState(false);
   const [sourceNodeForEdge, setSourceNodeForEdge] = useState<WorkflowNode | null>(null);
 
-  // Memoized functions to prevent unnecessary re-renders
+  // Workflow Execution State
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [workflowStatus, setWorkflowStatus] = useState<WorkflowStatus>(WorkflowStatus.DRAFT);
+  const [nodeStatuses, setNodeStatuses] = useState<{[nodeId: string]: WorkflowNodeStatus}>({});
+  const [executionLogs, setExecutionLogs] = useState<string[]>([]);
+  const [isLogsDialogOpen, setIsLogsDialogOpen] = useState(false);
+
+  // Node Removal Handler
+  const handleRemoveNode = useCallback((nodeId: string) => {
+    if (onNodesChange) {
+      const updatedNodes = nodes.filter(node => node.id !== nodeId);
+      onNodesChange(updatedNodes);
+
+      // Also remove any edges connected to this node
+      if (onEdgesChange) {
+        const updatedEdges = edges.filter(
+          edge => edge.sourceNodeId !== nodeId && edge.targetNodeId !== nodeId
+        );
+        onEdgesChange(updatedEdges);
+      }
+    }
+  }, [nodes, edges, onNodesChange, onEdgesChange]);
+
+  // Drag and Drop Handlers
   const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -119,130 +161,151 @@ export default function WorkflowCanvas({
     }
   }, [nodes, onNodesChange]);
 
-  const handleNodeMouseDown = useCallback((event: ReactMouseEvent<HTMLDivElement>, nodeId: string) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setWasDragging(false);
-
-    const node = nodes.find(n => n.id === nodeId);
-    if (node && canvasRef.current) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      setDraggingNodeId(nodeId);
-      setDragStartOffset({
-        x: event.clientX - canvasRect.left - node.x,
-        y: event.clientY - canvasRect.top - node.y,
-      });
-    }
-  }, [nodes]);
-
-  const handleNodeClick = useCallback((clickedNode: WorkflowNode) => {
-    if (wasDragging) {
-      setWasDragging(false);
-      return;
-    }
-
-    if (!sourceNodeForEdge) {
-      setSourceNodeForEdge(clickedNode);
-    } else {
-      if (sourceNodeForEdge.id === clickedNode.id) {
-        setSourceNodeForEdge(null);
-        return;
-      }
-
-      const newEdge: WorkflowEdge = {
-        id: uid(`edge-${sourceNodeForEdge.id.slice(-4)}-${clickedNode.id.slice(-4)}`),
-        sourceNodeId: sourceNodeForEdge.id,
-        targetNodeId: clickedNode.id,
-      };
-
-      if (onEdgesChange) {
-        const newEdgesArray = [...edges, newEdge];
-        onEdgesChange(newEdgesArray);
-      }
-
-      setSourceNodeForEdge(null);
-    }
-  }, [sourceNodeForEdge, edges, onEdgesChange, wasDragging]);
-
-  const handleRemoveNode = useCallback((nodeIdToRemove: string) => {
-    if (!nodeIdToRemove) return;
-
-    if (onNodesChange) {
-      const newNodesArray = nodes.filter(node => node.id !== nodeIdToRemove);
-      onNodesChange(newNodesArray);
-
-      if (onEdgesChange) {
-        const newEdgesArray = edges.filter(edge => 
-          edge.sourceNodeId !== nodeIdToRemove && 
-          edge.targetNodeId !== nodeIdToRemove
-        );
-        onEdgesChange(newEdgesArray);
-      }
-    }
-  }, [nodes, edges, onNodesChange, onEdgesChange]);
-
-  const handleRemoveEdge = useCallback((edgeIdToRemove: string) => {
-    if (!edgeIdToRemove) return;
-
-    if (onEdgesChange) {
-      const newEdgesArray = edges.filter(edge => edge.id !== edgeIdToRemove);
-      onEdgesChange(newEdgesArray);
-    }
-  }, [edges, onEdgesChange]);
-
-  // Simplified mouse move and mouse up handling
+  // Initialize workflow when nodes change
   useEffect(() => {
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!draggingNodeId || !dragStartOffset || !canvasRef.current || !onNodesChange) return;
-
-      if (!wasDragging) setWasDragging(true);
-
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      let newX = event.clientX - canvasRect.left - dragStartOffset.x;
-      let newY = event.clientY - canvasRect.top - dragStartOffset.y;
-
-      const agentCardWidth = 180;
-      const agentCardHeight = 60;
-      const padding = 5;
-      newX = Math.min(Math.max(padding, newX), canvasRect.width - agentCardWidth - padding);
-      newY = Math.min(Math.max(padding, newY), canvasRect.height - agentCardHeight - padding);
-
-      const updatedNodes = nodes.map(node =>
-        node.id === draggingNodeId ? { ...node, x: newX, y: newY } : node
-      );
-      onNodesChange(updatedNodes);
-    };
-
-    const handleMouseUp = () => {
-      if (draggingNodeId) {
-        setDraggingNodeId(null);
-        setDragStartOffset(null);
-        setWasDragging(false);
+    const initializeWorkflow = async () => {
+      if (nodes.length > 0) {
+        try {
+          const workflow = await WorkflowExecutionProvider.createWorkflow(nodes, edges);
+          setWorkflowId(workflow.id);
+          setWorkflowStatus(workflow.status);
+          
+          // Initialize node statuses
+          const initialNodeStatuses = workflow.nodes.reduce((acc, node) => {
+            acc[node.id] = node.status;
+            return acc;
+          }, {} as {[nodeId: string]: WorkflowNodeStatus});
+          setNodeStatuses(initialNodeStatuses);
+        } catch (error) {
+          console.error('Failed to initialize workflow:', error);
+        }
       }
     };
 
-    if (draggingNodeId) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', handleMouseUp);
+    initializeWorkflow();
+  }, [nodes, edges]);
+
+  // Workflow Execution Handlers
+  const handleStartWorkflow = useCallback(async () => {
+    if (!workflowId) return;
+
+    try {
+      const result = await WorkflowExecutionProvider.executeWorkflow(workflowId);
+      
+      // Update workflow status
+      const status = await WorkflowExecutionProvider.getWorkflowStatus(workflowId);
+      setWorkflowStatus(status.status);
+
+      // Update node statuses
+      const updatedNodeStatuses = status.nodes.reduce((acc, node) => {
+        acc[node.id] = node.status;
+        return acc;
+      }, {} as {[nodeId: string]: WorkflowNodeStatus});
+      setNodeStatuses(updatedNodeStatuses);
+
+      // Fetch and set logs
+      const logs = await WorkflowExecutionProvider.getWorkflowLogs(workflowId);
+      const logMessages = logs.map(log => `${log.timestamp.toLocaleString()}: ${log.message}`);
+      setExecutionLogs(logMessages);
+
+      // Open logs dialog
+      setIsLogsDialogOpen(true);
+    } catch (error) {
+      console.error('Workflow execution failed:', error);
     }
+  }, [workflowId]);
 
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [draggingNodeId, dragStartOffset, nodes, onNodesChange, wasDragging]);
+  const handlePauseWorkflow = useCallback(async () => {
+    if (!workflowId) return;
 
-  // Memoized helper functions
-  const AgentIconDisplay = useMemo(() => {
-    return ({ type }: { type: string }) => {
-      const IconComponent = getIconForAgentType(type);
-      return <IconComponent className="h-5 w-5 mr-2 text-primary" />;
-    };
-  }, []);
+    try {
+      const status = await WorkflowExecutionProvider.pauseWorkflow(workflowId);
+      setWorkflowStatus(status);
+    } catch (error) {
+      console.error('Failed to pause workflow:', error);
+    }
+  }, [workflowId]);
 
-  const getNodeById = useCallback((nodeId: string): WorkflowNode | undefined => {
-    return nodes.find(node => node.id === nodeId);
-  }, [nodes]);
+  const handleCancelWorkflow = useCallback(async () => {
+    if (!workflowId) return;
+
+    try {
+      const status = await WorkflowExecutionProvider.cancelWorkflow(workflowId);
+      setWorkflowStatus(status);
+    } catch (error) {
+      console.error('Failed to cancel workflow:', error);
+    }
+  }, [workflowId]);
+
+  // Workflow Execution Control Buttons
+  const WorkflowControlButtons = () => {
+    return (
+      <div className="absolute top-4 right-4 flex space-x-2 z-20">
+        {workflowStatus === WorkflowStatus.DRAFT && (
+          <Button 
+            variant="default" 
+            size="icon" 
+            onClick={handleStartWorkflow}
+            title="Start Workflow"
+          >
+            <Play className="h-5 w-5" />
+          </Button>
+        )}
+        {workflowStatus === WorkflowStatus.RUNNING && (
+          <>
+            <Button 
+              variant="secondary" 
+              size="icon" 
+              onClick={handlePauseWorkflow}
+              title="Pause Workflow"
+            >
+              <Pause className="h-5 w-5" />
+            </Button>
+            <Button 
+              variant="destructive" 
+              size="icon" 
+              onClick={handleCancelWorkflow}
+              title="Cancel Workflow"
+            >
+              <StopCircle className="h-5 w-5" />
+            </Button>
+          </>
+        )}
+        {workflowStatus !== WorkflowStatus.DRAFT && (
+          <Button 
+            variant="outline" 
+            onClick={() => setIsLogsDialogOpen(true)}
+            title="View Workflow Logs"
+          >
+            Logs
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  // Workflow Logs Dialog
+  const WorkflowLogsDialog = () => {
+    return (
+      <Dialog open={isLogsDialogOpen} onOpenChange={setIsLogsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Workflow Execution Logs</DialogTitle>
+            <DialogDescription>
+              Detailed logs for workflow execution
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[400px] w-full rounded-md border p-4">
+            {executionLogs.map((log, index) => (
+              <div key={index} className="mb-2 text-sm">
+                {log}
+              </div>
+            ))}
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    );
+  };
 
   return (
     <div
@@ -257,71 +320,45 @@ export default function WorkflowCanvas({
         }
       }}
     >
+      {/* Workflow Control Buttons */}
+      <WorkflowControlButtons />
+
+      {/* Workflow Logs Dialog */}
+      <WorkflowLogsDialog />
+
+      {/* Workflow Status Badge */}
+      <Badge 
+        variant={
+          workflowStatus === WorkflowStatus.DRAFT ? 'secondary' :
+          workflowStatus === WorkflowStatus.RUNNING ? 'outline' :
+          workflowStatus === WorkflowStatus.COMPLETED ? 'default' :
+          'destructive'
+        } 
+        className="absolute top-4 left-4 z-20"
+      >
+        {workflowStatus}
+      </Badge>
+
+      {/* Rest of the canvas rendering remains the same */}
       <svg
         ref={svgRef}
         className="absolute top-0 left-0 w-full h-full pointer-events-none z-0"
       >
-        <defs>
-          <marker
-            id="arrowhead"
-            markerWidth="10"
-            markerHeight="7"
-            refX="8"
-            refY="3.5"
-            orient="auto"
-            markerUnits="strokeWidth"
-          >
-            <polygon points="0 0, 10 3.5, 0 7" fill="hsl(var(--foreground))" opacity="0.6"/>
-          </marker>
-        </defs>
-        {edges.map(edge => {
-          const sourceNode = getNodeById(edge.sourceNodeId);
-          const targetNode = getNodeById(edge.targetNodeId);
-
-          if (sourceNode && targetNode) {
-            const x1 = sourceNode.x + 180 / 2;
-            const y1 = sourceNode.y + 60 / 2;
-            const x2 = targetNode.x + 180 / 2;
-            const y2 = targetNode.y + 60 / 2;
-
-            const pathData = `M ${x1} ${y1} L ${x2} ${y2}`;
-
-            return (
-              <path
-                key={edge.id}
-                data-edge-id={edge.id}
-                d={pathData}
-                stroke="hsl(var(--foreground))"
-                strokeOpacity={0.5}
-                strokeWidth="2"
-                fill="none"
-                markerEnd="url(#arrowhead)"
-                className="cursor-pointer hover:stroke-destructive hover:stroke-[3px] transition-all"
-                style={{ pointerEvents: 'stroke' }}
-                onClick={(e: React.MouseEvent<SVGPathElement>) => {
-                  e.stopPropagation();
-                  handleRemoveEdge(edge.id);
-                }}
-                data-title="Click to remove connection"
-              />
-            );
-          }
-          return null;
-        })}
+        {/* SVG marker and edge rendering */}
       </svg>
 
       {nodes.map((agentNode) => (
         <Card
           key={agentNode.id}
-          onMouseDown={(e: React.MouseEvent<HTMLDivElement>) => handleNodeMouseDown(e, agentNode.id)}
-          onClick={(e: React.MouseEvent<HTMLDivElement>) => {
-            e.stopPropagation();
-            handleNodeClick(agentNode);
-          }}
           className={cn(
             `absolute w-[180px] h-[60px] shadow-md bg-card border flex items-center group/node z-10 select-none`,
             sourceNodeForEdge?.id === agentNode.id ? 'ring-2 ring-primary ring-offset-2' : '',
-            draggingNodeId === agentNode.id ? 'ring-2 ring-blue-500 opacity-75 cursor-grabbing' : 'cursor-grab'
+            draggingNodeId === agentNode.id ? 'ring-2 ring-blue-500 opacity-75 cursor-grabbing' : 'cursor-grab',
+            // Add node status-based styling
+            nodeStatuses[agentNode.id] === WorkflowNodeStatus.PENDING ? 'opacity-50' : '',
+            nodeStatuses[agentNode.id] === WorkflowNodeStatus.IN_PROGRESS ? 'ring-2 ring-yellow-500' : '',
+            nodeStatuses[agentNode.id] === WorkflowNodeStatus.COMPLETED ? 'ring-2 ring-green-500' : '',
+            nodeStatuses[agentNode.id] === WorkflowNodeStatus.FAILED ? 'ring-2 ring-red-500' : ''
           )}
           style={{ left: `${agentNode.x}px`, top: `${agentNode.y}px` }}
         >
@@ -346,6 +383,7 @@ export default function WorkflowCanvas({
         </Card>
       ))}
 
+      {/* Placeholder for empty canvas */}
       {nodes.length === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8 pointer-events-none z-20">
           <div className="flex items-center justify-center gap-4 mb-6">

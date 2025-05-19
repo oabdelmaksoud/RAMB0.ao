@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail as firebaseSendPasswordResetEmail
+  sendPasswordResetEmail
 } from 'firebase/auth';
 
 // Prevent multiple server-side initializations
@@ -25,7 +25,7 @@ if (!admin.apps.length) {
   }
 }
 
-export const adminAuth = admin.auth();
+// Directly use admin.auth() instead of assigning it to adminAuth
 export const adminFirestore = admin.firestore();
 
 // Authentication Service
@@ -33,7 +33,7 @@ export const AuthService = {
   // Create a new user with email and password
   async createUser(email: string, password: string, displayName?: string) {
     try {
-      const userRecord = await adminAuth.createUser({
+      const userRecord = await admin.auth().createUser({
         email,
         password,
         displayName,
@@ -47,7 +47,8 @@ export const AuthService = {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         roles: ['user'], // Default role
         status: 'active',
-        lastLogin: null
+        lastLogin: null,
+        profileCompleted: false
       });
 
       return userRecord;
@@ -60,7 +61,7 @@ export const AuthService = {
   // Verify and decode Firebase ID token
   async verifyIdToken(token: string) {
     try {
-      return await adminAuth.verifyIdToken(token);
+      return await admin.auth().verifyIdToken(token);
     } catch (error) {
       console.error('Error verifying ID token:', error);
       return null;
@@ -113,7 +114,7 @@ export const AuthService = {
   // Password reset with comprehensive error handling
   async sendPasswordResetEmail(email: string) {
     try {
-      const link = await adminAuth.generatePasswordResetLink(email);
+      const link = await admin.auth().generatePasswordResetLink(email);
       // Implement email sending logic here (e.g., using Nodemailer or a transactional email service)
       return link;
     } catch (error) {
@@ -126,14 +127,19 @@ export const AuthService = {
   async updateUserProfile(uid: string, updates: {
     displayName?: string;
     photoURL?: string;
+    profileCompleted?: boolean;
   }) {
     try {
-      await adminAuth.updateUser(uid, updates);
+      await admin.auth().updateUser(uid, {
+        displayName: updates.displayName,
+        photoURL: updates.photoURL
+      });
       
-      // Update Firestore document if additional fields are updated
+      // Update Firestore document with additional fields
       const updateData: Record<string, any> = {};
       if (updates.displayName) updateData.displayName = updates.displayName;
       if (updates.photoURL) updateData.photoURL = updates.photoURL;
+      if (updates.profileCompleted !== undefined) updateData.profileCompleted = updates.profileCompleted;
 
       if (Object.keys(updateData).length > 0) {
         await adminFirestore.collection('users').doc(uid).update(updateData);
@@ -143,6 +149,44 @@ export const AuthService = {
     } catch (error) {
       console.error('Error updating user profile:', error);
       throw new Error(`Profile update failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
+
+  // Deactivate user account
+  async deactivateUser(uid: string) {
+    try {
+      // Disable the user's account in Firebase Auth
+      await adminAuth.updateUser(uid, { disabled: true });
+
+      // Update user status in Firestore
+      await adminFirestore.collection('users').doc(uid).update({
+        status: 'inactive',
+        deactivatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+      throw new Error(`User deactivation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  },
+
+  // Reactivate user account
+  async reactivateUser(uid: string) {
+    try {
+      // Enable the user's account in Firebase Auth
+      await adminAuth.updateUser(uid, { disabled: false });
+
+      // Update user status in Firestore
+      await adminFirestore.collection('users').doc(uid).update({
+        status: 'active',
+        reactivatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error reactivating user:', error);
+      throw new Error(`User reactivation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 };
@@ -167,5 +211,5 @@ export const clientAuthHelpers = {
   signUp: createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail: firebaseSendPasswordResetEmail
+  sendPasswordResetEmail
 };
