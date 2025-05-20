@@ -4,10 +4,10 @@ import { User, UserRole } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateUserInput } from './dto/create-user.input';
 import { UpdateUserInput } from './dto/update-user.input';
-import { GqlAuthGuard } from '@common/guards/gql-auth.guard';
-import { Roles } from '@common/decorators/roles.decorator';
-import { RolesGuard } from '@common/guards/roles.guard';
-import { CurrentUser } from '@common/decorators/current-user.decorator';
+import { GqlAuthGuard } from '../../common/guards/gql-auth.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @Resolver('User')
 export class UsersResolver {

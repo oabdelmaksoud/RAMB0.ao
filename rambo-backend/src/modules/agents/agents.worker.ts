@@ -25,14 +25,34 @@ export class AgentsWorker extends WorkerHost {
         data: { status: 'RUNNING', startedAt: new Date() }
       });
 
-      // TODO: Implement actual agent processing logic here
-      // This would involve:
-      // 1. Determining agent type based on node config
-      // 2. Executing appropriate agent logic
-      // 3. Handling results/errors
+      // Get node details
+      const node = await this.prisma.workflowNode.findUnique({
+        where: { id: nodeId },
+        include: { workflow: true }
+      });
 
-      // Simulate processing delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!node) {
+        throw new Error(`Node ${nodeId} not found`);
+      }
+
+      // Parse node config
+      const config = JSON.parse(node.config);
+      
+      // Execute based on agent type
+      let result;
+      switch(node.type) {
+        case 'ANALYSIS':
+          result = await this.executeAnalysisAgent(config, parameters);
+          break;
+        case 'DOCUMENTATION':
+          result = await this.executeDocumentationAgent(config, parameters);
+          break;
+        case 'DEPLOYMENT':
+          result = await this.executeDeploymentAgent(config, parameters);
+          break;
+        default:
+          throw new Error(`Unknown agent type: ${node.type}`);
+      }
 
       // Update node execution status to COMPLETED
       await this.prisma.workflowNodeExecution.update({
@@ -44,7 +64,7 @@ export class AgentsWorker extends WorkerHost {
         }
       });
 
-      return { success: true };
+      return result;
     } catch (error) {
       // Update node execution status to FAILED
       await this.prisma.workflowNodeExecution.update({
