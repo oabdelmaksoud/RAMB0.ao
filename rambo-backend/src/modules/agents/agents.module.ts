@@ -24,7 +24,7 @@ import { AgentsWorker } from './agents.worker';
       inject: [ConfigService],
     }),
     BullModule.registerQueue({
-      name: 'agent-jobs',
+      name: 'analysis-jobs',
     }),
   ],
   controllers: [AgentsController],

@@ -1,98 +1,61 @@
-import { Worker, Job } from 'bullmq';
-import { Injectable, OnModuleInit } from '@nestjs/common';
-import { AgentsService } from './agents.service';
-import { WorkflowExecutionNode } from '../../../../src/types/workflow-execution';
-import { Agent } from '../../../../src/types/index';
-import { summarizeAgentPerformanceFlow } from '../../../../src/ai/flows/summarize-agent-performance';
-import { generateRequirementDocFlow } from '../../../../src/ai/flows/generate-requirement-doc-flow';
-
-class AnalysisAgent implements Agent {
-  async execute(node: WorkflowExecutionNode) {
-    if (node.type === 'requirements-analysis') {
-      return await summarizeAgentPerformanceFlow({
-        requirements: node.config?.requirements || '',
-        codebase: node.config?.codebase || ''
-      });
-    }
-    throw new Error(`Unsupported node type: ${node.type}`);
-  }
-}
-
-class DocumentationAgent implements Agent {
-  async execute(node: WorkflowExecutionNode) {
-    if (node.type === 'generate-documentation') {
-      return await generateRequirementDocFlow({
-        requirements: node.config?.requirements || '',
-        technicalSpecs: node.config?.specs || ''
-      });
-    }
-    throw new Error(`Unsupported node type: ${node.type}`);
-  }
-}
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Job } from 'bullmq';
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class AgentsWorker implements OnModuleInit {
-  private worker: Worker;
-
-  constructor(private readonly agentsService: AgentsService) {}
-
-  onModuleInit() {
-    this.worker = new Worker(
-      'agent-jobs',
-      async (job: Job<{ node: WorkflowExecutionNode }>) => {
-        const { node } = job.data;
-        let agent = this.agentsService.getAgent(node.agent?.id || '');
-        
-        if (!agent) {
-          // Create appropriate agent based on node type
-          switch(node.type) {
-            case 'requirements-analysis':
-              agent = new AnalysisAgent();
-              break;
-            case 'generate-documentation':
-              agent = new DocumentationAgent();
-              break;
-            default:
-              throw new Error(`No agent available for node type: ${node.type}`);
-          }
-        }
-
-        if (!agent) {
-          throw new Error(`No agent found for node ${node.id}`);
-        }
-
-        try {
-          // Execute agent-specific logic
-          const result = await agent.execute(node);
-
-          return {
-            success: true,
-            nodeId: node.id,
-            result,
-          };
-        } catch (error) {
-          throw error; // Will trigger retry if configured
-        }
-      },
-      {
-        connection: {
-          host: 'localhost',
-          port: 6379,
-        },
-        concurrency: 5,
-      }
-    );
-
-    this.worker.on('completed', (job) => {
-      console.log(`Job ${job.id} completed`);
-    });
-
-    this.worker.on('failed', (job, err) => {
-      console.error(`Job ${job?.id} failed:`, err);
-    });
+@Processor('analysis-jobs')
+export class AgentsWorker extends WorkerHost {
+  constructor(private readonly prisma: PrismaService) {
+    super();
   }
 
-  onApplicationShutdown() {
-    return this.worker.close();
+  async process(job: Job<{
+    workflowId: string;
+    executionId: string;
+    nodeId: string;
+    parameters: Record<string, any>;
+  }>) {
+    try {
+      const { workflowId, executionId, nodeId, parameters } = job.data;
+
+      // Update node execution status to RUNNING
+      await this.prisma.workflowNodeExecution.update({
+        where: { executionId_nodeId: { executionId, nodeId } },
+        data: { status: 'RUNNING', startedAt: new Date() }
+      });
+
+      // TODO: Implement actual agent processing logic here
+      // This would involve:
+      // 1. Determining agent type based on node config
+      // 2. Executing appropriate agent logic
+      // 3. Handling results/errors
+
+      // Simulate processing delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Update node execution status to COMPLETED
+      await this.prisma.workflowNodeExecution.update({
+        where: { executionId_nodeId: { executionId, nodeId } },
+        data: { 
+          status: 'COMPLETED',
+          completedAt: new Date(),
+          result: JSON.stringify({ success: true })
+        }
+      });
+
+      return { success: true };
+    } catch (error) {
+      // Update node execution status to FAILED
+      await this.prisma.workflowNodeExecution.update({
+        where: { executionId_nodeId: { executionId: job.data.executionId, nodeId: job.data.nodeId } },
+        data: { 
+          status: 'FAILED',
+          completedAt: new Date(),
+          error: error.message
+        }
+      });
+      throw error;
+    }
   }
 }

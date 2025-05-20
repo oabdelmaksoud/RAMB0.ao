@@ -20,4 +20,23 @@ export class WorkflowExecutionController {
       executeDto
     );
   }
+
+  @Post('accept')
+  async acceptAndExecute(
+    @Param('projectId') projectId: string,
+    @Param('workflowId') workflowId: string,
+    @Body() executeDto: ExecuteWorkflowDto
+  ) {
+    // Immediately execute workflow when accepted
+    const execution = await this.workflowExecutionService.executeWorkflow(
+      projectId,
+      workflowId,
+      executeDto
+    );
+
+    return {
+      ...execution,
+      message: 'Workflow accepted and execution started'
+    };
+  }
 }
