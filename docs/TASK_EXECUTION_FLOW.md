@@ -187,6 +187,7 @@ The following Prisma models are central to the task lifecycle, from initial plan
 *   **`WorkflowEdge`**: Defines the directed connections or transitions between `WorkflowNodes` within a `Workflow`. These edges determine the sequence of operations and can include conditions for progressing from one node to the next.
 *   **`Agent`**: Stores critical information about the AI agents available to the system. This includes the `type` of agent (which links to `WorkflowNode.type`), its configuration parameters (`config`), and potentially metadata about its capabilities or the Genkit flows it uses.
 *   **`User`**: Represents the human users who interact with the system. This model is used for assigning tasks, defining ownership, and managing permissions.
+*   **`McpServer`**: Stores registration and configuration details for Model Context Protocol (MCP) servers, which agents can leverage as tools. Key fields include `name`, `baseUrl`, `protocolDetails` (defining communication specifics like HTTP method, paths, request/error structures), `capabilities`, and `status`.
 
 ## 2. Logging Strategy
 
@@ -392,9 +393,53 @@ The `invokeScriptRunnerAgent(agentConfig: any, nodeInput: any, logContext: LogCo
 *   Principle of least privilege for file system access and network capabilities of the script.
 *   Auditing and monitoring of script executions.
 
-## 3. Modified `dispatchAgentTask` Method
+## 3. Agent Type: `mcpClientAgent` (Implemented)
 
-The `dispatchAgentTask` method in `ProductionWorkflowExecutionService.ts` would be updated as follows:
+### a. Purpose
+Enables workflows to interact with registered Model Context Protocol (MCP) servers, allowing structured communication with various AI models and tools that expose an MCP-compatible interface.
+
+### b. Implementation Status & Details
+The `invokeMcpClientAgent` method is implemented within `ProductionWorkflowExecutionService`. It:
+*   Fetches `McpServer` registration details (including `baseUrl` and `protocolDetails`) from the database using the `McpServersService`.
+*   Constructs HTTP requests based on the server's `protocolDetails` (e.g., specific paths, HTTP method, request/error structure) and the node's input data. `protocolDetails` can be overridden by `nodeInput.overrideProtocolDetails`.
+*   Uses `axios` for communication.
+*   Handles various response types (`json`, `text`, `binary_base64`) as specified in `agentConfig.expectedResponseType` or `McpServer.protocolDetails`.
+*   Provides detailed logging and structured success/error return objects.
+
+### c. `Agent.config` Example for `mcpClientAgent`
+```json
+{
+  "mcpServerId": "some-registered-mcp-server-id", 
+  "mcpServerName": "MyFriendlyMCP", 
+  "mcpRequestPath": "/invoke", 
+  "expectedResponseType": "json" 
+}
+```
+*   `mcpServerId` or `mcpServerName`: Identifies the target `McpServer` registered in the database. One of these is required.
+*   `mcpRequestPath`: (Optional) Specific path for the MCP request on the server (e.g., "/invoke", "/generate"). Defaults to `/mcp` or a path defined in the `McpServer.protocolDetails.defaultPath`.
+*   `expectedResponseType`: (Optional) Specifies how to parse the MCP server's response. Can be "json" (default), "text", or "binary_base64".
+
+### d. `WorkflowNode.config.inputData` Example for `mcpClientAgent`
+```json
+{
+  "contextPayload": { "prompt": "Analyze this text for sentiment", "text": "Today is a wonderful day!" },
+  "mcpCommand": "sentimentAnalysis", 
+  "overrideProtocolDetails": { 
+    "timeoutSeconds": 90,
+    "headers": { "X-Custom-MCP-Param": "value123" }
+  }
+}
+```
+*   `contextPayload`: The main data/JSON payload to be sent to the MCP server. Its structure is defined by the target MCP server's capabilities.
+*   `mcpCommand`: (Optional) A specific command or sub-action for the MCP server, used if the server's `protocolDetails.requestStructure` is "command_and_context".
+*   `overrideProtocolDetails`: (Optional) Allows overriding parts of the `McpServer.protocolDetails` for this specific node execution (e.g., increasing timeout, adding specific headers).
+
+### e. Handler Implementation Summary (`invokeMcpClientAgent`)
+The `invokeMcpClientAgent` method fetches the specified `McpServer`'s details. It then constructs an HTTP request (typically POST, but configurable via `McpServer.protocolDetails.httpMethod`) by combining the `McpServer.baseUrl`, the determined request path, and the `contextPayload` (potentially wrapped with `mcpCommand`). It uses `axios` for the HTTP communication, respecting timeouts and expected response types defined in the merged protocol details. The `McpServer.protocolDetails` are key, defining aspects like the HTTP method, specific paths for actions, how request bodies should be structured, and how to interpret error responses from the MCP server (e.g., `errorStructurePath`).
+
+## 4. Modified `dispatchAgentTask` Method
+
+The `dispatchAgentTask` method in `ProductionWorkflowExecutionService.ts` is updated as follows:
 
 ```typescript
 // In ProductionWorkflowExecutionService.ts
@@ -416,6 +461,9 @@ private async dispatchAgentTask(
     case 'httpApiCaller':
       return this.invokeHttpApiCallerAgent(agentConfig, nodeInput, logContext);
     
+    case 'mcpClientAgent':
+      return this.invokeMcpClientAgent(agentConfig, nodeInput, logContext);
+
     case 'scriptRunner':
       // This remains a design for future implementation.
       // Ensure invokeScriptRunnerAgent is implemented and imported/available when built.
