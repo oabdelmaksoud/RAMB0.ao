@@ -1,11 +1,39 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-@Processor('analysis-jobs')
+@Processor('agent-jobs')
 export class AgentsWorker extends WorkerHost {
+  private readonly logger = new Logger(AgentsWorker.name);
+
+  private async executeAnalysisAgent(config: any, params: any) {
+    this.logger.log(`Executing analysis agent with config: ${JSON.stringify(config)}`);
+    // TODO: Implement actual analysis logic
+    return { 
+      status: 'COMPLETED',
+      analysisResults: [] 
+    };
+  }
+
+  private async executeDocumentationAgent(config: any, params: any) {
+    this.logger.log(`Executing documentation agent with config: ${JSON.stringify(config)}`);
+    // TODO: Implement actual documentation generation
+    return {
+      status: 'COMPLETED',
+      documentation: 'Generated documentation content'
+    };
+  }
+
+  private async executeDeploymentAgent(config: any, params: any) {
+    this.logger.log(`Executing deployment agent with config: ${JSON.stringify(config)}`);
+    // TODO: Implement actual deployment logic
+    return {
+      status: 'COMPLETED',
+      deploymentId: 'deploy-123'
+    };
+  }
   constructor(private readonly prisma: PrismaService) {
     super();
   }

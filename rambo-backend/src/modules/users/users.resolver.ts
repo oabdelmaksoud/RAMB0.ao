@@ -1,6 +1,7 @@
 import { Resolver, Query, Mutation, Args } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
-import { User, UserRole } from '@prisma/client';
+import { User as PrismaUser, UserRole } from '@prisma/client';
+import { User as GqlUser } from '../../types/user.type';
 import { UsersService } from './users.service';
 import { CreateUserInput } from './dto/create-user.input';
 import { UpdateUserInput } from './dto/update-user.input';
@@ -13,33 +14,33 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class UsersResolver {
   constructor(private readonly usersService: UsersService) {}
 
-  @Query('users')
+  @Query(() => [GqlUser])
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async findAll() {
+  async findAll(): Promise<PrismaUser[]> {
     return this.usersService.findAll();
   }
 
-  @Query('user')
+  @Query(() => GqlUser)
   @UseGuards(GqlAuthGuard)
-  async findOne(@Args('id') id: string) {
+  async findOne(@Args('id') id: string): Promise<PrismaUser> {
     return this.usersService.findOne(id);
   }
 
-  @Mutation('createUser')
+  @Mutation(() => GqlUser)
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async create(@Args('createUserInput') createUserInput: CreateUserInput) {
+  async create(@Args('createUserInput') createUserInput: CreateUserInput): Promise<PrismaUser> {
     return this.usersService.create(createUserInput);
   }
 
-  @Mutation('updateUser')
+  @Mutation(() => GqlUser)
   @UseGuards(GqlAuthGuard)
   async update(
     @Args('id') id: string,
     @Args('updateUserInput') updateUserInput: UpdateUserInput,
-    @CurrentUser() user: User
-  ) {
+    @CurrentUser() user: PrismaUser
+  ): Promise<PrismaUser> {
     // Only allow admins or the user themselves to update
     if (user.role !== UserRole.ADMIN && user.id !== id) {
       throw new Error('Unauthorized');
@@ -47,17 +48,20 @@ export class UsersResolver {
     return this.usersService.update(id, updateUserInput);
   }
 
-  @Mutation('removeUser')
+  @Mutation(() => GqlUser)
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async remove(@Args('id') id: string) {
+  async remove(@Args('id') id: string): Promise<PrismaUser> {
     return this.usersService.remove(id);
   }
 
-  @Mutation('setUserRole')
+  @Mutation(() => GqlUser)
   @UseGuards(GqlAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  async setRole(@Args('id') id: string, @Args('role') role: UserRole) {
+  async setRole(
+    @Args('id') id: string, 
+    @Args('role', { type: () => UserRole }) role: UserRole
+  ): Promise<PrismaUser> {
     return this.usersService.setRole(id, role);
   }
 }

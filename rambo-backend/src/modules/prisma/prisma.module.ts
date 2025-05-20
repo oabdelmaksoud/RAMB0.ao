@@ -1,15 +1,10 @@
 import { Module } from '@nestjs/common';
-import { MockDatabaseService } from '../database/mock-database.service';
+import { ConfigModule } from '@nestjs/config';
 import { PrismaService } from './prisma.service';
 
 @Module({
-  providers: [
-    PrismaService,
-    {
-      provide: 'DatabaseService',
-      useClass: MockDatabaseService
-    }
-  ],
-  exports: ['DatabaseService', PrismaService],
+  imports: [ConfigModule],
+  providers: [PrismaService],
+  exports: [PrismaService],
 })
 export class PrismaModule {}
