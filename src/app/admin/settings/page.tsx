@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,11 +20,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Users, ShieldCheck, ToyBrick, Settings2, ListChecks, AlertTriangle, CheckCircle, ExternalLink, PlusCircle, Edit3, Trash2 } from 'lucide-react';
+import { Users, ShieldCheck, ToyBrick, Settings2, ListChecks, AlertTriangle, CheckCircle, ExternalLink, PlusCircle, Edit3, Trash2, Brain } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils'; // Added import
+import { cn } from '@/lib/utils';
 
 // Mock data types
 interface MockUser {
@@ -55,6 +56,37 @@ interface MockHealthStatus {
   message?: string;
 }
 
+interface LLMConfig {
+  provider: string;
+  model: string;
+  apiKeyIsSet: boolean;
+}
+
+const LLM_CONFIG_STORAGE_KEY = 'rambo_llm_config';
+
+const llmProviders = [
+  { 
+    id: 'googleAI', 
+    name: 'Google Gemini', 
+    models: [
+      { id: 'gemini-pro', name: 'Gemini Pro' }, 
+      { id: 'gemini-1.5-flash-latest', name: 'Gemini 1.5 Flash' },
+      { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
+    ] 
+  },
+  { 
+    id: 'openAI', 
+    name: 'OpenAI GPT', 
+    models: [
+      { id: 'gpt-4', name: 'GPT-4' },
+      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
+    ] 
+  },
+  // Add other providers like Anthropic, Mistral, etc. as needed
+];
+
+
 // Mock data
 const mockUsersData: MockUser[] = [
   { id: 'user-001', name: 'Alice Admin', email: 'alice@example.com', role: 'Admin', lastActive: '2024-07-22T10:00:00Z', status: 'Active' },
@@ -63,25 +95,24 @@ const mockUsersData: MockUser[] = [
 ];
 
 const mockRolesData: MockRole[] = [
-  { id: 'role-admin', name: 'Admin', permissions: ['Manage Users', 'Manage Roles', 'System Configuration', 'View Audit Logs'] },
+  { id: 'role-admin', name: 'Admin', permissions: ['Manage Users', 'Manage Roles', 'System Configuration', 'View Audit Logs', 'Manage LLM Configuration'] },
   { id: 'role-pm', name: 'Project Manager', permissions: ['Create Projects', 'Manage Project Tasks', 'Assign Project Agents'] },
   { id: 'role-member', name: 'Team Member', permissions: ['View Assigned Tasks', 'Update Task Status'] },
 ];
 
 const mockAuditLogsData: MockAuditLog[] = [
   { id: 'log-001', timestamp: '2024-07-22T11:05:00Z', user: 'Alice Admin', action: 'User Created', details: 'User "David Dev" created.' },
-  { id: 'log-002', timestamp: '2024-07-22T10:30:00Z', user: 'System', action: 'Maintenance Mode', details: 'System entered maintenance mode.' },
+  { id: 'log-002', timestamp: '2024-07-22T10:30:00Z', user: 'System', action: 'LLM Config Saved', details: 'Provider: Google Gemini, Model: gemini-1.5-flash-latest.' },
   { id: 'log-003', timestamp: '2024-07-21T16:00:00Z', user: 'Bob Manager', action: 'Project Status Update', details: 'Project "Alpha" set to "On Hold".' },
-  { id: 'log-004', timestamp: '2024-07-21T12:00:00Z', user: 'Charlie Team', action: 'Task Update', details: 'Task "PROJ-001-TASK-02" status changed to "In Progress".' },
 ];
 
 const mockHealthStatusesData: MockHealthStatus[] = [
   { service: 'API Gateway', status: 'Healthy' },
   { service: 'Database Service', status: 'Healthy' },
-  { service: 'Agent Orchestrator', status: 'Warning', message: 'High CPU Usage (75%)' },
-  { service: 'Message Queue', status: 'Healthy' },
-  { service: 'AI Model Service (Gemini)', status: 'Healthy' },
-  { service: 'Storage Service', status: 'Critical', message: 'Disk space 95% full' },
+  { service: 'Agent Orchestrator (Simulated)', status: 'Healthy' },
+  { service: 'Message Queue (Simulated)', status: 'Healthy' },
+  { service: 'AI Model Service (Genkit)', status: 'Healthy', message: 'Connected to Google Gemini' },
+  { service: 'Storage Service (LocalStorage)', status: 'Healthy' },
 ];
 
 export default function AdminSettingsPage() {
@@ -91,25 +122,84 @@ export default function AdminSettingsPage() {
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
+  const [selectedLLMProvider, setSelectedLLMProvider] = useState<string>(llmProviders[0].id);
+  const [selectedLLMModel, setSelectedLLMModel] = useState<string>(llmProviders[0].models[0].id);
+  const [llmApiKey, setLlmApiKey] = useState<string>("");
+  const [activeLLMConfig, setActiveLLMConfig] = useState<LLMConfig | null>(null);
+
   useEffect(() => {
     setIsClient(true);
+    const storedConfig = localStorage.getItem(LLM_CONFIG_STORAGE_KEY);
+    if (storedConfig) {
+      try {
+        const parsedConfig = JSON.parse(storedConfig);
+        setActiveLLMConfig({
+          provider: parsedConfig.provider || llmProviders[0].id,
+          model: parsedConfig.model || llmProviders[0].models[0].id,
+          apiKeyIsSet: !!parsedConfig.apiKey, // Check if API key was previously set
+        });
+        setSelectedLLMProvider(parsedConfig.provider || llmProviders[0].id);
+        setSelectedLLMModel(parsedConfig.model || llmProviders[0].models[0].id);
+        // Do not load API key into the input field for security, only indicate if set
+      } catch (e) {
+        console.error("Failed to parse LLM config from localStorage", e);
+      }
+    }
   }, []);
 
-
-  const handleMockAction = (actionName: string) => {
-    toast({
-      title: `${actionName} (Placeholder)`,
-      description: `This functionality for "${actionName}" is a placeholder and not yet implemented.`,
-    });
-  };
-
   const handleSaveSystemConfig = () => {
-    // Mock save
     toast({
       title: "System Configuration Saved (Mock)",
       description: "Your system configuration changes have been notionally saved.",
     });
   };
+
+  const handleSaveLLMConfig = () => {
+    if (!selectedLLMProvider || !selectedLLMModel) {
+      toast({
+        title: "Error",
+        description: "Please select an LLM Provider and Model.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // In a real app, the API key would be securely sent to a backend and validated.
+    // Here, we're just saving its presence to localStorage.
+    // Avoid saving the actual API key directly in a way that's easily retrievable if it's sensitive.
+    // For this prototype, we'll save it, but with a strong recommendation this is not for production.
+    const configToSave = {
+      provider: selectedLLMProvider,
+      model: selectedLLMModel,
+      apiKey: llmApiKey, // Storing the key for illustrative purposes.
+    };
+    localStorage.setItem(LLM_CONFIG_STORAGE_KEY, JSON.stringify(configToSave));
+    setActiveLLMConfig({
+      provider: selectedLLMProvider,
+      model: selectedLLMModel,
+      apiKeyIsSet: !!llmApiKey,
+    });
+    setLlmApiKey(""); // Clear the input field after saving
+    toast({
+      title: "LLM Configuration Saved",
+      description: `Provider: ${llmProviders.find(p => p.id === selectedLLMProvider)?.name}, Model: ${selectedLLMModel}. API Key ${llmApiKey ? 'set' : 'not set'}. Note: Server restart and code changes may be needed for Genkit to use this.`,
+      duration: 7000,
+    });
+  };
+
+  const availableModels = llmProviders.find(p => p.id === selectedLLMProvider)?.models || [];
+
+  useEffect(() => {
+    // If provider changes, reset model to the first available for that provider
+    const currentProviderModels = llmProviders.find(p => p.id === selectedLLMProvider)?.models;
+    if (currentProviderModels && currentProviderModels.length > 0) {
+      if (!currentProviderModels.find(m => m.id === selectedLLMModel)) {
+        setSelectedLLMModel(currentProviderModels[0].id);
+      }
+    } else {
+      setSelectedLLMModel("");
+    }
+  }, [selectedLLMProvider, selectedLLMModel]);
+
 
   const formatDate = (dateString: string) => {
     if (!isClient) return 'Loading date...';
@@ -120,6 +210,12 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const handleMockAction = (actionName: string) => {
+    toast({
+      title: `${actionName} (Placeholder)`,
+      description: `This functionality for "${actionName}" is a placeholder and not yet implemented.`,
+    });
+  };
 
   return (
     <div className="container mx-auto">
@@ -134,6 +230,7 @@ export default function AdminSettingsPage() {
       </PageHeader>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* User Management Card */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex justify-between items-center">
@@ -185,11 +282,12 @@ export default function AdminSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Role & Permission Management Card */}
         <Card>
           <CardHeader>
              <div className="flex justify-between items-center">
               <CardTitle className="flex items-center">
-                <ShieldCheck className="mr-2 h-5 w-5" /> Role & Permission Management
+                <ShieldCheck className="mr-2 h-5 w-5" /> Role & Permission
               </CardTitle>
               <Button size="sm" variant="outline" onClick={() => handleMockAction('Add New Role')}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Role
@@ -212,6 +310,75 @@ export default function AdminSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* LLM Configuration Card */}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Brain className="mr-2 h-5 w-5" /> LLM Configuration
+            </CardTitle>
+            <CardDescription>Configure the primary Language Model provider and API key for AI features.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {activeLLMConfig && (
+              <div className="p-3 border rounded-md bg-accent/50 text-sm mb-4">
+                <p><strong>Currently Active (Saved in Browser):</strong></p>
+                <p>Provider: <span className="font-semibold">{llmProviders.find(p => p.id === activeLLMConfig.provider)?.name || activeLLMConfig.provider}</span></p>
+                <p>Model: <span className="font-semibold">{activeLLMConfig.model}</span></p>
+                <p>API Key: <span className={cn("font-semibold", activeLLMConfig.apiKeyIsSet ? "text-green-600" : "text-red-600")}>{activeLLMConfig.apiKeyIsSet ? 'Set' : 'Not Set'}</span></p>
+                <p className="text-xs text-muted-foreground mt-1">Note: For Genkit to use this API key, it might need to be set as an environment variable and the server restarted.</p>
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+              <div className="space-y-1">
+                <Label htmlFor="llmProvider">LLM Provider</Label>
+                <Select value={selectedLLMProvider} onValueChange={setSelectedLLMProvider}>
+                  <SelectTrigger id="llmProvider">
+                    <SelectValue placeholder="Select a provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {llmProviders.map(provider => (
+                      <SelectItem key={provider.id} value={provider.id}>{provider.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="llmModel">Model</Label>
+                <Select value={selectedLLMModel} onValueChange={setSelectedLLMModel} disabled={!selectedLLMProvider || availableModels.length === 0}>
+                  <SelectTrigger id="llmModel">
+                    <SelectValue placeholder="Select a model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableModels.map(model => (
+                      <SelectItem key={model.id} value={model.id}>{model.name}</SelectItem>
+                    ))}
+                    {availableModels.length === 0 && selectedLLMProvider && (
+                       <p className="p-2 text-xs text-muted-foreground">No models listed for this provider.</p>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="llmApiKey">API Key</Label>
+              <Input 
+                id="llmApiKey" 
+                type="password" 
+                placeholder="Enter API Key for selected provider" 
+                value={llmApiKey}
+                onChange={(e) => setLlmApiKey(e.target.value)}
+              />
+              {selectedLLMProvider === 'openAI' && (
+                <p className="text-xs text-muted-foreground">For OpenAI, ensure the `@genkit-ai/openai` plugin is installed and configured in `genkit.ts`.</p>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter className="border-t pt-6">
+            <Button onClick={handleSaveLLMConfig}>Save LLM Configuration</Button>
+          </CardFooter>
+        </Card>
+
+        {/* Global Agent Templates Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -222,15 +389,16 @@ export default function AdminSettingsPage() {
           <CardContent>
             <Link href="/agent-management" passHref legacyBehavior>
               <Button asChild className="w-full">
-                <a><ExternalLink className="mr-2 h-4 w-4" /> Go to Global Agent Management</a>
+                <a><ExternalLink className="mr-2 h-4 w-4" /> Go to Global Agent Templates</a>
               </Button>
             </Link>
              <p className="text-xs text-muted-foreground mt-2 text-center">
-              Global agent configurations are managed on a dedicated page.
+              Global configurations are managed on a dedicated page.
             </p>
           </CardContent>
         </Card>
 
+        {/* System Configuration Card */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -272,6 +440,7 @@ export default function AdminSettingsPage() {
           </CardFooter>
         </Card>
         
+        {/* Audit Logs Card */}
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -310,6 +479,7 @@ export default function AdminSettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Platform Health Card */}
         <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -349,4 +519,6 @@ export default function AdminSettingsPage() {
     </div>
   );
 }
+    
+
     
