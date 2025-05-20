@@ -51,6 +51,45 @@ export class McpServersService {
     });
     return mcpServer;
   }
+
+  async findCompatibleServers(criteria: {
+    capabilities?: string[];
+    nameRegex?: string;
+    status?: McpServerStatus; // Make status filter optional, defaulting to ACTIVE
+  }): Promise<McpServer[]> {
+    const whereClause: Prisma.McpServerWhereInput = {};
+
+    // Default to ACTIVE status if no status is provided in criteria
+    whereClause.status = criteria.status || McpServerStatus.ACTIVE; // Corrected to use enum member
+
+    if (criteria.capabilities && criteria.capabilities.length > 0) {
+      // Prisma's array 'containsEvery' is what we need if all capabilities must be present.
+      // If any of the capabilities is enough, use 'hasSome'.
+      // For this phase, let's assume all specified capabilities must be present.
+      whereClause.capabilities = { hasEvery: criteria.capabilities };
+    }
+
+    if (criteria.nameRegex) {
+      // Prisma uses 'contains' for substring search, 'startsWith', 'endsWith'.
+      // For true regex, it depends on the DB provider (e.g., PostgreSQL supports 'matches').
+      // For simplicity and DB agnosticism, let's use 'contains' with 'mode: "insensitive"'
+      // if a simple substring search is acceptable.
+      // If actual regex is needed, this might require a raw query or more specific Prisma features.
+      // For now, using 'contains' for name matching.
+      whereClause.name = {
+        contains: criteria.nameRegex,
+        mode: 'insensitive', // Optional: for case-insensitive search
+      };
+    }
+
+    return this.prisma.mcpServer.findMany({
+      where: whereClause,
+      orderBy: {
+        // Optional: define a default sort order, e.g., by name or lastCheckedAt
+        name: 'asc',
+      },
+    });
+  }
   
   // Stub for update - can be implemented later
   // async update(id: string, data: Prisma.McpServerUpdateInput): Promise<McpServer> {

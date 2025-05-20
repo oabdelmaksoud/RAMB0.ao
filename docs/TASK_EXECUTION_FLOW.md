@@ -407,35 +407,64 @@ The `invokeMcpClientAgent` method is implemented within `ProductionWorkflowExecu
 *   Provides detailed logging and structured success/error return objects.
 
 ### c. `Agent.config` Example for `mcpClientAgent`
+This configuration is stored in the `Agent` record and defines how the agent generally behaves.
 ```json
+// Scenario 1: Direct Server Specification (Agent always uses this server)
 {
   "mcpServerId": "some-registered-mcp-server-id", 
-  "mcpServerName": "MyFriendlyMCP", 
-  "mcpRequestPath": "/invoke", 
-  "expectedResponseType": "json" 
+  // "mcpServerName": "MyFriendlyMCP", // Alternative to mcpServerId
+  "mcpRequestPath": "/default_invoke_path", // Optional: default path for this agent
+  "expectedResponseType": "json" // Optional: default expected response type
+}
+
+// Scenario 2: Server to be Determined by Discovery (Agent relies on node input)
+{
+  "mcpRequestPath": "/common_action", // Can still have defaults
+  "expectedResponseType": "json"
+  // mcpServerId and mcpServerName are omitted by the Agent designer
 }
 ```
-*   `mcpServerId` or `mcpServerName`: Identifies the target `McpServer` registered in the database. One of these is required.
-*   `mcpRequestPath`: (Optional) Specific path for the MCP request on the server (e.g., "/invoke", "/generate"). Defaults to `/mcp` or a path defined in the `McpServer.protocolDetails.defaultPath`.
-*   `expectedResponseType`: (Optional) Specifies how to parse the MCP server's response. Can be "json" (default), "text", or "binary_base64".
+*   `mcpServerId` / `mcpServerName`: (Optional) If provided, directly specifies the target `McpServer`. If both are omitted, the agent relies on `WorkflowNode.config.inputData.discoveryCriteria`.
+*   `mcpRequestPath`: (Optional) Default specific path for the MCP request on the server.
+*   `expectedResponseType`: (Optional) Default for how to parse the MCP server's response ("json", "text", or "binary_base64").
 
 ### d. `WorkflowNode.config.inputData` Example for `mcpClientAgent`
+This is the `input` part of `WorkflowNode.config`, which becomes `RuntimeExecutionNode.inputData`.
 ```json
 {
-  "contextPayload": { "prompt": "Analyze this text for sentiment", "text": "Today is a wonderful day!" },
-  "mcpCommand": "sentimentAnalysis", 
-  "overrideProtocolDetails": { 
+  // Option 1: Discovery Criteria (used if Agent.config doesn't specify mcpServerId/Name)
+  "discoveryCriteria": { 
+    "capabilities": ["text_summarization", "english_language"], // Mandatory for discovery
+    "nameRegex": "SummaryBot.*v2", // Optional: Regex to filter server names
+    "selectionStrategy": "first" // Optional: 'first' (default) or 'random' (currently defaults to 'first')
+  },
+
+  // Option 2: Direct Specification in Node (less common, Agent.config is preferred for direct)
+  // "mcpServerId": "specific-node-target-server-id", // Overrides Agent.config if any
+
+  "contextPayload": { "text": "A long document to summarize..." },
+  "mcpCommand": "summarizeDocument", // Optional: specific command for the MCP server
+  "overrideProtocolDetails": { // Optional: Override parts of McpServer.protocolDetails
     "timeoutSeconds": 90,
     "headers": { "X-Custom-MCP-Param": "value123" }
   }
 }
 ```
-*   `contextPayload`: The main data/JSON payload to be sent to the MCP server. Its structure is defined by the target MCP server's capabilities.
-*   `mcpCommand`: (Optional) A specific command or sub-action for the MCP server, used if the server's `protocolDetails.requestStructure` is "command_and_context".
-*   `overrideProtocolDetails`: (Optional) Allows overriding parts of the `McpServer.protocolDetails` for this specific node execution (e.g., increasing timeout, adding specific headers).
+*   `discoveryCriteria`: (Optional) If `Agent.config` does not specify `mcpServerId` or `mcpServerName`, these criteria are used to find a suitable `McpServer` via `McpServersService.findCompatibleServers`.
+    *   `capabilities`: Array of strings. Mandatory for discovery. The service will look for servers possessing *all* listed capabilities.
+    *   `nameRegex`: Optional string (regex pattern) to filter server names.
+    *   `selectionStrategy`: Optional. Currently supports "first" (default), which selects the first active server matching all criteria. "random" is also a conceptual option but currently defaults to "first".
+*   `contextPayload`: The main data/JSON payload for the MCP server.
+*   `mcpCommand`: (Optional) Specific command for the MCP server, used if its `protocolDetails.requestStructure` is "command_and_context".
+*   `overrideProtocolDetails`: (Optional) Allows overriding parts of the selected `McpServer.protocolDetails` for this specific node execution.
+
+**Server Selection Precedence:**
+1.  Direct `mcpServerId` or `mcpServerName` in `Agent.config`.
+2.  If not specified in `Agent.config`, then `discoveryCriteria` from `WorkflowNode.config.inputData` are used.
+3.  If neither direct specification nor valid discovery criteria are provided, the agent will fail.
 
 ### e. Handler Implementation Summary (`invokeMcpClientAgent`)
-The `invokeMcpClientAgent` method fetches the specified `McpServer`'s details. It then constructs an HTTP request (typically POST, but configurable via `McpServer.protocolDetails.httpMethod`) by combining the `McpServer.baseUrl`, the determined request path, and the `contextPayload` (potentially wrapped with `mcpCommand`). It uses `axios` for the HTTP communication, respecting timeouts and expected response types defined in the merged protocol details. The `McpServer.protocolDetails` are key, defining aspects like the HTTP method, specific paths for actions, how request bodies should be structured, and how to interpret error responses from the MCP server (e.g., `errorStructurePath`).
+The `invokeMcpClientAgent` method first attempts to identify the target `McpServer`. It prioritizes direct specification (`mcpServerId` or `mcpServerName` from `agentConfig`). If these are not provided, it uses the `discoveryCriteria` from `nodeInput` to query `McpServersService.findCompatibleServers`. If a server is found (and is `ACTIVE`), it then constructs an HTTP request using `axios`. The request parameters (URL, method, headers, body, timeout, expected response type) are derived from a combination of the selected `McpServer`'s `protocolDetails`, `agentConfig` defaults, and `nodeInput` overrides. The `McpServer.protocolDetails` are key, defining aspects like the HTTP method, specific paths for actions, how request bodies should be structured, and how to interpret error responses from the MCP server (e.g., `errorStructurePath`).
 
 ## 4. Modified `dispatchAgentTask` Method
 

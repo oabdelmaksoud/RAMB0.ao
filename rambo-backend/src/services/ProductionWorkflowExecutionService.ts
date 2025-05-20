@@ -278,35 +278,76 @@ export class ProductionWorkflowExecutionService extends WorkflowExecutionService
     };
   }> {
     const { taskId, workflowExecutionId, nodeId } = logContext;
-
-    if (!agentConfig.mcpServerId && !agentConfig.mcpServerName) {
-      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'mcpServerId or mcpServerName must be provided in agentConfig');
-      return { success: false, error: 'MCP server identifier missing in agent configuration.' };
-    }
-
     let mcpServerDetails: McpServer | null = null;
+    let serverFetchError: string | null = null;
+
     try {
       if (agentConfig.mcpServerId) {
+        await this.log(taskId, workflowExecutionId, nodeId, 'INFO', `Attempting to use MCP Server by ID: ${agentConfig.mcpServerId}`);
         mcpServerDetails = await this.mcpServersService.findOne(agentConfig.mcpServerId);
+        if (!mcpServerDetails) {
+          serverFetchError = `MCP Server not found: ID ${agentConfig.mcpServerId}`;
+        }
       } else if (agentConfig.mcpServerName) {
+        await this.log(taskId, workflowExecutionId, nodeId, 'INFO', `Attempting to use MCP Server by Name: ${agentConfig.mcpServerName}`);
         mcpServerDetails = await this.mcpServersService.findOneByName(agentConfig.mcpServerName);
+        if (!mcpServerDetails) {
+          serverFetchError = `MCP Server not found: Name ${agentConfig.mcpServerName}`;
+        }
+      } else if (nodeInput.discoveryCriteria && nodeInput.discoveryCriteria.capabilities && nodeInput.discoveryCriteria.capabilities.length > 0) {
+        await this.log(taskId, workflowExecutionId, nodeId, 'INFO', 'Attempting MCP Server discovery with criteria:', nodeInput.discoveryCriteria);
+        const compatibleServers = await this.mcpServersService.findCompatibleServers(nodeInput.discoveryCriteria);
+        
+        if (compatibleServers && compatibleServers.length > 0) {
+          const strategy = nodeInput.discoveryCriteria.selectionStrategy || 'first';
+          if (strategy === 'first') {
+            mcpServerDetails = compatibleServers[0];
+          } else if (strategy === 'random') {
+            // For now, if random is specified, we'll just use first.
+            // A true random might be: mcpServerDetails = compatibleServers[Math.floor(Math.random() * compatibleServers.length)];
+            await this.log(taskId, workflowExecutionId, nodeId, 'WARN', `MCP Server discovery strategy 'random' not fully implemented, using 'first'.`);
+            mcpServerDetails = compatibleServers[0]; 
+          } else {
+            await this.log(taskId, workflowExecutionId, nodeId, 'WARN', `Unknown MCP Server discovery strategy '${strategy}', defaulting to 'first'.`);
+            mcpServerDetails = compatibleServers[0];
+          }
+          await this.log(taskId, workflowExecutionId, nodeId, 'INFO', `Discovered McpServer '${mcpServerDetails?.name}' (ID: ${mcpServerDetails?.id}) using strategy '${strategy}'.`);
+        } else {
+          serverFetchError = "No compatible MCP Server found for the specified discovery criteria.";
+          await this.log(taskId, workflowExecutionId, nodeId, 'WARN', serverFetchError, nodeInput.discoveryCriteria);
+        }
+      } else {
+        serverFetchError = "MCP Server not specified directly and discovery criteria are insufficient or missing.";
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', serverFetchError, { agentConfig, discoveryCriteria: nodeInput.discoveryCriteria });
       }
 
-      if (!mcpServerDetails) {
-        const idMethod = agentConfig.mcpServerId ? `ID ${agentConfig.mcpServerId}` : `name ${agentConfig.mcpServerName}`;
-        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', `MCP Server not found: ${idMethod}`);
-        return { success: false, error: `MCP Server not found: ${idMethod}` };
+      if (serverFetchError) {
+        // This log was already made where serverFetchError was set, so just return.
+        return { success: false, error: serverFetchError };
+      }
+
+      if (!mcpServerDetails) { // Safeguard, should have been caught by serverFetchError
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Failed to identify an MCP Server to target.');
+        return { success: false, error: "Failed to identify an MCP Server to target." };
       }
 
       if (mcpServerDetails.status !== McpServerStatus.ACTIVE) {
         await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', `MCP Server ${mcpServerDetails.name} is not ACTIVE. Current status: ${mcpServerDetails.status}`);
         return { success: false, error: `MCP Server ${mcpServerDetails.name} is not ACTIVE.` };
       }
+
     } catch (dbError) {
-      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Failed to fetch MCP Server details', { error: (dbError as Error).message });
-      return { success: false, error: 'Failed to fetch MCP Server details.' };
+      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Failed to fetch/discover MCP Server details', { error: (dbError as Error).message });
+      return { success: false, error: 'Failed to fetch or discover MCP Server details.' };
     }
     
+    // Ensure mcpServerDetails is not null for TypeScript to be happy below, though logic above should ensure it.
+    if (!mcpServerDetails) {
+        // This should be unreachable due to the safeguards above.
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Critical error: mcpServerDetails is null after selection logic.');
+        return { success: false, error: "Critical error in MCP server selection." };
+    }
+
     const serverProtocolDetails = (typeof mcpServerDetails.protocolDetails === 'object' && mcpServerDetails.protocolDetails !== null) 
                                 ? mcpServerDetails.protocolDetails 
                                 : {};
