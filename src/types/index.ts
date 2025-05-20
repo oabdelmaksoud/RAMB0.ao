@@ -1,3 +1,5 @@
+import { WorkflowExecutionNode } from './workflow-execution';
+
 export interface Agent {
   id: string;
   name: string;
@@ -10,6 +12,8 @@ export interface Agent {
   };
   config?: Record<string, any>;
   logs?: string[];
+  
+  execute(node: WorkflowExecutionNode): Promise<any>;
 }
 
 export interface WorkflowNode {

@@ -13,6 +13,12 @@ import { AgentsWorker } from './agents.worker';
         connection: {
           host: configService.get('REDIS_HOST', 'localhost'),
           port: configService.get('REDIS_PORT', 6379),
+          ...(configService.get('REDIS_PASSWORD') ? {
+            password: configService.get('REDIS_PASSWORD')
+          } : {}),
+          ...(configService.get('REDIS_TLS') === 'true' ? {
+            tls: {}
+          } : {}),
         },
       }),
       inject: [ConfigService],

@@ -23,6 +23,7 @@ export interface WorkflowExecutionNode {
   type: string;
   status: WorkflowNodeStatus;
   agent?: Agent;
+  workflowId?: string;
   startTime?: Date;
   endTime?: Date;
   errorMessage?: string;

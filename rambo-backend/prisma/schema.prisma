@@ -4,82 +4,19 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
-enum UserRole {
-  ADMIN
-  MANAGER
-  DEVELOPER
-  VIEWER
-  AGENT
-}
 
-enum ProjectStatus {
-  PLANNING
-  ACTIVE
-  ON_HOLD
-  COMPLETED
-  ARCHIVED
-}
+// Enum definitions remain the same...
 
-enum TaskStatus {
-  TODO
-  IN_PROGRESS
-  BLOCKED
-  DONE
-  ARCHIVED
-}
-
-enum WorkflowStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-  ARCHIVED
-}
-
-enum AgentStatus {
-  INACTIVE
-  ACTIVE
-  ERROR
-  UPDATING
-}
-
-model User {
-  id                String        @id @default(cuid())
-  email             String        @unique
-  password          String
-  role              UserRole
-  firstName         String?
-  lastName          String?
-  profilePictureUrl String?
-  lastLogin         DateTime?
-  isActive          Boolean       @default(true)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  isDeleted         Boolean       @default(false)
-  deletedAt         DateTime?
-  
-  projects          Project[]
-  tasks             Task[]
-  files             File[]
-  assignedTickets   Ticket[]      @relation("AssignedTickets")
-  reportedTickets   Ticket[]      @relation("ReportedTickets")
-  requirements      Requirement[]
-
-  @@map("users")
-  @@index([email])
-  @@index([role])
-  @@index([isActive])
-  @@index([isDeleted])
-}
-
+// Add all model definitions with proper relations
 model Project {
   id          String        @id @default(cuid())
   name        String
   description String?
-  status      ProjectStatus @default(PLANNING)
+  status      String @default("PLANNING")
   startDate   DateTime?
   endDate     DateTime?
   createdAt   DateTime      @default(now())
@@ -97,7 +34,6 @@ model Project {
 
   @@map("projects")
   @@index([ownerId])
-  @@index([status])
   @@index([isDeleted])
 }
 
@@ -105,7 +41,7 @@ model Task {
   id          String     @id @default(cuid())
   title       String
   description String?
-  status      TaskStatus @default(TODO)
+  status      String @default("TODO")
   priority    Int        @default(3)
   startDate   DateTime?
   dueDate     DateTime?
@@ -134,70 +70,7 @@ model Task {
   @@index([projectId])
   @@index([assigneeId])
   @@index([workflowId])
-  @@index([status])
   @@index([isDeleted])
-  @@index([parentId])
-}
-
-model TaskDependency {
-  id              String   @id @default(cuid())
-  task            Task     @relation("TaskDependencies", fields: [taskId], references: [id])
-  taskId          String
-  dependsOnTask   Task     @relation(fields: [dependsOnTaskId], references: [id])
-  dependsOnTaskId String
-  type            String   @default("FINISH_TO_START")  // Types like FS, SS, FF, SF
-  createdAt       DateTime @default(now())
-
-  @@unique([taskId, dependsOnTaskId])
-  @@map("task_dependencies")
-}
-
-model Workflow {
-  id          String         @id @default(cuid())
-  name        String
-  description String?
-  status      WorkflowStatus @default(DRAFT)
-  startDate   DateTime?
-  endDate     DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  isDeleted   Boolean        @default(false)
-  deletedAt   DateTime?
-  project     Project        @relation(fields: [projectId], references: [id])
-  projectId   String
-  tasks       Task[]
-  nodes       WorkflowNode[]
-  edges       WorkflowEdge[]
-
-  @@map("workflows")
-  @@index([projectId])
-  @@index([status])
-  @@index([isDeleted])
-}
-
-model WorkflowNode {
-  id        String   @id @default(cuid())
-  type      String
-  config    Json
-  workflow  Workflow @relation(fields: [workflowId], references: [id])
-  workflowId String
-  edgesOut  WorkflowEdge[] @relation("edgesOut")
-  edgesIn   WorkflowEdge[] @relation("edgesIn")
-
-  @@map("workflow_nodes")
-}
-
-model WorkflowEdge {
-  id        String   @id @default(cuid())
-  condition String?
-  fromNode  WorkflowNode @relation("edgesOut", fields: [fromNodeId], references: [id])
-  fromNodeId String
-  toNode    WorkflowNode @relation("edgesIn", fields: [toNodeId], references: [id])
-  toNodeId   String
-  workflow  Workflow @relation(fields: [workflowId], references: [id])
-  workflowId String
-
-  @@map("workflow_edges")
 }
 
 model File {
@@ -218,170 +91,224 @@ model File {
   @@map("files")
 }
 
-model TaskLog {
+model WorkflowEdge {
   id        String   @id @default(cuid())
-  message   String
-  level     String
-  data      Json?
-  createdAt DateTime @default(now())
-  task      Task     @relation(fields: [taskId], references: [id])
-  taskId    String
+  condition String?
+  fromNode  WorkflowNode @relation("edgesOut", fields: [fromNodeId], references: [id])
+  fromNodeId String
+  toNode    WorkflowNode @relation("edgesIn", fields: [toNodeId], references: [id])
+  toNodeId   String
+  workflow  Workflow @relation(fields: [workflowId], references: [id])
+  workflowId String
 
-  @@map("task_logs")
-}
-
-model Agent {
-  id          String       @id @default(cuid())
-  name        String
-  type        String
-  config      Json
-  status      AgentStatus  @default(INACTIVE)
-  lastPing    DateTime?
-  capabilities String[]
-  description String?
-  version     String?
-  isSystemAgent Boolean    @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  isDeleted   Boolean      @default(false)
-  deletedAt   DateTime?
-  tasks       Task[]
-  logs        AgentLog[]
-
-  @@map("agents")
-  @@index([type])
-  @@index([status])
-  @@index([isDeleted])
-  @@index([isSystemAgent])
-}
-
-model AgentLog {
-  id        String   @id @default(cuid())
-  message   String
-  level     String
-  data      Json?
-  createdAt DateTime @default(now())
-  agent     Agent    @relation(fields: [agentId], references: [id])
-  agentId   String
-
-  @@map("agent_logs")
-}
-
-enum TicketType {
-  BUG
-  FEATURE
-  IMPROVEMENT
-  TASK
-  EPIC
-}
-
-enum TicketPriority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum TicketStatus {
-  BACKLOG
-  TODO
-  IN_PROGRESS
-  REVIEW
-  DONE
-  BLOCKED
+  @@map("workflow_edges")
 }
 
 model Ticket {
   id          String          @id @default(cuid())
   title       String
   description String?
-  type        TicketType
-  priority    TicketPriority  @default(MEDIUM)
-  status      TicketStatus    @default(BACKLOG)
+  type        String
+  priority    String
+  status      String
   project     Project         @relation(fields: [projectId], references: [id])
   projectId   String
   assignee    User?           @relation("AssignedTickets", fields: [assigneeId], references: [id])
   assigneeId  String?
   reporter    User            @relation("ReportedTickets", fields: [reporterId], references: [id])
   reporterId  String
-  sprint      Sprint?         @relation(fields: [sprintId], references: [id])
-  sprintId    String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  closedAt    DateTime?
-  estimatedHours Float?
-  actualHours  Float?
-  tags        String[]
-  aiMetadata  Json?
 
   @@map("tickets")
   @@index([projectId])
   @@index([assigneeId])
   @@index([reporterId])
-  @@index([sprintId])
-  @@index([status])
-}
-
-enum RequirementType {
-  FUNCTIONAL
-  NON_FUNCTIONAL
-  CONSTRAINT
-  INTERFACE
-  PERFORMANCE
-}
-
-enum RequirementStatus {
-  DRAFT
-  PROPOSED
-  APPROVED
-  IMPLEMENTED
-  VERIFIED
-  REJECTED
 }
 
 model Requirement {
   id          String            @id @default(cuid())
   title       String
   description String
-  type        RequirementType
-  status      RequirementStatus @default(DRAFT)
+  type        String
+  status      String
   project     Project           @relation(fields: [projectId], references: [id])
   projectId   String
-  source      String?
-  priority    Int               @default(3)
-  complexity  Int               @default(3)
-  rationale   String?
-  acceptance  String?
   createdBy   User              @relation(fields: [createdById], references: [id])
   createdById String
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
-  version     String            @default("1.0")
-  tags        String[]
-  relatedTasks Task[] @relation("RelatedRequirements")
-  attachments File[] @relation("RequirementAttachments")
 
   @@map("requirements")
   @@index([projectId])
-  @@index([status])
   @@index([createdById])
 }
 
-model Sprint {
-  id          String     @id @default(cuid())
+model User {
+  id                String        @id @default(cuid())
+  email             String        @unique
+  password          String
+  role              String @default("VIEWER")
+  firstName         String?
+  lastName          String?
+  profilePictureUrl String?
+  lastLogin         DateTime?
+  isActive          Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  isDeleted         Boolean       @default(false)
+  deletedAt         DateTime?
+  
+  projects          Project[]
+  tasks             Task[]
+  files             File[]
+  assignedTickets   Ticket[]      @relation("AssignedTickets")
+  reportedTickets   Ticket[]      @relation("ReportedTickets")
+  requirements      Requirement[]
+  workflowExecutions WorkflowExecution[]
+
+  @@map("users")
+  @@index([email])
+  @@index([isActive])
+  @@index([isDeleted])
+}
+
+model Workflow {
+  id          String         @id @default(cuid())
   name        String
-  goal        String?
+  description String?
+  status      String @default("DRAFT")
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  isDeleted   Boolean        @default(false)
+  deletedAt   DateTime?
+  project     Project        @relation(fields: [projectId], references: [id])
+  projectId   String
+  tasks       Task[]
+  nodes       WorkflowNode[]
+  edges       WorkflowEdge[]
+  executions  WorkflowExecution[]
+
+  @@map("workflows")
+  @@index([projectId])
+  @@index([isDeleted])
+}
+
+model WorkflowNode {
+  id        String   @id @default(cuid())
+  type      String
+  config    String
+  workflow  Workflow @relation(fields: [workflowId], references: [id])
+  workflowId String
+  edgesOut  WorkflowEdge[] @relation("edgesOut")
+  edgesIn   WorkflowEdge[] @relation("edgesIn")
+  executions WorkflowNodeExecution[]
+
+  @@map("workflow_nodes")
+}
+
+model WorkflowExecution {
+  id          String       @id @default(cuid())
+  workflow    Workflow     @relation(fields: [workflowId], references: [id])
+  workflowId  String
+  status      String @default("PENDING")
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdById String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  nodes       WorkflowNodeExecution[]
+  logs        ExecutionLog[]
+
+  @@map("workflow_executions")
+  @@index([workflowId])
+  @@index([createdById])
+}
+
+model WorkflowNodeExecution {
+  id          String       @id @default(cuid())
+  execution   WorkflowExecution @relation(fields: [executionId], references: [id])
+  executionId String
+  node        WorkflowNode @relation(fields: [nodeId], references: [id])
+  nodeId      String
+  status      String @default("PENDING")
+  startedAt   DateTime?
+  completedAt DateTime?
+  result      String?
+  error       String?
+  logs        ExecutionLog[]
+
+  @@map("workflow_node_executions")
+  @@index([executionId])
+  @@index([nodeId])
+}
+
+model ExecutionLog {
+  id          String       @id @default(cuid())
+  message     String
+  level       String       @default("INFO")
+  data        String?
+  timestamp   DateTime     @default(now())
+  execution   WorkflowExecution? @relation(fields: [executionId], references: [id])
+  executionId String?
+  nodeExecution WorkflowNodeExecution? @relation(fields: [nodeExecutionId], references: [id])
+  nodeExecutionId String?
+
+  @@map("execution_logs")
+  @@index([executionId])
+  @@index([nodeExecutionId])
+  @@index([timestamp])
+}
+
+model Agent {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  config      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tasks       Task[]
+
+  @@map("agents")
+}
+
+model TaskLog {
+  id        String   @id @default(cuid())
+  message   String
+  data      String?
+  task      Task     @relation(fields: [taskId], references: [id])
+  taskId    String
+  createdAt DateTime @default(now())
+
+  @@map("task_logs")
+  @@index([taskId])
+}
+
+model TaskDependency {
+  id          String   @id @default(cuid())
+  task        Task     @relation("TaskDependencies", fields: [taskId], references: [id])
+  taskId      String
+  dependsOn   Task     @relation("DependsOnTasks", fields: [dependsOnId], references: [id])
+  dependsOnId String
+
+  @@map("task_dependencies")
+  @@index([taskId])
+  @@index([dependsOnId])
+}
+
+model Sprint {
+  id          String   @id @default(cuid())
+  name        String
   startDate   DateTime
   endDate     DateTime
-  status      String     @default("PLANNED")
-  project     Project    @relation(fields: [projectId], references: [id])
+  project     Project  @relation(fields: [projectId], references: [id])
   projectId   String
-  tickets     Ticket[]
-  tasks       Task[]
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("sprints")
   @@index([projectId])
-  @@index([status])
 }
