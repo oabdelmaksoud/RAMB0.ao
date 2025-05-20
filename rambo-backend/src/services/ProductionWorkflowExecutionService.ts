@@ -26,12 +26,56 @@ import {
   createInitialRuntimeWorkflowExecution,
 } from '../../../src/types/workflow-execution'; // Adjusted path
 import { availableFlows } from '../../../src/ai/flows'; // Import available Genkit flows
+import axios, { AxiosRequestConfig, AxiosError, Method as AxiosMethod } from 'axios';
+import { McpServersService } from '../modules/mcp_servers/mcp_servers.service';
+import { McpServer, McpServerStatus } from '@prisma/client'; // Assuming McpServer type is available
+
+// Helper function for deep merging JSON-like objects
+function mergeJsonDetails(baseDetails: any, overrideDetails: any): any {
+  if (typeof baseDetails !== 'object' || baseDetails === null || Array.isArray(baseDetails)) {
+    baseDetails = {};
+  }
+  if (typeof overrideDetails !== 'object' || overrideDetails === null || Array.isArray(overrideDetails)) {
+    overrideDetails = {};
+  }
+  // Simple deep merge for plain objects, not handling arrays or complex cases
+  const result = { ...baseDetails };
+  for (const key in overrideDetails) {
+    if (Object.prototype.hasOwnProperty.call(overrideDetails, key)) {
+      if (typeof overrideDetails[key] === 'object' && overrideDetails[key] !== null && !Array.isArray(overrideDetails[key]) &&
+          typeof result[key] === 'object' && result[key] !== null && !Array.isArray(result[key])) {
+        result[key] = mergeJsonDetails(result[key], overrideDetails[key]);
+      } else {
+        result[key] = overrideDetails[key];
+      }
+    }
+  }
+  return result;
+}
+
+// Helper to get nested value from object by path string (e.g., "data.error.message")
+function getNestedValue(obj: any, path: string): any {
+  if (!path) return undefined;
+  const keys = path.split('.');
+  let current = obj;
+  for (const key of keys) {
+    if (current === null || typeof current !== 'object' || !Object.prototype.hasOwnProperty.call(current, key) ) {
+      return undefined;
+    }
+    current = current[key];
+  }
+  return current;
+}
+
 
 @Injectable()
 export class ProductionWorkflowExecutionService extends WorkflowExecutionService {
   private activeWorkflows: Map<string, RuntimeWorkflowExecution> = new Map();
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mcpServersService: McpServersService, // New dependency
+  ) {
     super();
   }
 
@@ -193,15 +237,393 @@ export class ProductionWorkflowExecutionService extends WorkflowExecutionService
     workflowExecutionId: string,
     nodeId: string,
   ): Promise<any> {
+    const logContext = { taskId, workflowExecutionId, nodeId };
     switch (agentType) {
       case 'genkitFlowRunner':
-        return this.invokeGenkitFlowAgent(agentConfig, nodeInput, { taskId, workflowExecutionId, nodeId });
+        return this.invokeGenkitFlowAgent(agentConfig, nodeInput, logContext);
+      case 'httpApiCaller':
+        return this.invokeHttpApiCallerAgent(agentConfig, nodeInput, logContext);
+      case 'mcpClientAgent':
+        return this.invokeMcpClientAgent(agentConfig, nodeInput, logContext);
       // Add cases for other agent types here, e.g.:
       // case 'toolRunner':
       //   return this.invokeToolAgent(agentConfig, nodeInput, { taskId, workflowExecutionId, nodeId });
       default:
-        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', `Unknown agent type: ${agentType}`);
-        throw new Error(`Unknown agent type: ${agentType}`);
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', `Unknown or unsupported agent type: ${agentType}`);
+        throw new Error(`Unknown or unsupported agent type: ${agentType}`);
+    }
+  }
+
+  private async invokeMcpClientAgent(
+    agentConfig: {
+      mcpServerId?: string;
+      mcpServerName?: string;
+      mcpRequestPath?: string; // e.g., "/invoke"
+      expectedResponseType?: 'json' | 'text' | 'binary_base64';
+    },
+    nodeInput: {
+      contextPayload: any;
+      mcpCommand?: string;
+      overrideProtocolDetails?: Partial<Prisma.InputJsonValue>; 
+    },
+    logContext: { taskId: string; workflowExecutionId: string; nodeId: string }
+  ): Promise<{
+    success: boolean;
+    data?: any;
+    error?: string;
+    rawResponse?: {
+      status?: number;
+      headers?: Record<string, any>;
+      body?: any;
+    };
+  }> {
+    const { taskId, workflowExecutionId, nodeId } = logContext;
+    let mcpServerDetails: McpServer | null = null;
+    let serverFetchError: string | null = null;
+
+    try {
+      if (agentConfig.mcpServerId) {
+        await this.log(taskId, workflowExecutionId, nodeId, 'INFO', `Attempting to use MCP Server by ID: ${agentConfig.mcpServerId}`);
+        mcpServerDetails = await this.mcpServersService.findOne(agentConfig.mcpServerId);
+        if (!mcpServerDetails) {
+          serverFetchError = `MCP Server not found: ID ${agentConfig.mcpServerId}`;
+        }
+      } else if (agentConfig.mcpServerName) {
+        await this.log(taskId, workflowExecutionId, nodeId, 'INFO', `Attempting to use MCP Server by Name: ${agentConfig.mcpServerName}`);
+        mcpServerDetails = await this.mcpServersService.findOneByName(agentConfig.mcpServerName);
+        if (!mcpServerDetails) {
+          serverFetchError = `MCP Server not found: Name ${agentConfig.mcpServerName}`;
+        }
+      } else if (nodeInput.discoveryCriteria && nodeInput.discoveryCriteria.capabilities && nodeInput.discoveryCriteria.capabilities.length > 0) {
+        await this.log(taskId, workflowExecutionId, nodeId, 'INFO', 'Attempting MCP Server discovery with criteria:', nodeInput.discoveryCriteria);
+        const compatibleServers = await this.mcpServersService.findCompatibleServers(nodeInput.discoveryCriteria);
+        
+        if (compatibleServers && compatibleServers.length > 0) {
+          const strategy = nodeInput.discoveryCriteria.selectionStrategy || 'first';
+          if (strategy === 'first') {
+            mcpServerDetails = compatibleServers[0];
+          } else if (strategy === 'random') {
+            // For now, if random is specified, we'll just use first.
+            // A true random might be: mcpServerDetails = compatibleServers[Math.floor(Math.random() * compatibleServers.length)];
+            await this.log(taskId, workflowExecutionId, nodeId, 'WARN', `MCP Server discovery strategy 'random' not fully implemented, using 'first'.`);
+            mcpServerDetails = compatibleServers[0]; 
+          } else {
+            await this.log(taskId, workflowExecutionId, nodeId, 'WARN', `Unknown MCP Server discovery strategy '${strategy}', defaulting to 'first'.`);
+            mcpServerDetails = compatibleServers[0];
+          }
+          await this.log(taskId, workflowExecutionId, nodeId, 'INFO', `Discovered McpServer '${mcpServerDetails?.name}' (ID: ${mcpServerDetails?.id}) using strategy '${strategy}'.`);
+        } else {
+          serverFetchError = "No compatible MCP Server found for the specified discovery criteria.";
+          await this.log(taskId, workflowExecutionId, nodeId, 'WARN', serverFetchError, nodeInput.discoveryCriteria);
+        }
+      } else {
+        serverFetchError = "MCP Server not specified directly and discovery criteria are insufficient or missing.";
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', serverFetchError, { agentConfig, discoveryCriteria: nodeInput.discoveryCriteria });
+      }
+
+      if (serverFetchError) {
+        // This log was already made where serverFetchError was set, so just return.
+        return { success: false, error: serverFetchError };
+      }
+
+      if (!mcpServerDetails) { // Safeguard, should have been caught by serverFetchError
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Failed to identify an MCP Server to target.');
+        return { success: false, error: "Failed to identify an MCP Server to target." };
+      }
+
+      if (mcpServerDetails.status !== McpServerStatus.ACTIVE) {
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', `MCP Server ${mcpServerDetails.name} is not ACTIVE. Current status: ${mcpServerDetails.status}`);
+        return { success: false, error: `MCP Server ${mcpServerDetails.name} is not ACTIVE.` };
+      }
+
+    } catch (dbError) {
+      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Failed to fetch/discover MCP Server details', { error: (dbError as Error).message });
+      return { success: false, error: 'Failed to fetch or discover MCP Server details.' };
+    }
+    
+    // Ensure mcpServerDetails is not null for TypeScript to be happy below, though logic above should ensure it.
+    if (!mcpServerDetails) {
+        // This should be unreachable due to the safeguards above.
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Critical error: mcpServerDetails is null after selection logic.');
+        return { success: false, error: "Critical error in MCP server selection." };
+    }
+
+    const serverProtocolDetails = (typeof mcpServerDetails.protocolDetails === 'object' && mcpServerDetails.protocolDetails !== null) 
+                                ? mcpServerDetails.protocolDetails 
+                                : {};
+    const nodeOverrideProtocol = (typeof nodeInput.overrideProtocolDetails === 'object' && nodeInput.overrideProtocolDetails !== null)
+                                ? nodeInput.overrideProtocolDetails
+                                : {};
+
+    const finalProtocolDetails = mergeJsonDetails(serverProtocolDetails, nodeOverrideProtocol);
+
+    const requestPath = agentConfig.mcpRequestPath || (finalProtocolDetails as any).defaultPath || '/mcp';
+    let fullUrl: string;
+    try {
+      const base = mcpServerDetails.baseUrl.endsWith('/') ? mcpServerDetails.baseUrl.slice(0, -1) : mcpServerDetails.baseUrl;
+      const path = requestPath.startsWith('/') ? requestPath.slice(1) : requestPath;
+      fullUrl = `${base}/${path}`;
+      new URL(fullUrl); // Validate
+    } catch (e) {
+      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Invalid MCP URL construction', { baseUrl: mcpServerDetails.baseUrl, path: requestPath, error: (e as Error).message });
+      return { success: false, error: `Invalid MCP URL: ${(e as Error).message}` };
+    }
+
+    const httpMethod = ((finalProtocolDetails as any).httpMethod || 'POST').toUpperCase() as AxiosMethod;
+    const headers = { 'Content-Type': 'application/json', ...((finalProtocolDetails as any).headers || {}) };
+    
+    const requestBody = (finalProtocolDetails as any).requestStructure === 'command_and_context' && nodeInput.mcpCommand
+      ? { command: nodeInput.mcpCommand, context: nodeInput.contextPayload }
+      : nodeInput.contextPayload;
+
+    const timeout = (((finalProtocolDetails as any).timeoutSeconds || 60) * 1000);
+    const expectedResponseType = agentConfig.expectedResponseType || (finalProtocolDetails as any).expectedResponseType || 'json';
+
+    const axiosConfig: AxiosRequestConfig = {
+      method: httpMethod,
+      url: fullUrl,
+      headers: headers,
+      data: requestBody,
+      timeout: timeout,
+      responseType: expectedResponseType === 'binary_base64' ? 'arraybuffer' : 'json', // Axios uses 'json' by default for parsing
+    };
+    
+    const sanitizedHeadersForLog = { ...headers };
+    // Basic redaction for common auth headers if they were part of protocolDetails.headers
+    if (sanitizedHeadersForLog['Authorization']) sanitizedHeadersForLog['Authorization'] = 'Bearer [REDACTED]';
+    if (sanitizedHeadersForLog['X-Api-Key']) sanitizedHeadersForLog['X-Api-Key'] = '[REDACTED]';
+
+
+    await this.log(taskId, workflowExecutionId, nodeId, 'INFO', 'MCP Client Request:', {
+      url: fullUrl,
+      method: httpMethod,
+      headers: sanitizedHeadersForLog,
+      bodyIsPresent: !!requestBody,
+      mcpServerName: mcpServerDetails.name,
+    });
+
+    try {
+      const response = await axios(axiosConfig);
+      let responseData = response.data;
+
+      if (expectedResponseType === 'binary_base64' && response.data instanceof ArrayBuffer) {
+        responseData = Buffer.from(response.data).toString('base64');
+      } else if (expectedResponseType === 'text') {
+         // If axios auto-parsed JSON but text was expected, stringify it. Or ensure axios is told to expect text.
+         // For simplicity, if it's an object and text was expected, we might stringify.
+         if (typeof responseData !== 'string') responseData = JSON.stringify(responseData);
+      }
+      // If 'json', axios usually auto-parses.
+
+      await this.log(taskId, workflowExecutionId, nodeId, 'INFO', 'MCP Client Response Success:', {
+        status: response.status,
+        mcpServerName: mcpServerDetails.name,
+        // bodyPreview: (typeof responseData === 'string' && responseData.length > 200) ? responseData.substring(0,200) + '...' : responseData
+      });
+
+      return {
+        success: true,
+        data: responseData,
+        rawResponse: { status: response.status, headers: response.headers, body: response.data },
+      };
+
+    } catch (error) {
+      const rawResponseCapture: any = {};
+      let mcpSpecificError = null;
+
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError<any>;
+        if (axiosError.response) {
+          rawResponseCapture.status = axiosError.response.status;
+          rawResponseCapture.headers = axiosError.response.headers;
+          rawResponseCapture.body = axiosError.response.data;
+
+          const errorPath = (finalProtocolDetails as any).errorStructurePath;
+          if (errorPath && typeof errorPath === 'string') {
+            mcpSpecificError = getNestedValue(axiosError.response.data, errorPath);
+          }
+          const message = mcpSpecificError ? `MCP Protocol Error: ${mcpSpecificError}` : `MCP Server Error: ${axiosError.response.status}`;
+          await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', message, { ...rawResponseCapture, mcpServerName: mcpServerDetails.name });
+          return { success: false, error: message, rawResponse: rawResponseCapture };
+        } else if (axiosError.request) {
+          await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'MCP Communication Error (Network/Request):', { message: axiosError.message, mcpServerName: mcpServerDetails.name });
+          return { success: false, error: `MCP Communication Error (Network/Request): ${axiosError.message}` };
+        }
+      }
+      // Fallback for non-Axios errors or Axios errors without response/request
+      const errorMessage = (error instanceof Error) ? error.message : String(error);
+      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'MCP Client Agent Failed (Unknown/Axios Error):', { message: errorMessage, mcpServerName: mcpServerDetails.name });
+      return { success: false, error: `MCP Client Agent Failed: ${errorMessage}`, rawResponse: rawResponseCapture.status ? rawResponseCapture : undefined };
+    }
+  }
+
+  private async invokeHttpApiCallerAgent(
+    agentConfig: {
+      baseUrl?: string;
+      authentication?: {
+        type: 'bearerToken' | 'apiKey';
+        token?: string; // For bearerToken
+        apiKeyHeader?: string; // For apiKey
+        apiKeyValue?: string;  // For apiKey
+      };
+      defaultHeaders?: Record<string, string>;
+      timeoutSeconds?: number;
+    },
+    nodeInput: {
+      method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+      path: string;
+      queryParams?: Record<string, string | number | boolean>;
+      requestBody?: any;
+      headers?: Record<string, string>;
+    },
+    logContext: { taskId: string; workflowExecutionId: string; nodeId: string }
+  ): Promise<{
+    success: boolean;
+    status?: number;
+    headers?: Record<string, any>;
+    body?: any;
+    error?: string;
+  }> {
+    const { taskId, workflowExecutionId, nodeId } = logContext;
+
+    // 1. URL Construction
+    let fullUrl: string;
+    try {
+      if (agentConfig.baseUrl) {
+        // Ensure no double slashes and handle path starting with /
+        const base = agentConfig.baseUrl.endsWith('/') ? agentConfig.baseUrl.slice(0, -1) : agentConfig.baseUrl;
+        const path = nodeInput.path.startsWith('/') ? nodeInput.path.slice(1) : nodeInput.path;
+        fullUrl = `${base}/${path}`;
+      } else if (nodeInput.path.startsWith('http://') || nodeInput.path.startsWith('https://')) {
+        fullUrl = nodeInput.path;
+      } else {
+        throw new Error('baseUrl is missing in agentConfig and nodeInput.path is not an absolute URL.');
+      }
+      // Validate URL
+      new URL(fullUrl);
+    } catch (e) {
+      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Invalid URL construction', { baseUrl: agentConfig.baseUrl, path: nodeInput.path, error: (e as Error).message });
+      return { success: false, error: `Invalid URL: ${(e as Error).message}` };
+    }
+
+    // 2. Headers Preparation
+    const finalHeaders: Record<string, string> = { ...(agentConfig.defaultHeaders || {}) };
+
+    if (agentConfig.authentication) {
+      if (agentConfig.authentication.type === 'bearerToken' && agentConfig.authentication.token) {
+        finalHeaders['Authorization'] = `Bearer ${agentConfig.authentication.token}`;
+      } else if (agentConfig.authentication.type === 'apiKey' && agentConfig.authentication.apiKeyHeader && agentConfig.authentication.apiKeyValue) {
+        finalHeaders[agentConfig.authentication.apiKeyHeader] = agentConfig.authentication.apiKeyValue;
+      }
+    }
+
+    if (nodeInput.headers) {
+      for (const key in nodeInput.headers) {
+        finalHeaders[key] = nodeInput.headers[key];
+      }
+    }
+    
+    if (typeof nodeInput.requestBody === 'object' && nodeInput.requestBody !== null && !Object.keys(finalHeaders).map(k => k.toLowerCase()).includes('content-type')) {
+        finalHeaders['Content-Type'] = 'application/json';
+    }
+
+
+    // 3. Axios Request Configuration
+    const axiosConfig: AxiosRequestConfig = {
+      method: nodeInput.method,
+      url: fullUrl,
+      headers: finalHeaders,
+      params: nodeInput.queryParams,
+      data: nodeInput.requestBody,
+      timeout: (agentConfig.timeoutSeconds || 30) * 1000,
+    };
+
+    // 4. Logging Request (Sanitized)
+    const sanitizedHeaders = { ...finalHeaders };
+    if (sanitizedHeaders['Authorization']) sanitizedHeaders['Authorization'] = 'Bearer [REDACTED]';
+    if (agentConfig.authentication?.apiKeyHeader && sanitizedHeaders[agentConfig.authentication.apiKeyHeader]) {
+      sanitizedHeaders[agentConfig.authentication.apiKeyHeader] = '[REDACTED]';
+    }
+
+    await this.log(
+      taskId, workflowExecutionId, nodeId, 'INFO',
+      'HTTP API Call Request:',
+      {
+        method: axiosConfig.method,
+        url: axiosConfig.url,
+        headers: sanitizedHeaders,
+        queryParams: axiosConfig.params,
+        bodyIsPresent: !!axiosConfig.data,
+      }
+    );
+
+    // 5. Execute Request
+    try {
+      const response = await axios(axiosConfig);
+
+      // Truncate large response body for logging
+      let loggedBody = response.data;
+      if (typeof loggedBody === 'string' && loggedBody.length > 1000) {
+        loggedBody = loggedBody.substring(0, 1000) + '... (truncated)';
+      } else if (typeof loggedBody === 'object') {
+        // Could implement a more sophisticated truncation for objects/arrays if needed
+      }
+      
+      await this.log(
+        taskId, workflowExecutionId, nodeId, 'INFO',
+        'HTTP API Call Response:',
+        { status: response.status, headers: response.headers, bodyPreview: loggedBody }
+      );
+
+      return {
+        success: true,
+        status: response.status,
+        headers: response.headers,
+        body: response.data,
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError<any>;
+        if (axiosError.response) {
+          // Error from server (4xx, 5xx)
+          await this.log(
+            taskId, workflowExecutionId, nodeId, 'ERROR',
+            'HTTP API Call Failed (Server Error):',
+            { status: axiosError.response.status, headers: axiosError.response.headers, data: axiosError.response.data }
+          );
+          return {
+            success: false,
+            status: axiosError.response.status,
+            headers: axiosError.response.headers,
+            body: axiosError.response.data,
+            error: `HTTP Error: ${axiosError.response.status}`,
+          };
+        } else if (axiosError.request) {
+          // Network error (no response received)
+          await this.log(
+            taskId, workflowExecutionId, nodeId, 'ERROR',
+            'HTTP API Call Failed (Network Error):',
+            { message: axiosError.message, code: axiosError.code }
+          );
+          return { success: false, error: `Network Error: ${axiosError.message}` };
+        } else {
+          // Other Axios setup error
+          await this.log(
+            taskId, workflowExecutionId, nodeId, 'ERROR',
+            'HTTP API Call Failed (Axios Error):',
+            { message: axiosError.message }
+          );
+          return { success: false, error: `Axios Error: ${axiosError.message}` };
+        }
+      } else {
+        // Non-Axios error
+        await this.log(
+          taskId, workflowExecutionId, nodeId, 'ERROR',
+          'HTTP API Call Failed (Unknown Error):',
+          { message: (error as Error).message, stack: (error as Error).stack }
+        );
+        return { success: false, error: `Unknown Error: ${(error as Error).message}` };
+      }
     }
   }
 

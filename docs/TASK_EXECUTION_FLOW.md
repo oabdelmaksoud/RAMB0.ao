@@ -187,6 +187,7 @@ The following Prisma models are central to the task lifecycle, from initial plan
 *   **`WorkflowEdge`**: Defines the directed connections or transitions between `WorkflowNodes` within a `Workflow`. These edges determine the sequence of operations and can include conditions for progressing from one node to the next.
 *   **`Agent`**: Stores critical information about the AI agents available to the system. This includes the `type` of agent (which links to `WorkflowNode.type`), its configuration parameters (`config`), and potentially metadata about its capabilities or the Genkit flows it uses.
 *   **`User`**: Represents the human users who interact with the system. This model is used for assigning tasks, defining ownership, and managing permissions.
+*   **`McpServer`**: Stores registration and configuration details for Model Context Protocol (MCP) servers, which agents can leverage as tools. Key fields include `name`, `baseUrl`, `protocolDetails` (defining communication specifics like HTTP method, paths, request/error structures), `capabilities`, and `status`.
 
 ## 2. Logging Strategy
 
@@ -233,38 +234,52 @@ The system is now well-positioned to evolve into a versatile and autonomous task
 
 To enhance the system's capabilities, new agent types can be integrated into the `ProductionWorkflowExecutionService`. This section outlines the design for two such agents: `httpApiCaller` and `scriptRunner`.
 
-These new agent types will be added to the `dispatchAgentTask` method in `ProductionWorkflowExecutionService.ts`. The `WorkflowNode.type` field will specify which agent to use (e.g., "httpApiCaller", "scriptRunner"), and the `WorkflowNode.config` will be parsed to provide `agentConfig` (for agent-level settings) and `inputData` (for node-specific inputs) to the respective handler methods.
+These new agent types are progressively being added to the `dispatchAgentTask` method in `ProductionWorkflowExecutionService.ts`. The `WorkflowNode.type` field specifies which agent to use, and the `WorkflowNode.config` is parsed to provide `agentConfig` (for agent-level settings) and `inputData` (for node-specific inputs) to the respective handler methods.
 
-## 1. Agent Type: `httpApiCaller`
+## 1. Agent Type: `httpApiCaller` (Implemented)
 
 ### a. Purpose
 The `httpApiCaller` agent is designed to make HTTP requests to external APIs or web services. This allows workflows to interact with other systems, fetch data, or trigger external processes.
 
-### b. `Agent.config` Example
+### b. Implementation Status & Details
+The `invokeHttpApiCallerAgent` method is now implemented within `ProductionWorkflowExecutionService`. It utilizes the `axios` HTTP client library to:
+*   Construct full request URLs from `agentConfig.baseUrl` and `nodeInput.path`.
+*   Prepare headers, merging defaults from `agentConfig` with node-specific ones from `nodeInput`, and handling authentication (Bearer token or API key as per `agentConfig.authentication`).
+*   Manage request/response bodies, including setting `Content-Type: application/json` for object request bodies if not specified.
+*   Handle timeouts based on `agentConfig.timeoutSeconds`.
+*   Provide detailed logging of sanitized requests and responses (truncating large bodies for logs).
+*   Return a structured success object (`{ success: true, status, headers, body }`) or a failure object (`{ success: false, error, status?, body? }`) after handling various HTTP and network errors.
+
+### c. `Agent.config` Example
 This configuration is stored in the `Agent` record in the database and provides base settings for this agent. The `WorkflowNode.config.agentConfig` in a workflow definition would typically reference this agent's ID, or could potentially override parts of this if the design allows. For simplicity, we assume `WorkflowNode.agentConfig` is populated from the resolved `Agent`'s own `config` field by `initializeWorkflow`.
 
 ```json
 {
   "baseUrl": "https://api.example.com/v1",
-  "defaultHeaders": {
-    "User-Agent": "RamboTaskSystem/1.0",
-    "Authorization": "Bearer {SECRET_AUTH_TOKEN_ID}"
+  "authentication": {
+    "type": "bearerToken",
+    "token": "{SECRET_BEARER_TOKEN_ID}" 
   },
-  "timeoutMs": 5000,
-  "allowedMethods": ["GET", "POST", "PUT"],
-  "retryPolicy": {
-    "attempts": 3,
-    "delayMs": 1000
-  }
+  "defaultHeaders": {
+    "User-Agent": "RamboTaskSystem/1.0"
+  },
+  "timeoutSeconds": 30, 
+  "allowedMethods": ["GET", "POST", "PUT"] 
 }
 ```
 *   `baseUrl`: Prepended to all requests.
-*   `defaultHeaders`: Common headers. Placeholders like `{SECRET_AUTH_TOKEN_ID}` would need a secure way to be resolved (e.g., from a secrets manager, not shown here).
-*   `timeoutMs`: Default request timeout.
-*   `allowedMethods`: Restricts which HTTP methods this agent instance can use.
-*   `retryPolicy`: Basic retry mechanism for transient network issues.
+*   `authentication`: (Optional) Defines the authentication method.
+    *   `type`: Can be `"bearerToken"` or `"apiKey"`.
+    *   `token`: The bearer token itself (or a reference to a secret).
+    *   `apiKeyHeader`: (For `apiKey` type) The name of the header for the API key.
+    *   `apiKeyValue`: (For `apiKey` type) The API key value (or a reference to a secret).
+*   `defaultHeaders`: Common headers. Secret placeholders need secure resolution.
+*   `timeoutSeconds`: Default request timeout in seconds (implementation uses this, not `timeoutMs`).
+*   `allowedMethods`: (Optional) Restricts which HTTP methods this agent instance can use. The handler logic currently doesn't enforce this, but it's good for agent definition.
+*   `retryPolicy`: (Currently not implemented in the handler, but good for future design) Basic retry mechanism.
 
-### c. `WorkflowNode.config.inputData` Example
+
+### d. `WorkflowNode.config.inputData` Example
 This is the `input` part of `WorkflowNode.config`, which becomes `RuntimeExecutionNode.inputData`.
 
 ```json
@@ -290,31 +305,20 @@ This is the `input` part of `WorkflowNode.config`, which becomes `RuntimeExecuti
 *   `queryParams`: Key-value pairs for URL query parameters.
 *   `body`: Request payload for methods like POST or PUT.
 
-### d. Handler Logic Outline (`invokeHttpApiCallerAgent`)
+### e. Handler Implementation Summary (`invokeHttpApiCallerAgent`)
 
-The `invokeHttpApiCallerAgent(agentConfig: any, nodeInput: any, logContext: LogContext): Promise<any>` method would:
-1.  **Validate Inputs:**
-    *   Check if `nodeInput.method` is present and is one of the `agentConfig.allowedMethods` (if specified).
-    *   Ensure `nodeInput.path` is present.
-2.  **Construct Request URL:** Combine `agentConfig.baseUrl` and `nodeInput.path`. Append query parameters from `nodeInput.queryParams`.
-3.  **Merge Headers:** Combine `agentConfig.defaultHeaders` and `nodeInput.headers` (node-specific headers take precedence). Resolve any secret placeholders in headers securely.
-4.  **Make HTTP Request:**
-    *   Use a robust HTTP client library (e.g., `axios`, `node-fetch`).
-    *   Set method, URL, headers, body (from `nodeInput.body`), and timeout (from `nodeInput.timeoutMs` or `agentConfig.timeoutMs`).
-    *   Implement retry logic based on `agentConfig.retryPolicy` for appropriate status codes (e.g., 5xx errors, network errors).
-5.  **Process Response:**
-    *   If the request is successful (e.g., 2xx status code):
-        *   Return the response body (e.g., parsed JSON if `Content-Type` is `application/json`). The structure of the return might be `{ "status": response.status, "headers": response.headers, "body": response.data }`.
-        *   Log success with status code and key response details.
-    *   If the request fails (e.g., 4xx, 5xx status codes, timeout):
-        *   Log the error, including request details and response status/body if available.
-        *   Throw a structured error (e.g., `HttpError` with status, message, and response data) to be caught by `executeNode`.
-6.  **Logging:** Log key steps, parameters, and outcomes using `this.log` with the provided `logContext`.
+The implemented `invokeHttpApiCallerAgent` method in `ProductionWorkflowExecutionService` handles the logic described. It uses `axios` for HTTP requests and includes:
+*   URL construction from `baseUrl` and `path`.
+*   Header merging (default, auth, node-specific).
+*   Authentication via Bearer Token or API Key, with token redaction in logs.
+*   Configuration of HTTP method, query parameters, request body, and timeout.
+*   Detailed logging of sanitized requests and responses.
+*   Structured success and error return objects (e.g., `{ success: true, status, headers, body }` or `{ success: false, error, ... }`).
 
-## 2. Agent Type: `scriptRunner`
+## 2. Agent Type: `scriptRunner` (Design for Future Implementation)
 
 ### a. Purpose
-The `scriptRunner` agent is designed to execute arbitrary scripts (e.g., Shell, Python, Node.js) on the server where the backend is running. This is a powerful but potentially risky agent that needs careful security considerations.
+The `scriptRunner` agent is designed to execute arbitrary scripts (e.g., Shell, Python, Node.js) on the server where the backend is running. This is a powerful but potentially risky agent that needs careful security considerations. **This agent is currently a design and is not yet implemented.**
 
 ### b. `Agent.config` Example
 Stored in the `Agent` record.
@@ -389,9 +393,82 @@ The `invokeScriptRunnerAgent(agentConfig: any, nodeInput: any, logContext: LogCo
 *   Principle of least privilege for file system access and network capabilities of the script.
 *   Auditing and monitoring of script executions.
 
-## 3. Modified `dispatchAgentTask` Method
+## 3. Agent Type: `mcpClientAgent` (Implemented)
 
-The `dispatchAgentTask` method in `ProductionWorkflowExecutionService.ts` would be updated as follows:
+### a. Purpose
+Enables workflows to interact with registered Model Context Protocol (MCP) servers, allowing structured communication with various AI models and tools that expose an MCP-compatible interface.
+
+### b. Implementation Status & Details
+The `invokeMcpClientAgent` method is implemented within `ProductionWorkflowExecutionService`. It:
+*   Fetches `McpServer` registration details (including `baseUrl` and `protocolDetails`) from the database using the `McpServersService`.
+*   Constructs HTTP requests based on the server's `protocolDetails` (e.g., specific paths, HTTP method, request/error structure) and the node's input data. `protocolDetails` can be overridden by `nodeInput.overrideProtocolDetails`.
+*   Uses `axios` for communication.
+*   Handles various response types (`json`, `text`, `binary_base64`) as specified in `agentConfig.expectedResponseType` or `McpServer.protocolDetails`.
+*   Provides detailed logging and structured success/error return objects.
+
+### c. `Agent.config` Example for `mcpClientAgent`
+This configuration is stored in the `Agent` record and defines how the agent generally behaves.
+```json
+// Scenario 1: Direct Server Specification (Agent always uses this server)
+{
+  "mcpServerId": "some-registered-mcp-server-id", 
+  // "mcpServerName": "MyFriendlyMCP", // Alternative to mcpServerId
+  "mcpRequestPath": "/default_invoke_path", // Optional: default path for this agent
+  "expectedResponseType": "json" // Optional: default expected response type
+}
+
+// Scenario 2: Server to be Determined by Discovery (Agent relies on node input)
+{
+  "mcpRequestPath": "/common_action", // Can still have defaults
+  "expectedResponseType": "json"
+  // mcpServerId and mcpServerName are omitted by the Agent designer
+}
+```
+*   `mcpServerId` / `mcpServerName`: (Optional) If provided, directly specifies the target `McpServer`. If both are omitted, the agent relies on `WorkflowNode.config.inputData.discoveryCriteria`.
+*   `mcpRequestPath`: (Optional) Default specific path for the MCP request on the server.
+*   `expectedResponseType`: (Optional) Default for how to parse the MCP server's response ("json", "text", or "binary_base64").
+
+### d. `WorkflowNode.config.inputData` Example for `mcpClientAgent`
+This is the `input` part of `WorkflowNode.config`, which becomes `RuntimeExecutionNode.inputData`.
+```json
+{
+  // Option 1: Discovery Criteria (used if Agent.config doesn't specify mcpServerId/Name)
+  "discoveryCriteria": { 
+    "capabilities": ["text_summarization", "english_language"], // Mandatory for discovery
+    "nameRegex": "SummaryBot.*v2", // Optional: Regex to filter server names
+    "selectionStrategy": "first" // Optional: 'first' (default) or 'random' (currently defaults to 'first')
+  },
+
+  // Option 2: Direct Specification in Node (less common, Agent.config is preferred for direct)
+  // "mcpServerId": "specific-node-target-server-id", // Overrides Agent.config if any
+
+  "contextPayload": { "text": "A long document to summarize..." },
+  "mcpCommand": "summarizeDocument", // Optional: specific command for the MCP server
+  "overrideProtocolDetails": { // Optional: Override parts of McpServer.protocolDetails
+    "timeoutSeconds": 90,
+    "headers": { "X-Custom-MCP-Param": "value123" }
+  }
+}
+```
+*   `discoveryCriteria`: (Optional) If `Agent.config` does not specify `mcpServerId` or `mcpServerName`, these criteria are used to find a suitable `McpServer` via `McpServersService.findCompatibleServers`.
+    *   `capabilities`: Array of strings. Mandatory for discovery. The service will look for servers possessing *all* listed capabilities.
+    *   `nameRegex`: Optional string (regex pattern) to filter server names.
+    *   `selectionStrategy`: Optional. Currently supports "first" (default), which selects the first active server matching all criteria. "random" is also a conceptual option but currently defaults to "first".
+*   `contextPayload`: The main data/JSON payload for the MCP server.
+*   `mcpCommand`: (Optional) Specific command for the MCP server, used if its `protocolDetails.requestStructure` is "command_and_context".
+*   `overrideProtocolDetails`: (Optional) Allows overriding parts of the selected `McpServer.protocolDetails` for this specific node execution.
+
+**Server Selection Precedence:**
+1.  Direct `mcpServerId` or `mcpServerName` in `Agent.config`.
+2.  If not specified in `Agent.config`, then `discoveryCriteria` from `WorkflowNode.config.inputData` are used.
+3.  If neither direct specification nor valid discovery criteria are provided, the agent will fail.
+
+### e. Handler Implementation Summary (`invokeMcpClientAgent`)
+The `invokeMcpClientAgent` method first attempts to identify the target `McpServer`. It prioritizes direct specification (`mcpServerId` or `mcpServerName` from `agentConfig`). If these are not provided, it uses the `discoveryCriteria` from `nodeInput` to query `McpServersService.findCompatibleServers`. If a server is found (and is `ACTIVE`), it then constructs an HTTP request using `axios`. The request parameters (URL, method, headers, body, timeout, expected response type) are derived from a combination of the selected `McpServer`'s `protocolDetails`, `agentConfig` defaults, and `nodeInput` overrides. The `McpServer.protocolDetails` are key, defining aspects like the HTTP method, specific paths for actions, how request bodies should be structured, and how to interpret error responses from the MCP server (e.g., `errorStructurePath`).
+
+## 4. Modified `dispatchAgentTask` Method
+
+The `dispatchAgentTask` method in `ProductionWorkflowExecutionService.ts` is updated as follows:
 
 ```typescript
 // In ProductionWorkflowExecutionService.ts
@@ -411,13 +488,14 @@ private async dispatchAgentTask(
       return this.invokeGenkitFlowAgent(agentConfig, nodeInput, logContext);
     
     case 'httpApiCaller':
-      // Ensure invokeHttpApiCallerAgent is implemented and imported/available
-      // return this.invokeHttpApiCallerAgent(agentConfig, nodeInput, logContext);
-      await this.log(taskId, workflowExecutionId, nodeId, 'WARN', `Agent type 'httpApiCaller' handler not yet fully implemented. Stubbed.`, { agentConfig, nodeInput });
-      return { message: "httpApiCaller stubbed response", inputReceived: nodeInput }; // Placeholder
+      return this.invokeHttpApiCallerAgent(agentConfig, nodeInput, logContext);
+    
+    case 'mcpClientAgent':
+      return this.invokeMcpClientAgent(agentConfig, nodeInput, logContext);
 
     case 'scriptRunner':
-      // Ensure invokeScriptRunnerAgent is implemented and imported/available
+      // This remains a design for future implementation.
+      // Ensure invokeScriptRunnerAgent is implemented and imported/available when built.
       // return this.invokeScriptRunnerAgent(agentConfig, nodeInput, logContext);
       await this.log(taskId, workflowExecutionId, nodeId, 'WARN', `Agent type 'scriptRunner' handler not yet fully implemented. Stubbed.`, { agentConfig, nodeInput });
       return { message: "scriptRunner stubbed response", inputReceived: nodeInput }; // Placeholder

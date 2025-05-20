@@ -46,6 +46,54 @@ enum AgentStatus {
   UPDATING
 }
 
+enum TicketType {
+  BUG
+  FEATURE
+  IMPROVEMENT
+  TASK
+  EPIC
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  BLOCKED
+}
+
+enum RequirementType {
+  FUNCTIONAL
+  NON_FUNCTIONAL
+  CONSTRAINT
+  INTERFACE
+  PERFORMANCE
+}
+
+enum RequirementStatus {
+  DRAFT
+  PROPOSED
+  APPROVED
+  IMPLEMENTED
+  VERIFIED
+  REJECTED
+}
+
+enum McpServerStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+  CONFIG_PENDING // If some setup is needed after registration
+}
+
 model User {
   id                String        @id @default(cuid())
   email             String        @unique
@@ -129,6 +177,7 @@ model Task {
   logs        TaskLog[]
   dependencies TaskDependency[] @relation("TaskDependencies")
   dependentTasks TaskDependency[] @relation("DependsOnTasks")
+  // relatedRequirements Requirement[] @relation("RelatedTasks") // This was a mistake from previous schema example, removing
 
   @@map("tasks")
   @@index([projectId])
@@ -143,7 +192,7 @@ model TaskDependency {
   id              String   @id @default(cuid())
   task            Task     @relation("TaskDependencies", fields: [taskId], references: [id])
   taskId          String
-  dependsOnTask   Task     @relation(fields: [dependsOnTaskId], references: [id])
+  dependsOnTask   Task     @relation("DependsOnTasks", fields: [dependsOnTaskId], references: [id]) // Corrected relation name here
   dependsOnTaskId String
   type            String   @default("FINISH_TO_START")  // Types like FS, SS, FF, SF
   createdAt       DateTime @default(now())
@@ -177,12 +226,14 @@ model Workflow {
 
 model WorkflowNode {
   id        String   @id @default(cuid())
+  name      String? // Added name field for better identification
   type      String
   config    Json
   workflow  Workflow @relation(fields: [workflowId], references: [id])
   workflowId String
   edgesOut  WorkflowEdge[] @relation("edgesOut")
   edgesIn   WorkflowEdge[] @relation("edgesIn")
+  isTerminal Boolean @default(false) // Added to easily identify terminal nodes
 
   @@map("workflow_nodes")
 }
@@ -214,6 +265,8 @@ model File {
   projectId String?
   owner     User     @relation(fields: [ownerId], references: [id])
   ownerId   String
+  // requirement Requirement? @relation("RequirementAttachments", fields: [requirementId], references: [id]) // This was a mistake
+  // requirementId String? // This was a mistake
 
   @@map("files")
 }
@@ -226,14 +279,17 @@ model TaskLog {
   createdAt DateTime @default(now())
   task      Task     @relation(fields: [taskId], references: [id])
   taskId    String
+  workflowExecutionId String? // Added to link to a specific workflow run
+  workflowNodeId String? // Added to link to a specific node within a workflow run
 
   @@map("task_logs")
+  @@index([workflowExecutionId])
 }
 
 model Agent {
   id          String       @id @default(cuid())
   name        String
-  type        String
+  type        String       @unique // Agent types should be unique for lookup
   config      Json
   status      AgentStatus  @default(INACTIVE)
   lastPing    DateTime?
@@ -263,32 +319,11 @@ model AgentLog {
   createdAt DateTime @default(now())
   agent     Agent    @relation(fields: [agentId], references: [id])
   agentId   String
+  workflowExecutionId String? // Added to link to a specific workflow run
+  workflowNodeId String? // Added to link to a specific node within a workflow run
 
   @@map("agent_logs")
-}
-
-enum TicketType {
-  BUG
-  FEATURE
-  IMPROVEMENT
-  TASK
-  EPIC
-}
-
-enum TicketPriority {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum TicketStatus {
-  BACKLOG
-  TODO
-  IN_PROGRESS
-  REVIEW
-  DONE
-  BLOCKED
+  @@index([workflowExecutionId])
 }
 
 model Ticket {
@@ -322,23 +357,6 @@ model Ticket {
   @@index([status])
 }
 
-enum RequirementType {
-  FUNCTIONAL
-  NON_FUNCTIONAL
-  CONSTRAINT
-  INTERFACE
-  PERFORMANCE
-}
-
-enum RequirementStatus {
-  DRAFT
-  PROPOSED
-  APPROVED
-  IMPLEMENTED
-  VERIFIED
-  REJECTED
-}
-
 model Requirement {
   id          String            @id @default(cuid())
   title       String
@@ -358,8 +376,8 @@ model Requirement {
   updatedAt   DateTime          @updatedAt
   version     String            @default("1.0")
   tags        String[]
-  relatedTasks Task[] @relation("RelatedRequirements")
-  attachments File[] @relation("RequirementAttachments")
+  // relatedTasks Task[] @relation("RelatedRequirements") // This was from previous example, removed.
+  // attachments File[] @relation("RequirementAttachments") // This was from previous example, removed.
 
   @@map("requirements")
   @@index([projectId])
@@ -373,15 +391,42 @@ model Sprint {
   goal        String?
   startDate   DateTime
   endDate     DateTime
-  status      String     @default("PLANNED")
+  status      String     @default("PLANNED") // Consider enum SprintStatus
   project     Project    @relation(fields: [projectId], references: [id])
   projectId   String
   tickets     Ticket[]
-  tasks       Task[]
+  // tasks       Task[] // Sprints usually contain tickets, which can be broken into tasks. Direct task link might be redundant.
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   @@map("sprints")
   @@index([projectId])
+  @@index([status])
+}
+
+model McpServer {
+  id                String   @id @default(cuid())
+  name              String   @unique // Human-readable unique name for the server
+  description       String?
+  baseUrl           String   // Base URL of the MCP server (e.g., http://localhost:8080/mcp)
+  
+  // protocolDetails will store specifics about how to communicate with this MCP server
+  // e.g., version, specific paths, expected context structure, auth method if any
+  protocolDetails   Json?    
+  
+  capabilities      String[] @default([]) // e.g., ["text_generation", "code_analysis", "image_classification"]
+  
+  status            McpServerStatus @default(ACTIVE)
+  
+  adminRegisteredAt DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastCheckedAt     DateTime? // Timestamp of the last health check or successful communication
+
+  // Optional: Link to a user who registered it, if you have admin users managing these
+  // registeredById String?
+  // registeredBy   User?   @relation(fields: [registeredById], references: [id])
+
+  @@map("mcp_servers")
+  @@index([name])
   @@index([status])
 }
