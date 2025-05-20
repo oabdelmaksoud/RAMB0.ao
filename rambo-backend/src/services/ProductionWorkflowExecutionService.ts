@@ -26,6 +26,7 @@ import {
   createInitialRuntimeWorkflowExecution,
 } from '../../../src/types/workflow-execution'; // Adjusted path
 import { availableFlows } from '../../../src/ai/flows'; // Import available Genkit flows
+import axios, { AxiosRequestConfig, AxiosError } from 'axios';
 
 @Injectable()
 export class ProductionWorkflowExecutionService extends WorkflowExecutionService {
@@ -193,15 +194,188 @@ export class ProductionWorkflowExecutionService extends WorkflowExecutionService
     workflowExecutionId: string,
     nodeId: string,
   ): Promise<any> {
+    const logContext = { taskId, workflowExecutionId, nodeId };
     switch (agentType) {
       case 'genkitFlowRunner':
-        return this.invokeGenkitFlowAgent(agentConfig, nodeInput, { taskId, workflowExecutionId, nodeId });
+        return this.invokeGenkitFlowAgent(agentConfig, nodeInput, logContext);
+      case 'httpApiCaller':
+        return this.invokeHttpApiCallerAgent(agentConfig, nodeInput, logContext);
       // Add cases for other agent types here, e.g.:
       // case 'toolRunner':
       //   return this.invokeToolAgent(agentConfig, nodeInput, { taskId, workflowExecutionId, nodeId });
       default:
-        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', `Unknown agent type: ${agentType}`);
-        throw new Error(`Unknown agent type: ${agentType}`);
+        await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', `Unknown or unsupported agent type: ${agentType}`);
+        throw new Error(`Unknown or unsupported agent type: ${agentType}`);
+    }
+  }
+
+  private async invokeHttpApiCallerAgent(
+    agentConfig: {
+      baseUrl?: string;
+      authentication?: {
+        type: 'bearerToken' | 'apiKey';
+        token?: string; // For bearerToken
+        apiKeyHeader?: string; // For apiKey
+        apiKeyValue?: string;  // For apiKey
+      };
+      defaultHeaders?: Record<string, string>;
+      timeoutSeconds?: number;
+    },
+    nodeInput: {
+      method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+      path: string;
+      queryParams?: Record<string, string | number | boolean>;
+      requestBody?: any;
+      headers?: Record<string, string>;
+    },
+    logContext: { taskId: string; workflowExecutionId: string; nodeId: string }
+  ): Promise<{
+    success: boolean;
+    status?: number;
+    headers?: Record<string, any>;
+    body?: any;
+    error?: string;
+  }> {
+    const { taskId, workflowExecutionId, nodeId } = logContext;
+
+    // 1. URL Construction
+    let fullUrl: string;
+    try {
+      if (agentConfig.baseUrl) {
+        // Ensure no double slashes and handle path starting with /
+        const base = agentConfig.baseUrl.endsWith('/') ? agentConfig.baseUrl.slice(0, -1) : agentConfig.baseUrl;
+        const path = nodeInput.path.startsWith('/') ? nodeInput.path.slice(1) : nodeInput.path;
+        fullUrl = `${base}/${path}`;
+      } else if (nodeInput.path.startsWith('http://') || nodeInput.path.startsWith('https://')) {
+        fullUrl = nodeInput.path;
+      } else {
+        throw new Error('baseUrl is missing in agentConfig and nodeInput.path is not an absolute URL.');
+      }
+      // Validate URL
+      new URL(fullUrl);
+    } catch (e) {
+      await this.log(taskId, workflowExecutionId, nodeId, 'ERROR', 'Invalid URL construction', { baseUrl: agentConfig.baseUrl, path: nodeInput.path, error: (e as Error).message });
+      return { success: false, error: `Invalid URL: ${(e as Error).message}` };
+    }
+
+    // 2. Headers Preparation
+    const finalHeaders: Record<string, string> = { ...(agentConfig.defaultHeaders || {}) };
+
+    if (agentConfig.authentication) {
+      if (agentConfig.authentication.type === 'bearerToken' && agentConfig.authentication.token) {
+        finalHeaders['Authorization'] = `Bearer ${agentConfig.authentication.token}`;
+      } else if (agentConfig.authentication.type === 'apiKey' && agentConfig.authentication.apiKeyHeader && agentConfig.authentication.apiKeyValue) {
+        finalHeaders[agentConfig.authentication.apiKeyHeader] = agentConfig.authentication.apiKeyValue;
+      }
+    }
+
+    if (nodeInput.headers) {
+      for (const key in nodeInput.headers) {
+        finalHeaders[key] = nodeInput.headers[key];
+      }
+    }
+    
+    if (typeof nodeInput.requestBody === 'object' && nodeInput.requestBody !== null && !Object.keys(finalHeaders).map(k => k.toLowerCase()).includes('content-type')) {
+        finalHeaders['Content-Type'] = 'application/json';
+    }
+
+
+    // 3. Axios Request Configuration
+    const axiosConfig: AxiosRequestConfig = {
+      method: nodeInput.method,
+      url: fullUrl,
+      headers: finalHeaders,
+      params: nodeInput.queryParams,
+      data: nodeInput.requestBody,
+      timeout: (agentConfig.timeoutSeconds || 30) * 1000,
+    };
+
+    // 4. Logging Request (Sanitized)
+    const sanitizedHeaders = { ...finalHeaders };
+    if (sanitizedHeaders['Authorization']) sanitizedHeaders['Authorization'] = 'Bearer [REDACTED]';
+    if (agentConfig.authentication?.apiKeyHeader && sanitizedHeaders[agentConfig.authentication.apiKeyHeader]) {
+      sanitizedHeaders[agentConfig.authentication.apiKeyHeader] = '[REDACTED]';
+    }
+
+    await this.log(
+      taskId, workflowExecutionId, nodeId, 'INFO',
+      'HTTP API Call Request:',
+      {
+        method: axiosConfig.method,
+        url: axiosConfig.url,
+        headers: sanitizedHeaders,
+        queryParams: axiosConfig.params,
+        bodyIsPresent: !!axiosConfig.data,
+      }
+    );
+
+    // 5. Execute Request
+    try {
+      const response = await axios(axiosConfig);
+
+      // Truncate large response body for logging
+      let loggedBody = response.data;
+      if (typeof loggedBody === 'string' && loggedBody.length > 1000) {
+        loggedBody = loggedBody.substring(0, 1000) + '... (truncated)';
+      } else if (typeof loggedBody === 'object') {
+        // Could implement a more sophisticated truncation for objects/arrays if needed
+      }
+      
+      await this.log(
+        taskId, workflowExecutionId, nodeId, 'INFO',
+        'HTTP API Call Response:',
+        { status: response.status, headers: response.headers, bodyPreview: loggedBody }
+      );
+
+      return {
+        success: true,
+        status: response.status,
+        headers: response.headers,
+        body: response.data,
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError<any>;
+        if (axiosError.response) {
+          // Error from server (4xx, 5xx)
+          await this.log(
+            taskId, workflowExecutionId, nodeId, 'ERROR',
+            'HTTP API Call Failed (Server Error):',
+            { status: axiosError.response.status, headers: axiosError.response.headers, data: axiosError.response.data }
+          );
+          return {
+            success: false,
+            status: axiosError.response.status,
+            headers: axiosError.response.headers,
+            body: axiosError.response.data,
+            error: `HTTP Error: ${axiosError.response.status}`,
+          };
+        } else if (axiosError.request) {
+          // Network error (no response received)
+          await this.log(
+            taskId, workflowExecutionId, nodeId, 'ERROR',
+            'HTTP API Call Failed (Network Error):',
+            { message: axiosError.message, code: axiosError.code }
+          );
+          return { success: false, error: `Network Error: ${axiosError.message}` };
+        } else {
+          // Other Axios setup error
+          await this.log(
+            taskId, workflowExecutionId, nodeId, 'ERROR',
+            'HTTP API Call Failed (Axios Error):',
+            { message: axiosError.message }
+          );
+          return { success: false, error: `Axios Error: ${axiosError.message}` };
+        }
+      } else {
+        // Non-Axios error
+        await this.log(
+          taskId, workflowExecutionId, nodeId, 'ERROR',
+          'HTTP API Call Failed (Unknown Error):',
+          { message: (error as Error).message, stack: (error as Error).stack }
+        );
+        return { success: false, error: `Unknown Error: ${(error as Error).message}` };
+      }
     }
   }
 
