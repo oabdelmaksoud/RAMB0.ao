@@ -425,8 +425,10 @@ model McpServer {
   // Optional: Link to a user who registered it, if you have admin users managing these
   // registeredById String?
   // registeredBy   User?   @relation(fields: [registeredById], references: [id])
+  isSystemServer    Boolean  @default(false)
 
   @@map("mcp_servers")
   @@index([name])
   @@index([status])
+  @@index([isSystemServer])
 }

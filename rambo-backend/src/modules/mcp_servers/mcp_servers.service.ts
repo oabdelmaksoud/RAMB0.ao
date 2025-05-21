@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service'; // Adjusted path
 import { McpServer, McpServerStatus, Prisma } from '@prisma/client'; // Prisma client auto-generated types
 
@@ -10,6 +10,18 @@ export interface CreateMcpServerDto {
   protocolDetails?: Prisma.InputJsonValue;
   capabilities?: string[];
   status?: McpServerStatus; // Using the imported McpServerStatus enum
+  isSystemServer?: boolean;
+}
+
+// Define DTO for McpServer update
+export interface UpdateMcpServerDto {
+  name?: string;
+  description?: string;
+  baseUrl?: string;
+  protocolDetails?: Prisma.InputJsonValue;
+  capabilities?: string[];
+  status?: McpServerStatus;
+  isSystemServer?: boolean;
 }
 
 @Injectable()
@@ -25,12 +37,17 @@ export class McpServersService {
         protocolDetails: data.protocolDetails === undefined ? Prisma.JsonNull : data.protocolDetails,
         capabilities: data.capabilities === undefined ? [] : data.capabilities,
         status: data.status === undefined ? McpServerStatus.ACTIVE : data.status,
+        isSystemServer: data.isSystemServer === undefined ? false : data.isSystemServer,
       },
     });
   }
 
-  async findAll(): Promise<McpServer[]> {
-    return this.prisma.mcpServer.findMany();
+  async findAll(filters?: { isSystemServer?: boolean }): Promise<McpServer[]> {
+    const where: Prisma.McpServerWhereInput = {};
+    if (filters?.isSystemServer !== undefined) {
+      where.isSystemServer = filters.isSystemServer;
+    }
+    return this.prisma.mcpServer.findMany({ where });
   }
 
   async findOne(id: string): Promise<McpServer | null> {
@@ -38,8 +55,8 @@ export class McpServersService {
       where: { id },
     });
     if (!mcpServer) {
-      // Optional: throw new NotFoundException(`McpServer with ID "${id}" not found`);
-      // For now, just return null as per plan.
+      // As per previous implementation, this service method returns null if not found.
+      // The controller will handle throwing NotFoundException.
       return null;
     }
     return mcpServer;
@@ -55,64 +72,77 @@ export class McpServersService {
   async findCompatibleServers(criteria: {
     capabilities?: string[];
     nameRegex?: string;
-    status?: McpServerStatus; // Make status filter optional, defaulting to ACTIVE
+    status?: McpServerStatus; 
   }): Promise<McpServer[]> {
     const whereClause: Prisma.McpServerWhereInput = {};
 
-    // Default to ACTIVE status if no status is provided in criteria
-    whereClause.status = criteria.status || McpServerStatus.ACTIVE; // Corrected to use enum member
+    whereClause.status = criteria.status || McpServerStatus.ACTIVE; 
 
     if (criteria.capabilities && criteria.capabilities.length > 0) {
-      // Prisma's array 'containsEvery' is what we need if all capabilities must be present.
-      // If any of the capabilities is enough, use 'hasSome'.
-      // For this phase, let's assume all specified capabilities must be present.
       whereClause.capabilities = { hasEvery: criteria.capabilities };
     }
 
     if (criteria.nameRegex) {
-      // Prisma uses 'contains' for substring search, 'startsWith', 'endsWith'.
-      // For true regex, it depends on the DB provider (e.g., PostgreSQL supports 'matches').
-      // For simplicity and DB agnosticism, let's use 'contains' with 'mode: "insensitive"'
-      // if a simple substring search is acceptable.
-      // If actual regex is needed, this might require a raw query or more specific Prisma features.
-      // For now, using 'contains' for name matching.
       whereClause.name = {
         contains: criteria.nameRegex,
-        mode: 'insensitive', // Optional: for case-insensitive search
+        mode: 'insensitive', 
       };
     }
 
     return this.prisma.mcpServer.findMany({
       where: whereClause,
       orderBy: {
-        // Optional: define a default sort order, e.g., by name or lastCheckedAt
         name: 'asc',
       },
     });
   }
   
-  // Stub for update - can be implemented later
-  // async update(id: string, data: Prisma.McpServerUpdateInput): Promise<McpServer> {
-  //   // Before updating, you might want to fetch the existing record to ensure it exists
-  //   // const existingServer = await this.findOne(id);
-  //   // if (!existingServer) {
-  //   //   throw new NotFoundException(`McpServer with ID "${id}" not found`);
-  //   // }
-  //   return this.prisma.mcpServer.update({
-  //     where: { id },
-  //     data,
-  //   });
-  // }
+  async update(id: string, data: UpdateMcpServerDto): Promise<McpServer> {
+    const existingServer = await this.prisma.mcpServer.findUnique({
+      where: { id },
+    });
 
-  // Stub for delete - can be implemented later
-  // async remove(id: string): Promise<McpServer> {
-  //   // Before deleting, you might want to fetch the existing record to ensure it exists
-  //   // const existingServer = await this.findOne(id);
-  //   // if (!existingServer) {
-  //   //   throw new NotFoundException(`McpServer with ID "${id}" not found`);
-  //   // }
-  //   return this.prisma.mcpServer.delete({
-  //     where: { id },
-  //   });
-  // }
+    if (!existingServer) {
+      throw new NotFoundException(`McpServer with ID "${id}" not found`);
+    }
+
+    if (existingServer.isSystemServer) {
+      if (data.isSystemServer !== undefined && data.isSystemServer === false) {
+        delete data.isSystemServer; // Prevent changing isSystemServer from true to false
+      } else {
+        data.isSystemServer = true; // Ensure it remains true if already a system server
+      }
+    }
+    
+    const updateData: Prisma.McpServerUpdateInput = { ...data };
+    if (data.protocolDetails === undefined) {
+      delete updateData.protocolDetails;
+    } else if (data.protocolDetails === null) {
+        updateData.protocolDetails = Prisma.JsonNull;
+    }
+
+
+    return this.prisma.mcpServer.update({
+      where: { id },
+      data: updateData,
+    });
+  }
+
+  async remove(id: string): Promise<McpServer> {
+    const existingServer = await this.prisma.mcpServer.findUnique({
+      where: { id },
+    });
+
+    if (!existingServer) {
+      throw new NotFoundException(`McpServer with ID "${id}" not found`);
+    }
+
+    if (existingServer.isSystemServer) {
+      throw new ForbiddenException('System MCP servers cannot be deleted.');
+    }
+
+    return this.prisma.mcpServer.delete({
+      where: { id },
+    });
+  }
 }
