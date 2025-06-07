@@ -124,7 +124,7 @@ const EditMcpServerDialog: React.FC<EditMcpServerDialogProps> = ({
       onOpenChange(false);
       return;
     }
-    
+
     // For system servers, if we reach here, it means only status could have been changed (if switch wasn't disabled)
     // But since the switch IS disabled for system servers, this path should effectively mean no data to update for them.
     // If the subtask implies some fields *are* editable for system servers, this logic needs adjustment.

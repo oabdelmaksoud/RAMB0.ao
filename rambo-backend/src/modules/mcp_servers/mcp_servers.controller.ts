@@ -20,7 +20,7 @@ import { AdminAuthGuard } from '../../common/guards/admin-auth.guard'; // Assumi
 import { McpServer } from '@prisma/client';
 
 @Controller('mcp-servers')
-@UseGuards(AdminAuthGuard) 
+@UseGuards(AdminAuthGuard)
 export class McpServersController {
   constructor(private readonly mcpServersService: McpServersService) {}
 

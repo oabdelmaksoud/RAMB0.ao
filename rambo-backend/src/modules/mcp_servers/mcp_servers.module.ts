@@ -7,6 +7,6 @@ import { PrismaModule } from '../prisma/prisma.module'; // Corrected path based 
   imports: [PrismaModule], // Import PrismaModule to make PrismaService available for injection
   controllers: [McpServersController], // Add McpServersController
   providers: [McpServersService],
-  exports: [McpServersService], 
+  exports: [McpServersService],
 })
 export class McpServersModule {}

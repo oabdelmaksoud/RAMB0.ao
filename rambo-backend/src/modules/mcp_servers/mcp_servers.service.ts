@@ -72,11 +72,11 @@ export class McpServersService {
   async findCompatibleServers(criteria: {
     capabilities?: string[];
     nameRegex?: string;
-    status?: McpServerStatus; 
+    status?: McpServerStatus;
   }): Promise<McpServer[]> {
     const whereClause: Prisma.McpServerWhereInput = {};
 
-    whereClause.status = criteria.status || McpServerStatus.ACTIVE; 
+    whereClause.status = criteria.status || McpServerStatus.ACTIVE;
 
     if (criteria.capabilities && criteria.capabilities.length > 0) {
       whereClause.capabilities = { hasEvery: criteria.capabilities };
@@ -85,7 +85,7 @@ export class McpServersService {
     if (criteria.nameRegex) {
       whereClause.name = {
         contains: criteria.nameRegex,
-        mode: 'insensitive', 
+        mode: 'insensitive',
       };
     }
 
@@ -113,7 +113,7 @@ export class McpServersService {
         data.isSystemServer = true; // Ensure it remains true if already a system server
       }
     }
-    
+
     const updateData: Prisma.McpServerUpdateInput = { ...data };
     if (data.protocolDetails === undefined) {
       delete updateData.protocolDetails;

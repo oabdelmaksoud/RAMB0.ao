@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PageHeader, PageHeaderHeading, PageHeaderDescription } from '@/components/layout/PageHeader';
@@ -19,13 +18,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Users, ShieldCheck, ToyBrick, Settings2, ListChecks, AlertTriangle, CheckCircle, ExternalLink, PlusCircle, Edit3, Trash2 } from 'lucide-react';
+import { Users, ShieldCheck, ToyBrick, Settings2, ListChecks, AlertTriangle, CheckCircle, ExternalLink, PlusCircle, Edit3, Trash2, Server } from 'lucide-react'; // Added Server icon
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils'; // Added import
+import { cn } from '@/lib/utils';
 
-// Mock data types
+// MCP Server specific imports
+import { McpServerListTable } from '@/components/features/admin-settings/mcp-servers/McpServerListTable';
+import AddMcpServerDialog from '@/components/features/admin-settings/mcp-servers/AddMcpServerDialog';
+import EditMcpServerDialog from '@/components/features/admin-settings/mcp-servers/EditMcpServerDialog';
+import { McpServer, getMcpServers, deleteMcpServer as apiDeleteMcpServer } from '@/lib/api/mcpServers';
+
+
+// Mock data types (keeping existing mock types for brevity, though they are not used in the new MCP section)
 interface MockUser {
   id: string;
   name: string;
@@ -55,7 +61,7 @@ interface MockHealthStatus {
   message?: string;
 }
 
-// Mock data
+// Mock data (keeping existing mock data for brevity)
 const mockUsersData: MockUser[] = [
   { id: 'user-001', name: 'Alice Admin', email: 'alice@example.com', role: 'Admin', lastActive: '2024-07-22T10:00:00Z', status: 'Active' },
   { id: 'user-002', name: 'Bob Manager', email: 'bob@example.com', role: 'Project Manager', lastActive: '2024-07-21T14:30:00Z', status: 'Active' },
@@ -71,17 +77,11 @@ const mockRolesData: MockRole[] = [
 const mockAuditLogsData: MockAuditLog[] = [
   { id: 'log-001', timestamp: '2024-07-22T11:05:00Z', user: 'Alice Admin', action: 'User Created', details: 'User "David Dev" created.' },
   { id: 'log-002', timestamp: '2024-07-22T10:30:00Z', user: 'System', action: 'Maintenance Mode', details: 'System entered maintenance mode.' },
-  { id: 'log-003', timestamp: '2024-07-21T16:00:00Z', user: 'Bob Manager', action: 'Project Status Update', details: 'Project "Alpha" set to "On Hold".' },
-  { id: 'log-004', timestamp: '2024-07-21T12:00:00Z', user: 'Charlie Team', action: 'Task Update', details: 'Task "PROJ-001-TASK-02" status changed to "In Progress".' },
 ];
 
 const mockHealthStatusesData: MockHealthStatus[] = [
   { service: 'API Gateway', status: 'Healthy' },
   { service: 'Database Service', status: 'Healthy' },
-  { service: 'Agent Orchestrator', status: 'Warning', message: 'High CPU Usage (75%)' },
-  { service: 'Message Queue', status: 'Healthy' },
-  { service: 'AI Model Service (Gemini)', status: 'Healthy' },
-  { service: 'Storage Service', status: 'Critical', message: 'Disk space 95% full' },
 ];
 
 export default function AdminSettingsPage() {
@@ -91,9 +91,38 @@ export default function AdminSettingsPage() {
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
+  // MCP Server State Variables
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [isLoadingServers, setIsLoadingServers] = useState<boolean>(true);
+  const [errorLoadingServers, setErrorLoadingServers] = useState<string | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState<boolean>(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState<boolean>(false);
+  const [selectedServerForEdit, setSelectedServerForEdit] = useState<McpServer | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<boolean>(false);
+  const [serverToDelete, setServerToDelete] = useState<McpServer | null>(null);
+
+  const fetchMcpServers = useCallback(async () => {
+    setIsLoadingServers(true);
+    setErrorLoadingServers(null);
+    try {
+      const servers = await getMcpServers(); // No filter initially, can add later if needed
+      setMcpServers(servers);
+    } catch (error: any) {
+      setErrorLoadingServers(error.message || 'Failed to load MCP servers.');
+      toast({
+        title: 'Error Loading Servers',
+        description: error.message || 'Could not retrieve MCP server list.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoadingServers(false);
+    }
+  }, [toast]);
+
   useEffect(() => {
     setIsClient(true);
-  }, []);
+    fetchMcpServers();
+  }, [fetchMcpServers]);
 
 
   const handleMockAction = (actionName: string) => {
@@ -104,7 +133,6 @@ export default function AdminSettingsPage() {
   };
 
   const handleSaveSystemConfig = () => {
-    // Mock save
     toast({
       title: "System Configuration Saved (Mock)",
       description: "Your system configuration changes have been notionally saved.",
@@ -117,6 +145,57 @@ export default function AdminSettingsPage() {
       return new Date(dateString).toLocaleString();
     } catch (e) {
       return dateString;
+    }
+  };
+
+  // MCP Server Action Handlers
+  const handleEditServer = (server: McpServer) => {
+    setSelectedServerForEdit(server);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteServer = (server: McpServer) => {
+    setServerToDelete(server);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleServersUpdate = (updatedServers: McpServer[]) => {
+    setMcpServers(updatedServers);
+  };
+
+  const handleAddSuccess = (newServer: McpServer) => {
+    // fetchMcpServers(); // Re-fetch for simplicity
+    setMcpServers(prev => [newServer, ...prev]); // Optimistic update
+    setIsAddDialogOpen(false);
+    toast({ title: 'Success', description: 'MCP Server added.' });
+  };
+
+  const handleEditSuccess = (updatedServer: McpServer) => {
+    // fetchMcpServers(); // Re-fetch for simplicity
+    setMcpServers(prev => prev.map(s => s.id === updatedServer.id ? updatedServer : s)); // Optimistic update
+    setIsEditDialogOpen(false);
+    toast({ title: 'Success', description: 'MCP Server updated.' });
+  };
+
+  const handleDeleteServerConfirm = async () => {
+    if (!serverToDelete) return;
+    try {
+      await apiDeleteMcpServer(serverToDelete.id);
+      // fetchMcpServers(); // Re-fetch for simplicity
+      setMcpServers(prev => prev.filter(s => s.id !== serverToDelete.id)); // Optimistic update
+      toast({
+        title: 'Server Deleted',
+        description: `MCP Server "${serverToDelete.name}" has been deleted.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error Deleting Server',
+        description: error.message || 'Could not delete MCP server.',
+        variant: 'destructive',
+      });
+    } finally {
+      setShowDeleteConfirm(false);
+      setServerToDelete(null);
     }
   };
 
@@ -134,6 +213,7 @@ export default function AdminSettingsPage() {
       </PageHeader>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Existing Cards ... */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex justify-between items-center">
@@ -211,6 +291,39 @@ export default function AdminSettingsPage() {
             ))}
           </CardContent>
         </Card>
+
+        {/* MCP Server Management Card - Spanning full width */}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center">
+                <Server className="mr-2 h-5 w-5" /> MCP Server Management
+              </CardTitle>
+              <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add MCP Server
+              </Button>
+            </div>
+            <CardDescription>Manage system and admin-added MCP servers.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingServers && <p>Loading MCP servers...</p>}
+            {errorLoadingServers && (
+              <div className="text-red-600 flex items-center">
+                <AlertTriangle className="mr-2 h-5 w-5" />
+                <p>Error: {errorLoadingServers}</p>
+              </div>
+            )}
+            {!isLoadingServers && !errorLoadingServers && (
+              <McpServerListTable
+                servers={mcpServers}
+                onEdit={handleEditServer}
+                onDelete={handleDeleteServer}
+                onServersUpdate={handleServersUpdate}
+              />
+            )}
+          </CardContent>
+        </Card>
+
 
         <Card>
           <CardHeader>
@@ -346,7 +459,40 @@ export default function AdminSettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* MCP Server Dialogs */}
+      <AddMcpServerDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        onSuccess={handleAddSuccess}
+      />
+      {selectedServerForEdit && (
+        <EditMcpServerDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          server={selectedServerForEdit}
+          onSuccess={handleEditSuccess}
+        />
+      )}
+      {serverToDelete && (
+        <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. This will permanently delete the
+                MCP server &quot;{serverToDelete.name}&quot; and remove its data from our servers.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setServerToDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteServerConfirm} className="bg-destructive hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
-    
